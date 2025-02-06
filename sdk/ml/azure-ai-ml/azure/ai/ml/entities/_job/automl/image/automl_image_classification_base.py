@@ -4,7 +4,7 @@
 
 # pylint: disable=protected-access
 
-from typing import Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 from azure.ai.ml._restclient.v2023_04_01_preview.models import LearningRateScheduler, StochasticOptimizer
 from azure.ai.ml._utils.utils import camel_to_snake
@@ -45,14 +45,16 @@ class AutoMLImageClassificationBase(AutoMLImage):
         sweep: Optional[ImageSweepSettings] = None,
         training_parameters: Optional[ImageModelSettingsClassification] = None,
         search_space: Optional[List[ImageClassificationSearchSpace]] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
+        self._training_parameters: Optional[ImageModelSettingsClassification] = None
+
         super().__init__(task_type=task_type, limits=limits, sweep=sweep, **kwargs)
         self.training_parameters = training_parameters  # Assigning training_parameters through setter method.
         self._search_space = search_space
 
     @property
-    def training_parameters(self) -> ImageModelSettingsClassification:
+    def training_parameters(self) -> Optional[ImageModelSettingsClassification]:
         """
         :rtype: ~azure.ai.ml.automl.ImageModelSettingsClassification
         :return: Training parameters for AutoML Image Classification and Image Classification Multilabel tasks.
@@ -91,7 +93,7 @@ class AutoMLImageClassificationBase(AutoMLImage):
             self.set_training_parameters(**value)
 
     @property
-    def search_space(self) -> List[ImageClassificationSearchSpace]:
+    def search_space(self) -> Optional[List[ImageClassificationSearchSpace]]:
         """
         :rtype: List[~azure.ai.ml.automl.ImageClassificationSearchSpace]
         :return: Search space for AutoML Image Classification and Image Classification Multilabel tasks.
@@ -121,7 +123,8 @@ class AutoMLImageClassificationBase(AutoMLImage):
 
         if all_search_space_type or all_dict_type:
             self._search_space = [
-                cast_to_specific_search_space(item, ImageClassificationSearchSpace, self.task_type) for item in value
+                cast_to_specific_search_space(item, ImageClassificationSearchSpace, self.task_type)  # type: ignore
+                for item in value
             ]
         else:
             msg = "Expected all items in the list to be either dictionaries or ImageClassificationSearchSpace objects."
@@ -216,7 +219,7 @@ class AutoMLImageClassificationBase(AutoMLImage):
          For instance, passing 2 as value for 'seresnext' means
          freezing layer0 and layer1. For a full list of models supported and details on layer freeze,
          please
-         see: https://docs.microsoft.com/en-us/azure/machine-learning/reference-automl-images-hyperparameters#model-agnostic-hyperparameters.   # pylint: disable=line-too-long
+         see: https://learn.microsoft.com/azure/machine-learning/reference-automl-images-hyperparameters#model-agnostic-hyperparameters.   # pylint: disable=line-too-long
         :type layers_to_freeze: int
         :keyword learning_rate: Initial learning rate. Must be a float in the range [0, 1].
         :paramtype learning_rate: float
@@ -226,7 +229,7 @@ class AutoMLImageClassificationBase(AutoMLImage):
          ~azure.mgmt.machinelearningservices.models.LearningRateScheduler
         :keyword model_name: Name of the model to use for training.
          For more information on the available models please visit the official documentation:
-         https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-models.
+         https://learn.microsoft.com/azure/machine-learning/how-to-auto-train-image-models.
         :type model_name: str
         :keyword momentum: Value of momentum when optimizer is 'sgd'. Must be a float in the range [0,
          1].
@@ -405,22 +408,25 @@ class AutoMLImageClassificationBase(AutoMLImage):
 
         if isinstance(value, list):
             self._search_space.extend(
-                [cast_to_specific_search_space(item, ImageClassificationSearchSpace, self.task_type) for item in value]
+                [
+                    cast_to_specific_search_space(item, ImageClassificationSearchSpace, self.task_type)  # type: ignore
+                    for item in value
+                ]
             )
         else:
             self._search_space.append(
-                cast_to_specific_search_space(value, ImageClassificationSearchSpace, self.task_type)
+                cast_to_specific_search_space(value, ImageClassificationSearchSpace, self.task_type)  # type: ignore
             )
 
     @classmethod
-    def _get_search_space_from_str(cls, search_space_str: str):
+    def _get_search_space_from_str(cls, search_space_str: str) -> Optional[List[ImageClassificationSearchSpace]]:
         return (
             [ImageClassificationSearchSpace._from_rest_object(entry) for entry in search_space_str if entry is not None]
             if search_space_str is not None
             else None
         )
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other: object) -> bool:
         if not isinstance(other, AutoMLImageClassificationBase):
             return NotImplemented
 
@@ -429,5 +435,5 @@ class AutoMLImageClassificationBase(AutoMLImage):
 
         return self._training_parameters == other._training_parameters and self._search_space == other._search_space
 
-    def __ne__(self, other) -> bool:
+    def __ne__(self, other: object) -> bool:
         return not self.__eq__(other)

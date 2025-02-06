@@ -4,6 +4,7 @@
 # ------------------------------------
 import os
 from typing import Any, List, Union, Dict, Optional
+from typing_extensions import Self
 
 import msal
 
@@ -24,14 +25,14 @@ class MsalCredential:  # pylint: disable=too-many-instance-attributes
     def __init__(
         self,
         client_id: str,
-        client_credential: Optional[Union[str, Dict[str, str]]] = None,
+        client_credential: Optional[Union[str, Dict[str, Any]]] = None,
         *,
         additionally_allowed_tenants: Optional[List[str]] = None,
         authority: Optional[str] = None,
         disable_instance_discovery: Optional[bool] = None,
         tenant_id: Optional[str] = None,
         enable_support_logging: Optional[bool] = None,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> None:
         self._instance_discovery = None if disable_instance_discovery is None else not disable_instance_discovery
         self._authority = normalize_authority(authority) if authority else get_default_authority()
@@ -51,11 +52,15 @@ class MsalCredential:  # pylint: disable=too-many-instance-attributes
 
         self._cache = kwargs.pop("_cache", None)
         self._cae_cache = kwargs.pop("_cae_cache", None)
+        if self._cache or self._cae_cache:
+            self._custom_cache = True
+        else:
+            self._custom_cache = False
         self._cache_options = kwargs.pop("cache_persistence_options", None)
 
         super(MsalCredential, self).__init__()
 
-    def __enter__(self) -> "MsalCredential":
+    def __enter__(self) -> Self:
         self._client.__enter__()
         return self
 
@@ -99,16 +104,44 @@ class MsalCredential:  # pylint: disable=too-many-instance-attributes
             token_cache = self._initialize_cache(is_cae=bool(kwargs.get("enable_cae")))
 
         if tenant_id not in client_applications_map:
-            client_applications_map[tenant_id] = app_class(
-                client_id=self._client_id,
-                client_credential=self._client_credential,
-                client_capabilities=capabilities,
-                authority="{}/{}".format(self._authority, tenant_id),
-                azure_region=self._regional_authority,
-                token_cache=token_cache,
-                http_client=self._client,
-                instance_discovery=self._instance_discovery,
-                enable_pii_log=self._enable_support_logging,
-            )
+            try:
+                client_applications_map[tenant_id] = app_class(
+                    client_id=self._client_id,
+                    client_credential=self._client_credential,
+                    client_capabilities=capabilities,
+                    authority="{}/{}".format(self._authority, tenant_id),
+                    azure_region=self._regional_authority,
+                    token_cache=token_cache,
+                    http_client=self._client,
+                    instance_discovery=self._instance_discovery,
+                    enable_pii_log=self._enable_support_logging,
+                )
+            except ValueError as ex:
+                if "invalid_instance" in str(ex):
+                    raise ValueError(  # pylint: disable=raise-missing-from
+                        f"The authority provided, {self._authority}, is not well-known. If this authority is valid "
+                        "and trustworthy, you can disable this check by passing in "
+                        "'disable_instance_discovery=True' when constructing the credential."
+                    )
+                raise
 
         return client_applications_map[tenant_id]
+
+    def __getstate__(self) -> Dict[str, Any]:
+        state = self.__dict__.copy()
+        # Remove the non-picklable entries
+        del state["_client_applications"]
+        del state["_cae_client_applications"]
+        if not self._custom_cache:
+            del state["_cache"]
+            del state["_cae_cache"]
+        return state
+
+    def __setstate__(self, state: Dict[str, Any]) -> None:
+        self.__dict__.update(state)
+        # Re-create the unpickable entries
+        self._client_applications = {}
+        self._cae_client_applications = {}
+        if not self._custom_cache:
+            self._cache = None
+            self._cae_cache = None

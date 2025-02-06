@@ -16,7 +16,7 @@ import config
 # Prerequisites -
 #
 # 1. An Azure Cosmos account -
-#    https:#azure.microsoft.com/en-us/documentation/articles/documentdb-create-account/
+#    https:#azure.microsoft.com/documentation/articles/documentdb-create-account/
 #
 # 2. Microsoft Azure Cosmos PyPi package -
 #    https://pypi.python.org/pypi/azure-cosmos/
@@ -112,7 +112,7 @@ async def query_items_with_continuation_token(container):
     )
 
     item_pages = query_iterable.by_page()
-    first_page = await anext(item_pages)  # cspell:disable-line
+    first_page = await anext(item_pages)  # type: ignore[name-defined]  # cspell:disable-line
     continuation_token = item_pages.continuation_token
 
     # Other code logic where you only need the first page of results would go here
@@ -121,7 +121,7 @@ async def query_items_with_continuation_token(container):
     # access the second page of items
     items_from_continuation = query_iterable.by_page(continuation_token)
     second_page_items_with_continuation = \
-        [item async for item in await anext(items_from_continuation)]  # cspell:disable-line
+        [i async for i in await anext(items_from_continuation)]  # type: ignore[name-defined]  # cspell:disable-line
 
     print('The single items in the second page are {}'.format(second_page_items_with_continuation[0].get("id")))
 
@@ -224,21 +224,23 @@ async def execute_item_batch(database):
     # We create three items to use for the sample.
     await container.create_item(get_sales_order("read_item"))
     await container.create_item(get_sales_order("delete_item"))
-    await container.create_item(get_sales_order("replace_item"))
+    create_response = await container.create_item(get_sales_order("replace_item"))
 
     # We create our batch operations
     create_item_operation = ("create", (get_sales_order("create_item"),))
     upsert_item_operation = ("upsert", (get_sales_order("upsert_item"),))
     read_item_operation = ("read", ("read_item",))
     delete_item_operation = ("delete", ("delete_item",))
-    replace_item_operation = ("replace", ("replace_item", {"id": "replace_item", "message": "item was replaced"}))
+    replace_item_operation = ("replace", ("replace_item", {"id": "replace_item", 'account_number': 'Account1',
+                                                           "message": "item was replaced"}))
     replace_item_if_match_operation = ("replace",
-                                       ("replace_item", {"id": "replace_item", "message": "item was replaced"}),
-                                       {"if_match_etag": container.client_connection.last_response_headers.get("etag")})
+                                       ("replace_item", {"id": "replace_item", 'account_number': 'Account1',
+                                                         "message": "item was replaced"}),
+                                       {"if_match_etag": create_response.get_response_headers().get("etag")})
     replace_item_if_none_match_operation = ("replace",
-                                            ("replace_item", {"id": "replace_item", "message": "item was replaced"}),
-                                            {"if_none_match_etag":
-                                                 container.client_connection.last_response_headers.get("etag")})
+                                            ("replace_item", {"id": "replace_item", 'account_number': 'Account1',
+                                                              "message": "item was replaced"}),
+                                            {"if_none_match_etag": create_response.get_response_headers().get("etag")})
 
     # Put our operations into a list
     batch_operations = [
@@ -262,6 +264,7 @@ async def execute_item_batch(database):
 
     # For error handling, you should use try/ except with CosmosBatchOperationError and use the information in the
     # error returned for your application debugging, making it easy to pinpoint the failing operation
+    # [START handle_batch_error]
     batch_operations = [create_item_operation, create_item_operation]
     try:
         await container.execute_item_batch(batch_operations, partition_key="Account1")
@@ -270,6 +273,7 @@ async def execute_item_batch(database):
         error_operation_response = e.operation_responses[error_operation_index]
         error_operation = batch_operations[error_operation_index]
         print("\nError operation: {}, error operation response: {}\n".format(error_operation, error_operation_response))
+    # [END handle_batch_error]
 
 
 async def delete_item(container, doc_id):

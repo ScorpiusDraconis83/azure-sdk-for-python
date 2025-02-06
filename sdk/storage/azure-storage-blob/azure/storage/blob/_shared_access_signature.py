@@ -3,26 +3,22 @@
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
 # --------------------------------------------------------------------------
+# pylint: disable=docstring-keyword-should-match-keyword-only
 
-from typing import (  # pylint: disable=unused-import
-    Union, Optional, Any, TYPE_CHECKING
+from typing import (
+    Any, Callable, Optional, Union,
+    TYPE_CHECKING
 )
 from urllib.parse import parse_qs
 
 from ._shared import sign_string, url_quote
 from ._shared.constants import X_MS_VERSION
 from ._shared.models import Services, UserDelegationKey
-from ._shared.shared_access_signature import SharedAccessSignature, _SharedAccessHelper, \
-    QueryStringConstants
+from ._shared.shared_access_signature import QueryStringConstants, SharedAccessSignature, _SharedAccessHelper
 
 if TYPE_CHECKING:
     from datetime import datetime
-    from ..blob import (
-        ResourceTypes,
-        AccountSasPermissions,
-        ContainerSasPermissions,
-        BlobSasPermissions
-    )
+    from ..blob import AccountSasPermissions, BlobSasPermissions, ContainerSasPermissions, ResourceTypes
 
 
 class BlobQueryStringConstants(object):
@@ -37,13 +33,17 @@ class BlobSharedAccessSignature(SharedAccessSignature):
     generate_*_shared_access_signature method directly.
     '''
 
-    def __init__(self, account_name, account_key=None, user_delegation_key=None):
+    def __init__(
+        self, account_name: str,
+        account_key: Optional[str] = None,
+        user_delegation_key: Optional[UserDelegationKey] = None
+    ) -> None:
         '''
         :param str account_name:
             The storage account name used to generate the shared access signatures.
-        :param str account_key:
+        :param Optional[str] account_key:
             The access key to generate the shares access signatures.
-        :param ~azure.storage.blob.models.UserDelegationKey user_delegation_key:
+        :param Optional[~azure.storage.blob.models.UserDelegationKey] user_delegation_key:
             Instead of an account key, the user could pass in a user delegation key.
             A user delegation key can be obtained from the service by authenticating with an AAD identity;
             this can be accomplished by calling get_user_delegation_key on any Blob service object.
@@ -51,11 +51,25 @@ class BlobSharedAccessSignature(SharedAccessSignature):
         super(BlobSharedAccessSignature, self).__init__(account_name, account_key, x_ms_version=X_MS_VERSION)
         self.user_delegation_key = user_delegation_key
 
-    def generate_blob(self, container_name, blob_name, snapshot=None, version_id=None, permission=None,
-                      expiry=None, start=None, policy_id=None, ip=None, protocol=None,
-                      cache_control=None, content_disposition=None,
-                      content_encoding=None, content_language=None,
-                      content_type=None, **kwargs):
+    def generate_blob(
+        self, container_name: str,
+        blob_name: str,
+        snapshot: Optional[str] = None,
+        version_id: Optional[str] = None,
+        permission: Optional[Union["BlobSasPermissions", str]] = None,
+        expiry: Optional[Union["datetime", str]] = None,
+        start: Optional[Union["datetime", str]] = None,
+        policy_id: Optional[str] = None,
+        ip: Optional[str] = None,
+        protocol: Optional[str] = None,
+        cache_control: Optional[str] = None,
+        content_disposition: Optional[str] = None,
+        content_encoding: Optional[str] = None,
+        content_language: Optional[str] = None,
+        content_type: Optional[str] = None,
+        sts_hook: Optional[Callable[[str], None]] = None,
+        **kwargs: Any
+    ) -> str:
         '''
         Generates a shared access signature for the blob or one of its snapshots.
         Use the returned signature with the sas_token parameter of any BlobService.
@@ -65,7 +79,7 @@ class BlobSharedAccessSignature(SharedAccessSignature):
         :param str blob_name:
             Name of blob.
         :param str snapshot:
-            The snapshot parameter is an opaque DateTime value that,
+            The snapshot parameter is an opaque datetime value that,
             when present, specifies the blob snapshot to grant permission.
         :param str version_id:
             An optional blob version ID. This parameter is only applicable for versioning-enabled
@@ -91,9 +105,8 @@ class BlobSharedAccessSignature(SharedAccessSignature):
         :param start:
             The time at which the shared access signature becomes valid. If
             omitted, start time for this call is assumed to be the time when the
-            storage service receives the request. Azure will always convert values
-            to UTC. If a date is passed in without timezone info, it is assumed to
-            be UTC.
+            storage service receives the request. The provided datetime will always
+            be interpreted as UTC.
         :type start: datetime or str
         :param str policy_id:
             A unique value up to 64 characters in length that correlates to a
@@ -123,6 +136,10 @@ class BlobSharedAccessSignature(SharedAccessSignature):
         :param str content_type:
             Response header value for Content-Type when resource is accessed
             using this shared access signature.
+        :param sts_hook:
+            For debugging purposes only. If provided, the hook is called with the string to sign
+            that was used to generate the SAS.
+        :type sts_hook: Optional[Callable[[str], None]]
         :return: A Shared Access Signature (sas) token.
         :rtype: str
         '''
@@ -146,13 +163,27 @@ class BlobSharedAccessSignature(SharedAccessSignature):
         sas.add_resource_signature(self.account_name, self.account_key, resource_path,
                                    user_delegation_key=self.user_delegation_key)
 
+        if sts_hook is not None:
+            sts_hook(sas.string_to_sign)
+
         return sas.get_token()
 
-    def generate_container(self, container_name, permission=None, expiry=None,
-                           start=None, policy_id=None, ip=None, protocol=None,
-                           cache_control=None, content_disposition=None,
-                           content_encoding=None, content_language=None,
-                           content_type=None, **kwargs):
+    def generate_container(
+        self, container_name: str,
+        permission: Optional[Union["ContainerSasPermissions", str]] = None,
+        expiry: Optional[Union["datetime", str]] = None,
+        start: Optional[Union["datetime", str]] = None,
+        policy_id: Optional[str] = None,
+        ip: Optional[str] = None,
+        protocol: Optional[str] = None,
+        cache_control: Optional[str] = None,
+        content_disposition: Optional[str] = None,
+        content_encoding: Optional[str] = None,
+        content_language: Optional[str] = None,
+        content_type: Optional[str] = None,
+        sts_hook: Optional[Callable[[str], None]] = None,
+        **kwargs: Any
+    ) -> str:
         '''
         Generates a shared access signature for the container.
         Use the returned signature with the sas_token parameter of any BlobService.
@@ -178,9 +209,8 @@ class BlobSharedAccessSignature(SharedAccessSignature):
         :param start:
             The time at which the shared access signature becomes valid. If
             omitted, start time for this call is assumed to be the time when the
-            storage service receives the request. Azure will always convert values
-            to UTC. If a date is passed in without timezone info, it is assumed to
-            be UTC.
+            storage service receives the request. The provided datetime will always
+            be interpreted as UTC.
         :type start: datetime or str
         :param str policy_id:
             A unique value up to 64 characters in length that correlates to a
@@ -210,6 +240,10 @@ class BlobSharedAccessSignature(SharedAccessSignature):
         :param str content_type:
             Response header value for Content-Type when resource is accessed
             using this shared access signature.
+        :param sts_hook:
+            For debugging purposes only. If provided, the hook is called with the string to sign
+            that was used to generate the SAS.
+        :type sts_hook: Optional[Callable[[str], None]]
         :return: A Shared Access Signature (sas) token.
         :rtype: str
         '''
@@ -224,6 +258,10 @@ class BlobSharedAccessSignature(SharedAccessSignature):
         sas.add_info_for_hns_account(**kwargs)
         sas.add_resource_signature(self.account_name, self.account_key, container_name,
                                    user_delegation_key=self.user_delegation_key)
+
+        if sts_hook is not None:
+            sts_hook(sas.string_to_sign)
+
         return sas.get_token()
 
 
@@ -243,7 +281,6 @@ class _BlobSharedAccessHelper(_SharedAccessHelper):
         return return_value + '\n'
 
     def add_resource_signature(self, account_name, account_key, path, user_delegation_key=None):
-        # pylint: disable = no-member
         if path[0] != '/':
             path = '/' + path
 
@@ -298,8 +335,9 @@ class _BlobSharedAccessHelper(_SharedAccessHelper):
         self._add_query(QueryStringConstants.SIGNED_SIGNATURE,
                         sign_string(account_key if user_delegation_key is None else user_delegation_key.value,
                                     string_to_sign))
+        self.string_to_sign = string_to_sign
 
-    def get_token(self):
+    def get_token(self) -> str:
         # a conscious decision was made to exclude the timestamp in the generated token
         # this is to avoid having two snapshot ids in the query parameters when the user appends the snapshot timestamp
         exclude = [BlobQueryStringConstants.SIGNED_TIMESTAMP]
@@ -308,15 +346,18 @@ class _BlobSharedAccessHelper(_SharedAccessHelper):
 
 
 def generate_account_sas(
-        account_name,  # type: str
-        account_key,  # type: str
-        resource_types,  # type: Union[ResourceTypes, str]
-        permission,  # type: Union[AccountSasPermissions, str]
-        expiry,  # type: Union[datetime, str]
-        start=None,  # type: Optional[Union[datetime, str]]
-        ip=None,  # type: Optional[str]
-        **kwargs # type: Any
-    ):  # type: (...) -> str
+    account_name: str,
+    account_key: str,
+    resource_types: Union["ResourceTypes", str],
+    permission: Union["AccountSasPermissions", str],
+    expiry: Union["datetime", str],
+    start: Optional[Union["datetime", str]] = None,
+    ip: Optional[str] = None,
+    *,
+    services: Union[Services, str] = Services(blob=True),
+    sts_hook: Optional[Callable[[str], None]] = None,
+    **kwargs: Any
+) -> str:
     """Generates a shared access signature for the blob service.
 
     Use the returned signature with the credential parameter of any BlobServiceClient,
@@ -335,15 +376,13 @@ def generate_account_sas(
     :type permission: str or ~azure.storage.blob.AccountSasPermissions
     :param expiry:
         The time at which the shared access signature becomes invalid.
-        Azure will always convert values to UTC. If a date is passed in
-        without timezone info, it is assumed to be UTC.
+        The provided datetime will always be interpreted as UTC.
     :type expiry: ~datetime.datetime or str
     :param start:
         The time at which the shared access signature becomes valid. If
         omitted, start time for this call is assumed to be the time when the
-        storage service receives the request. Azure will always convert values
-        to UTC. If a date is passed in without timezone info, it is assumed to
-        be UTC.
+        storage service receives the request. The provided datetime will always
+        be interpreted as UTC.
     :type start: ~datetime.datetime or str
     :param str ip:
         Specifies an IP address or a range of IP addresses from which to accept requests.
@@ -351,10 +390,17 @@ def generate_account_sas(
         or address range specified on the SAS token, the request is not authenticated.
         For example, specifying ip=168.1.5.65 or ip=168.1.5.60-168.1.5.70 on the SAS
         restricts the request to those IP addresses.
+    :keyword Union[Services, str] services:
+        Specifies the services that the Shared Access Signature (sas) token will be able to be utilized with.
+        Will default to only this package (i.e. blobs) if not provided.
     :keyword str protocol:
         Specifies the protocol permitted for a request made. The default value is https.
     :keyword str encryption_scope:
         Specifies the encryption scope for a request made so that all write operations will be service encrypted.
+    :keyword sts_hook:
+        For debugging purposes only. If provided, the hook is called with the string to sign
+        that was used to generate the SAS.
+    :paramtype sts_hook: Optional[Callable[[str], None]]
     :return: A Shared Access Signature (sas) token.
     :rtype: str
 
@@ -369,29 +415,31 @@ def generate_account_sas(
     """
     sas = SharedAccessSignature(account_name, account_key)
     return sas.generate_account(
-        services=Services(blob=True),
+        services=services,
         resource_types=resource_types,
         permission=permission,
         expiry=expiry,
         start=start,
         ip=ip,
+        sts_hook=sts_hook,
         **kwargs
-    ) # type: ignore
+    )
 
 
 def generate_container_sas(
-        account_name,  # type: str
-        container_name,  # type: str
-        account_key=None,  # type: Optional[str]
-        user_delegation_key=None,  # type: Optional[UserDelegationKey]
-        permission=None,  # type: Optional[Union[ContainerSasPermissions, str]]
-        expiry=None,  # type: Optional[Union[datetime, str]]
-        start=None,  # type: Optional[Union[datetime, str]]
-        policy_id=None,  # type: Optional[str]
-        ip=None,  # type: Optional[str]
-        **kwargs # type: Any
-    ):
-    # type: (...) -> Any
+    account_name: str,
+    container_name: str,
+    account_key: Optional[str] = None,
+    user_delegation_key: Optional[UserDelegationKey] = None,
+    permission: Optional[Union["ContainerSasPermissions", str]] = None,
+    expiry: Optional[Union["datetime", str]] = None,
+    start: Optional[Union["datetime", str]] = None,
+    policy_id: Optional[str] = None,
+    ip: Optional[str] = None,
+    *,
+    sts_hook: Optional[Callable[[str], None]] = None,
+    **kwargs: Any
+) -> str:
     """Generates a shared access signature for a container.
 
     Use the returned signature with the credential parameter of any BlobServiceClient,
@@ -428,9 +476,8 @@ def generate_container_sas(
     :param start:
         The time at which the shared access signature becomes valid. If
         omitted, start time for this call is assumed to be the time when the
-        storage service receives the request. Azure will always convert values
-        to UTC. If a date is passed in without timezone info, it is assumed to
-        be UTC.
+        storage service receives the request. The provided datetime will always
+        be interpreted as UTC.
     :type start: ~datetime.datetime or str
     :param str policy_id:
         A unique value up to 64 characters in length that correlates to a
@@ -464,6 +511,10 @@ def generate_container_sas(
     :keyword str correlation_id:
         The correlation id to correlate the storage audit logs with the audit logs used by the principal
         generating and distributing the SAS. This can only be used when generating a SAS with delegation key.
+    :keyword sts_hook:
+        For debugging purposes only. If provided, the hook is called with the string to sign
+        that was used to generate the SAS.
+    :paramtype sts_hook: Optional[Callable[[str], None]]
     :return: A Shared Access Signature (sas) token.
     :rtype: str
 
@@ -496,25 +547,27 @@ def generate_container_sas(
         start=start,
         policy_id=policy_id,
         ip=ip,
+        sts_hook=sts_hook,
         **kwargs
     )
 
 
 def generate_blob_sas(
-        account_name,  # type: str
-        container_name,  # type: str
-        blob_name,  # type: str
-        snapshot=None,  # type: Optional[str]
-        account_key=None,  # type: Optional[str]
-        user_delegation_key=None,  # type: Optional[UserDelegationKey]
-        permission=None,  # type: Optional[Union[BlobSasPermissions, str]]
-        expiry=None,  # type: Optional[Union[datetime, str]]
-        start=None,  # type: Optional[Union[datetime, str]]
-        policy_id=None,  # type: Optional[str]
-        ip=None,  # type: Optional[str]
-        **kwargs # type: Any
-    ):
-    # type: (...) -> Any
+    account_name: str,
+    container_name: str,
+    blob_name: str,
+    snapshot: Optional[str] = None,
+    account_key: Optional[str] = None,
+    user_delegation_key: Optional[UserDelegationKey] = None,
+    permission: Optional[Union["BlobSasPermissions", str]] = None,
+    expiry: Optional[Union["datetime", str]] = None,
+    start: Optional[Union["datetime", str]] = None,
+    policy_id: Optional[str] = None,
+    ip: Optional[str] = None,
+    *,
+    sts_hook: Optional[Callable[[str], None]] = None,
+    **kwargs: Any
+) -> str:
     """Generates a shared access signature for a blob.
 
     Use the returned signature with the credential parameter of any BlobServiceClient,
@@ -555,9 +608,8 @@ def generate_blob_sas(
     :param start:
         The time at which the shared access signature becomes valid. If
         omitted, start time for this call is assumed to be the time when the
-        storage service receives the request. Azure will always convert values
-        to UTC. If a date is passed in without timezone info, it is assumed to
-        be UTC.
+        storage service receives the request. The provided datetime will always
+        be interpreted as UTC.
     :type start: ~datetime.datetime or str
     :param str policy_id:
         A unique value up to 64 characters in length that correlates to a
@@ -599,6 +651,10 @@ def generate_blob_sas(
     :keyword str correlation_id:
         The correlation id to correlate the storage audit logs with the audit logs used by the principal
         generating and distributing the SAS. This can only be used when generating a SAS with delegation key.
+    :keyword sts_hook:
+        For debugging purposes only. If provided, the hook is called with the string to sign
+        that was used to generate the SAS.
+    :paramtype sts_hook: Optional[Callable[[str], None]]
     :return: A Shared Access Signature (sas) token.
     :rtype: str
     """
@@ -628,6 +684,7 @@ def generate_blob_sas(
         start=start,
         policy_id=policy_id,
         ip=ip,
+        sts_hook=sts_hook,
         **kwargs
     )
 

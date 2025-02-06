@@ -7,6 +7,7 @@
 # --------------------------------------------------------------------------
 
 from azure.identity import DefaultAzureCredential
+
 from azure.mgmt.compute import ComputeManagementClient
 
 """
@@ -36,6 +37,11 @@ def main():
             "location": "westus",
             "properties": {
                 "overprovision": True,
+                "scheduledEventsPolicy": {
+                    "scheduledEventsAdditionalPublishingTargets": {"eventGridAndResourceGraph": {"enable": True}},
+                    "userInitiatedReboot": {"automaticallyApprove": True},
+                    "userInitiatedRedeploy": {"automaticallyApprove": True},
+                },
                 "upgradePolicy": {"mode": "Manual"},
                 "virtualMachineProfile": {
                     "hardwareProfile": {"vmSizeProperties": {"vCPUsAvailable": 1, "vCPUsPerCore": 1}},
@@ -88,6 +94,6 @@ def main():
     print(response)
 
 
-# x-ms-original-file: specification/compute/resource-manager/Microsoft.Compute/ComputeRP/stable/2023-09-01/examples/virtualMachineScaleSetExamples/VirtualMachineScaleSet_Create_WithDiskControllerType.json
+# x-ms-original-file: specification/compute/resource-manager/Microsoft.Compute/ComputeRP/stable/2024-07-01/examples/virtualMachineScaleSetExamples/VirtualMachineScaleSet_Create_WithDiskControllerType.json
 if __name__ == "__main__":
     main()

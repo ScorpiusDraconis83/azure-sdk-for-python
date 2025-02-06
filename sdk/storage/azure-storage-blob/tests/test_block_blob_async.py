@@ -111,7 +111,7 @@ class TestStorageBlockBlobAsync(AsyncStorageRecordedTestCase):
         source_blob_data = self.get_random_bytes(LARGE_BLOB_SIZE)
         source_blob_client = await self._create_source_blob(data=source_blob_data)
         destination_blob_client = await self._create_blob()
-        access_token = await self.generate_oauth_token().get_token("https://storage.azure.com/.default")
+        access_token = await self.get_credential(BlobServiceClient, is_async=True).get_token("https://storage.azure.com/.default")
         token = "Bearer {}".format(access_token.token)
 
         # Assert this operation fails without a credential
@@ -219,6 +219,38 @@ class TestStorageBlockBlobAsync(AsyncStorageRecordedTestCase):
 
         # Assert
         assert new_blob_properties.blob_tier == blob_tier
+
+    @BlobPreparer()
+    @recorded_by_proxy_async
+    async def test_upload_blob_from_url_with_metadata(self, **kwargs):
+        storage_account_name = kwargs.pop("storage_account_name")
+        storage_account_key = kwargs.pop("storage_account_key")
+
+        # Arrange
+        await self._setup(storage_account_name, storage_account_key, container_name="testcontainer")
+        blob = await self._create_blob()
+        self.bsc.get_blob_client(self.container_name, blob.blob_name)
+        sas = self.generate_sas(
+            generate_blob_sas,
+            account_name=storage_account_name,
+            account_key=storage_account_key,
+            container_name=self.container_name,
+            blob_name=blob.blob_name,
+            permission=BlobSasPermissions(read=True),
+            expiry=datetime.utcnow() + timedelta(hours=1)
+        )
+        # Act
+        source_blob = '{0}/{1}/{2}?{3}'.format(
+            self.account_url(storage_account_name, "blob"), self.container_name, blob.blob_name, sas)
+
+        blob_name = self.get_resource_name("blobcopy")
+        new_blob = self.bsc.get_blob_client(self.container_name, blob_name)
+        await new_blob.upload_blob_from_url(source_blob, metadata={'blobdata': 'data1'})
+
+        new_blob_properties = await new_blob.get_blob_properties()
+
+        # Assert
+        assert new_blob_properties.metadata == {'blobdata': 'data1'}
 
     @BlobPreparer()
     @recorded_by_proxy_async
@@ -665,7 +697,7 @@ class TestStorageBlockBlobAsync(AsyncStorageRecordedTestCase):
         container_name = self.get_resource_name('vlwcontainer')
 
         if self.is_live:
-            token_credential = self.generate_oauth_token()
+            token_credential = self.get_credential(BlobServiceClient, is_async=True)
             subscription_id = self.get_settings_value("SUBSCRIPTION_ID")
 
             mgmt_client = StorageManagementClient(token_credential, subscription_id, '2021-04-01')

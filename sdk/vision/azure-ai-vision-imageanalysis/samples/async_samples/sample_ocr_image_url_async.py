@@ -31,7 +31,7 @@ USAGE:
 import asyncio
 
 
-async def sample_ocr_image_file_async():
+async def sample_ocr_image_url_async():
     import os
     from azure.ai.vision.imageanalysis.aio import ImageAnalysisClient
     from azure.ai.vision.imageanalysis.models import VisualFeatures
@@ -53,7 +53,7 @@ async def sample_ocr_image_file_async():
     )
 
     # Extract text (OCR) from an image URL, asynchronously.
-    result = await client.analyze(
+    result = await client.analyze_from_url(
         image_url="https://aka.ms/azsdk/image-analysis/sample.jpg",
         visual_features=[VisualFeatures.READ]
     )
@@ -74,7 +74,7 @@ async def sample_ocr_image_file_async():
 
 
 async def main():
-    await sample_ocr_image_file_async()
+    await sample_ocr_image_url_async()
 
 
 if __name__ == "__main__":

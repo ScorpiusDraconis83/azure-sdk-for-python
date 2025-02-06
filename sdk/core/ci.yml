@@ -35,15 +35,14 @@ extends:
   template: ../../eng/pipelines/templates/stages/archetype-sdk-client.yml
   parameters:
     ServiceDirectory: core
-    BuildTargetingString: '*'
-    ValidateFormatting: true
+    BuildTargetingString: "*"
+    TestProxy: false
+    TestTimeoutInMinutes: 120
     Artifacts:
     - name: azure-core
       safeName: azurecore
     - name: azure-mgmt-core
       safeName: azuremgmtcore
-    - name: azure-core-tracing-opencensus
-      safeName: azurecorecoretracingopencensus
     - name: azure-core-tracing-opentelemetry
       safeName: azurecorecoretracingtelemetry
     - name: azure-common

@@ -12,7 +12,13 @@ Azure AI Document Intelligence ([previously known as Form Recognizer][service-re
 
 [Source code][python-di-src]
 | [Package (PyPI)][python-di-pypi]
+| [API reference documentation][python-di-ref-docs]
+| [Product documentation][python-di-product-docs]
 | [Samples][python-di-samples]
+
+## _Disclaimer_
+
+_The latest service API is currently only available in some Azure regions, the available regions can be found from [here][python-di-available-regions]._
 
 ## Getting started
 
@@ -23,9 +29,10 @@ python -m pip install azure-ai-documentintelligence
 ```
 
 This table shows the relationship between SDK versions and supported API service versions:
-|SDK version|Supported API service version
-|-|-
-|1.0.0b1 | 2023-10-31-preview
+
+| SDK version | Supported API service version |
+| ----------- | ----------------------------- |
+| 1.0.0       | 2024-11-30                    |
 
 Older API versions are supported in `azure-ai-formrecognizer`, please see the [Migration Guide][migration-guide] for detailed instructions on how to update application.
 
@@ -39,10 +46,10 @@ Older API versions are supported in `azure-ai-formrecognizer`, please see the [M
 
 Document Intelligence supports both [multi-service and single-service access][cognitive_resource_portal]. Create a Cognitive Services resource if you plan to access multiple cognitive services under a single endpoint/key. For Document Intelligence access only, create a Document Intelligence resource. Please note that you will need a single-service resource if you intend to use [Azure Active Directory authentication](#create-the-client-with-an-azure-active-directory-credential).
 
-You can create either resource using: 
+You can create either resource using:
 
-* Option 1: [Azure Portal][cognitive_resource_portal].
-* Option 2: [Azure CLI][cognitive_resource_cli].
+- Option 1: [Azure Portal][cognitive_resource_portal].
+- Option 2: [Azure CLI][cognitive_resource_cli].
 
 Below is an example of how you can create a Document Intelligence resource using the CLI:
 
@@ -124,9 +131,11 @@ name for your resource in order to use this type of authentication.
 To use the [DefaultAzureCredential][default_azure_credential] type shown below, or other credential types provided
 with the Azure SDK, please install the `azure-identity` package:
 
-```pip install azure-identity```
+```
+pip install azure-identity
+```
 
-You will also need to [register a new AAD application and grant access][register_aad_app] to Document Intelligence by assigning the `"Cognitive Services User"` role to your service principal.
+You will also need to [register a new AAD application and grant access][register_aad_app] to Document Intelligence by assigning the [Cognitive Services Data Reader][entra_auth_role] role to your service principal.
 
 Once completed, set the values of the client ID, tenant ID, and client secret of the AAD application as environment variables:
 `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_CLIENT_SECRET`.
@@ -149,8 +158,8 @@ document_intelligence_client = DocumentIntelligenceClient(endpoint, credential)
 ### DocumentIntelligenceClient
 
 `DocumentIntelligenceClient` provides operations for analyzing input documents using prebuilt and custom models through the `begin_analyze_document` API.
-Use the `model_id` parameter to select the type of model for analysis. See a full list of supported models [here][di-models]. 
-The `DocumentIntelligenceClient` also provides operations for classifying documents through the `begin_classify_document` API. 
+Use the `model_id` parameter to select the type of model for analysis. See a full list of supported models [here][di-models].
+The `DocumentIntelligenceClient` also provides operations for classifying documents through the `begin_classify_document` API.
 Custom classification models can classify each page in an input file to identify the document(s) within and can also identify multiple documents or multiple instances of a single document within an input file.
 
 Sample code snippets are provided to illustrate using a DocumentIntelligenceClient [here](#examples "Examples").
@@ -186,13 +195,17 @@ Sample code snippets are provided to illustrate using long-running operations [b
 
 The following section provides several code snippets covering some of the most common Document Intelligence tasks, including:
 
-* [Extract Layout](#extract-layout "Extract Layout")
-* [Using the General Document Model](#using-the-general-document-model "Using the General Document Model")
-* [Using Prebuilt Models](#using-prebuilt-models "Using Prebuilt Models")
-* [Build a Custom Model](#build-a-custom-model "Build a custom model")
-* [Analyze Documents Using a Custom Model](#analyze-documents-using-a-custom-model "Analyze Documents Using a Custom Model")
-* [Manage Your Models](#manage-your-models "Manage Your Models")
-* [Add-on capabilities](#add-on-capabilities "Add-on Capabilities")
+- [Extract Layout](#extract-layout "Extract Layout")
+- [Extract Figures from Documents](#extract-figures-from-documents "Extract Figures from Documents")
+- [Analyze Documents Result in PDF](#analyze-documents-result-in-pdf "Analyze Documents Result in PDF")
+- [Using the General Document Model](#using-the-general-document-model "Using the General Document Model")
+- [Using Prebuilt Models](#using-prebuilt-models "Using Prebuilt Models")
+- [Build a Custom Model](#build-a-custom-model "Build a custom model")
+- [Analyze Documents Using a Custom Model](#analyze-documents-using-a-custom-model "Analyze Documents Using a Custom Model")
+- [Manage Your Models](#manage-your-models "Manage Your Models")
+- [Add-on Capabilities](#add-on-capabilities "Add-on Capabilities")
+- [Get Raw JSON Result](#get-raw-json-result "Get Raw JSON Result")
+- [Parse analyzed result to JSON format](#parse-analyzed-result-to-json-format "Parse analyzed result to JSON format")
 
 ### Extract Layout
 
@@ -205,14 +218,23 @@ from azure.core.credentials import AzureKeyCredential
 from azure.ai.documentintelligence import DocumentIntelligenceClient
 from azure.ai.documentintelligence.models import AnalyzeResult
 
+def _in_span(word, spans):
+    for span in spans:
+        if word.span.offset >= span.offset and (word.span.offset + word.span.length) <= (span.offset + span.length):
+            return True
+    return False
+
+def _format_polygon(polygon):
+    if not polygon:
+        return "N/A"
+    return ", ".join([f"[{polygon[i]}, {polygon[i + 1]}]" for i in range(0, len(polygon), 2)])
+
 endpoint = os.environ["DOCUMENTINTELLIGENCE_ENDPOINT"]
 key = os.environ["DOCUMENTINTELLIGENCE_API_KEY"]
 
 document_intelligence_client = DocumentIntelligenceClient(endpoint=endpoint, credential=AzureKeyCredential(key))
 with open(path_to_sample_documents, "rb") as f:
-    poller = document_intelligence_client.begin_analyze_document(
-        "prebuilt-layout", analyze_request=f, content_type="application/octet-stream"
-    )
+    poller = document_intelligence_client.begin_analyze_document("prebuilt-layout", body=f)
 result: AnalyzeResult = poller.result()
 
 if result.styles and any([style.is_handwritten for style in result.styles]):
@@ -226,38 +248,245 @@ for page in result.pages:
 
     if page.lines:
         for line_idx, line in enumerate(page.lines):
-            words = get_words(page, line)
+            words = []
+            if page.words:
+                for word in page.words:
+                    print(f"......Word '{word.content}' has a confidence of {word.confidence}")
+                    if _in_span(word, line.spans):
+                        words.append(word)
             print(
                 f"...Line # {line_idx} has word count {len(words)} and text '{line.content}' "
-                f"within bounding polygon '{line.polygon}'"
+                f"within bounding polygon '{_format_polygon(line.polygon)}'"
             )
-
-            for word in words:
-                print(f"......Word '{word.content}' has a confidence of {word.confidence}")
 
     if page.selection_marks:
         for selection_mark in page.selection_marks:
             print(
                 f"Selection mark is '{selection_mark.state}' within bounding polygon "
-                f"'{selection_mark.polygon}' and has a confidence of {selection_mark.confidence}"
+                f"'{_format_polygon(selection_mark.polygon)}' and has a confidence of {selection_mark.confidence}"
             )
+
+if result.paragraphs:
+    print(f"----Detected #{len(result.paragraphs)} paragraphs in the document----")
+    # Sort all paragraphs by span's offset to read in the right order.
+    result.paragraphs.sort(key=lambda p: (p.spans.sort(key=lambda s: s.offset), p.spans[0].offset))
+    print("-----Print sorted paragraphs-----")
+    for paragraph in result.paragraphs:
+        if not paragraph.bounding_regions:
+            print(f"Found paragraph with role: '{paragraph.role}' within N/A bounding region")
+        else:
+            print(f"Found paragraph with role: '{paragraph.role}' within")
+            print(
+                ", ".join(
+                    f" Page #{region.page_number}: {_format_polygon(region.polygon)} bounding region"
+                    for region in paragraph.bounding_regions
+                )
+            )
+        print(f"...with content: '{paragraph.content}'")
+        print(f"...with offset: {paragraph.spans[0].offset} and length: {paragraph.spans[0].length}")
 
 if result.tables:
     for table_idx, table in enumerate(result.tables):
         print(f"Table # {table_idx} has {table.row_count} rows and " f"{table.column_count} columns")
         if table.bounding_regions:
             for region in table.bounding_regions:
-                print(f"Table # {table_idx} location on page: {region.page_number} is {region.polygon}")
+                print(
+                    f"Table # {table_idx} location on page: {region.page_number} is {_format_polygon(region.polygon)}"
+                )
         for cell in table.cells:
             print(f"...Cell[{cell.row_index}][{cell.column_index}] has text '{cell.content}'")
             if cell.bounding_regions:
                 for region in cell.bounding_regions:
-                    print(f"...content on page {region.page_number} is within bounding polygon '{region.polygon}'")
+                    print(
+                        f"...content on page {region.page_number} is within bounding polygon '{_format_polygon(region.polygon)}'"
+                    )
 
 print("----------------------------------------")
 ```
 
 <!-- END SNIPPET -->
+
+### Extract Figures from Documents
+
+Extract figures from the document as cropped images.
+
+<!-- SNIPPET:sample_analyze_result_figures.analyze_result_figures -->
+
+```python
+from azure.core.credentials import AzureKeyCredential
+from azure.ai.documentintelligence import DocumentIntelligenceClient
+from azure.ai.documentintelligence.models import AnalyzeOutputOption, AnalyzeResult
+
+endpoint = os.environ["DOCUMENTINTELLIGENCE_ENDPOINT"]
+key = os.environ["DOCUMENTINTELLIGENCE_API_KEY"]
+
+document_intelligence_client = DocumentIntelligenceClient(endpoint=endpoint, credential=AzureKeyCredential(key))
+
+with open(path_to_sample_documents, "rb") as f:
+    poller = document_intelligence_client.begin_analyze_document(
+        "prebuilt-layout",
+        body=f,
+        output=[AnalyzeOutputOption.FIGURES],
+    )
+result: AnalyzeResult = poller.result()
+operation_id = poller.details["operation_id"]
+
+if result.figures:
+    for figure in result.figures:
+        if figure.id:
+            response = document_intelligence_client.get_analyze_result_figure(
+                model_id=result.model_id, result_id=operation_id, figure_id=figure.id
+            )
+            with open(f"{figure.id}.png", "wb") as writer:
+                writer.writelines(response)
+else:
+    print("No figures found.")
+```
+
+<!-- END SNIPPET -->
+
+### Analyze Documents Result in PDF
+
+Convert an analog PDF into a PDF with embedded text. Such text can enable text search within the PDF or allow the PDF to be used in LLM chat scenarios.
+
+_Note: For now, this feature is only supported by `prebuilt-read`. All other models will return error._
+
+<!-- SNIPPET:sample_analyze_result_pdf.analyze_result_pdf -->
+
+```python
+from azure.core.credentials import AzureKeyCredential
+from azure.ai.documentintelligence import DocumentIntelligenceClient
+from azure.ai.documentintelligence.models import AnalyzeOutputOption, AnalyzeResult
+
+endpoint = os.environ["DOCUMENTINTELLIGENCE_ENDPOINT"]
+key = os.environ["DOCUMENTINTELLIGENCE_API_KEY"]
+
+document_intelligence_client = DocumentIntelligenceClient(endpoint=endpoint, credential=AzureKeyCredential(key))
+
+with open(path_to_sample_documents, "rb") as f:
+    poller = document_intelligence_client.begin_analyze_document(
+        "prebuilt-read",
+        body=f,
+        output=[AnalyzeOutputOption.PDF],
+    )
+result: AnalyzeResult = poller.result()
+operation_id = poller.details["operation_id"]
+
+response = document_intelligence_client.get_analyze_result_pdf(model_id=result.model_id, result_id=operation_id)
+with open("analyze_result.pdf", "wb") as writer:
+    writer.writelines(response)
+```
+
+<!-- END SNIPPET -->
+
+### Using the General Document Model
+
+Analyze key-value pairs, tables, styles, and selection marks from documents using the general document model provided by the Document Intelligence service.
+Select the General Document Model by passing `model_id="prebuilt-document"` into the `begin_analyze_document` method:
+
+<!-- SNIPPET:sample_analyze_general_documents.analyze_general_documents -->
+
+```python
+from azure.core.credentials import AzureKeyCredential
+from azure.ai.documentintelligence import DocumentIntelligenceClient
+from azure.ai.documentintelligence.models import DocumentAnalysisFeature, AnalyzeResult
+
+def _in_span(word, spans):
+    for span in spans:
+        if word.span.offset >= span.offset and (word.span.offset + word.span.length) <= (span.offset + span.length):
+            return True
+    return False
+
+def _format_bounding_region(bounding_regions):
+    if not bounding_regions:
+        return "N/A"
+    return ", ".join(
+        f"Page #{region.page_number}: {_format_polygon(region.polygon)}" for region in bounding_regions
+    )
+
+def _format_polygon(polygon):
+    if not polygon:
+        return "N/A"
+    return ", ".join([f"[{polygon[i]}, {polygon[i + 1]}]" for i in range(0, len(polygon), 2)])
+
+endpoint = os.environ["DOCUMENTINTELLIGENCE_ENDPOINT"]
+key = os.environ["DOCUMENTINTELLIGENCE_API_KEY"]
+
+document_intelligence_client = DocumentIntelligenceClient(endpoint=endpoint, credential=AzureKeyCredential(key))
+with open(path_to_sample_documents, "rb") as f:
+    poller = document_intelligence_client.begin_analyze_document(
+        "prebuilt-layout",
+        body=f,
+        features=[DocumentAnalysisFeature.KEY_VALUE_PAIRS],
+    )
+result: AnalyzeResult = poller.result()
+
+if result.styles:
+    for style in result.styles:
+        if style.is_handwritten:
+            print("Document contains handwritten content: ")
+            print(",".join([result.content[span.offset : span.offset + span.length] for span in style.spans]))
+
+print("----Key-value pairs found in document----")
+if result.key_value_pairs:
+    for kv_pair in result.key_value_pairs:
+        if kv_pair.key:
+            print(
+                f"Key '{kv_pair.key.content}' found within "
+                f"'{_format_bounding_region(kv_pair.key.bounding_regions)}' bounding regions"
+            )
+        if kv_pair.value:
+            print(
+                f"Value '{kv_pair.value.content}' found within "
+                f"'{_format_bounding_region(kv_pair.value.bounding_regions)}' bounding regions\n"
+            )
+
+for page in result.pages:
+    print(f"----Analyzing document from page #{page.page_number}----")
+    print(f"Page has width: {page.width} and height: {page.height}, measured with unit: {page.unit}")
+
+    if page.lines:
+        for line_idx, line in enumerate(page.lines):
+            words = []
+            if page.words:
+                for word in page.words:
+                    print(f"......Word '{word.content}' has a confidence of {word.confidence}")
+                    if _in_span(word, line.spans):
+                        words.append(word)
+            print(
+                f"...Line #{line_idx} has {len(words)} words and text '{line.content}' within "
+                f"bounding polygon '{_format_polygon(line.polygon)}'"
+            )
+
+    if page.selection_marks:
+        for selection_mark in page.selection_marks:
+            print(
+                f"Selection mark is '{selection_mark.state}' within bounding polygon "
+                f"'{_format_polygon(selection_mark.polygon)}' and has a confidence of "
+                f"{selection_mark.confidence}"
+            )
+
+if result.tables:
+    for table_idx, table in enumerate(result.tables):
+        print(f"Table # {table_idx} has {table.row_count} rows and {table.column_count} columns")
+        if table.bounding_regions:
+            for region in table.bounding_regions:
+                print(
+                    f"Table # {table_idx} location on page: {region.page_number} is {_format_polygon(region.polygon)}"
+                )
+        for cell in table.cells:
+            print(f"...Cell[{cell.row_index}][{cell.column_index}] has text '{cell.content}'")
+            if cell.bounding_regions:
+                for region in cell.bounding_regions:
+                    print(
+                        f"...content on page {region.page_number} is within bounding polygon '{_format_polygon(region.polygon)}'\n"
+                    )
+print("----------------------------------------")
+```
+
+<!-- END SNIPPET -->
+
+- Read more about the features provided by the `prebuilt-document` model [here][service_prebuilt_document].
 
 ### Using Prebuilt Models
 
@@ -272,14 +501,17 @@ from azure.core.credentials import AzureKeyCredential
 from azure.ai.documentintelligence import DocumentIntelligenceClient
 from azure.ai.documentintelligence.models import AnalyzeResult
 
+def _format_price(price_dict):
+    if price_dict is None:
+        return "N/A"
+    return "".join([f"{p}" for p in price_dict.values()])
+
 endpoint = os.environ["DOCUMENTINTELLIGENCE_ENDPOINT"]
 key = os.environ["DOCUMENTINTELLIGENCE_API_KEY"]
 
 document_intelligence_client = DocumentIntelligenceClient(endpoint=endpoint, credential=AzureKeyCredential(key))
 with open(path_to_sample_documents, "rb") as f:
-    poller = document_intelligence_client.begin_analyze_document(
-        "prebuilt-receipt", analyze_request=f, locale="en-US", content_type="application/octet-stream"
-    )
+    poller = document_intelligence_client.begin_analyze_document("prebuilt-receipt", body=f, locale="en-US")
 receipts: AnalyzeResult = poller.result()
 
 if receipts.documents:
@@ -319,23 +551,23 @@ if receipts.documents:
                     item_total_price = item.get("valueObject").get("TotalPrice")
                     if item_total_price:
                         print(
-                            f"......Total Item Price: {format_price(item_total_price.get('valueCurrency'))} has confidence: "
+                            f"......Total Item Price: {_format_price(item_total_price.get('valueCurrency'))} has confidence: "
                             f"{item_total_price.confidence}"
                         )
             subtotal = receipt.fields.get("Subtotal")
             if subtotal:
                 print(
-                    f"Subtotal: {format_price(subtotal.get('valueCurrency'))} has confidence: {subtotal.confidence}"
+                    f"Subtotal: {_format_price(subtotal.get('valueCurrency'))} has confidence: {subtotal.confidence}"
                 )
             tax = receipt.fields.get("TotalTax")
             if tax:
-                print(f"Total tax: {format_price(tax.get('valueCurrency'))} has confidence: {tax.confidence}")
+                print(f"Total tax: {_format_price(tax.get('valueCurrency'))} has confidence: {tax.confidence}")
             tip = receipt.fields.get("Tip")
             if tip:
-                print(f"Tip: {format_price(tip.get('valueCurrency'))} has confidence: {tip.confidence}")
+                print(f"Tip: {_format_price(tip.get('valueCurrency'))} has confidence: {tip.confidence}")
             total = receipt.fields.get("Total")
             if total:
-                print(f"Total: {format_price(total.get('valueCurrency'))} has confidence: {total.confidence}")
+                print(f"Total: {_format_price(total.get('valueCurrency'))} has confidence: {total.confidence}")
         print("--------------------------------------")
 ```
 
@@ -387,12 +619,13 @@ if model.doc_types:
     print("Doc types the model can recognize:")
     for name, doc_type in model.doc_types.items():
         print(f"Doc Type: '{name}' built with '{doc_type.build_mode}' mode which has the following fields:")
-        for field_name, field in doc_type.field_schema.items():
-            if doc_type.field_confidence:
-                print(
-                    f"Field: '{field_name}' has type '{field['type']}' and confidence score "
-                    f"{doc_type.field_confidence[field_name]}"
-                )
+        if doc_type.field_schema:
+            for field_name, field in doc_type.field_schema.items():
+                if doc_type.field_confidence:
+                    print(
+                        f"Field: '{field_name}' has type '{field['type']}' and confidence score "
+                        f"{doc_type.field_confidence[field_name]}"
+                    )
 ```
 
 <!-- END SNIPPET -->
@@ -409,6 +642,20 @@ from azure.core.credentials import AzureKeyCredential
 from azure.ai.documentintelligence import DocumentIntelligenceClient
 from azure.ai.documentintelligence.models import AnalyzeResult
 
+def _print_table(header_names, table_data):
+    # Print a two-dimensional array like a table.
+    max_len_list = []
+    for i in range(len(header_names)):
+        col_values = list(map(lambda row: len(str(row[i])), table_data))
+        col_values.append(len(str(header_names[i])))
+        max_len_list.append(max(col_values))
+
+    row_format_str = "".join(map(lambda len: f"{{:<{len + 4}}}", max_len_list))
+
+    print(row_format_str.format(*header_names))
+    for row in table_data:
+        print(row_format_str.format(*row))
+
 endpoint = os.environ["DOCUMENTINTELLIGENCE_ENDPOINT"]
 key = os.environ["DOCUMENTINTELLIGENCE_API_KEY"]
 model_id = os.getenv("CUSTOM_BUILT_MODEL_ID", custom_model_id)
@@ -417,9 +664,7 @@ document_intelligence_client = DocumentIntelligenceClient(endpoint=endpoint, cre
 
 # Make sure your document's type is included in the list of document types the custom model can analyze
 with open(path_to_sample_documents, "rb") as f:
-    poller = document_intelligence_client.begin_analyze_document(
-        model_id=model_id, analyze_request=f, content_type="application/octet-stream"
-    )
+    poller = document_intelligence_client.begin_analyze_document(model_id=model_id, body=f)
 result: AnalyzeResult = poller.result()
 
 if result.documents:
@@ -435,31 +680,70 @@ if result.documents:
                     f"......found field of type '{field.type}' with value '{field_value}' and with confidence {field.confidence}"
                 )
 
-# iterate over tables, lines, and selection marks on each page
-for page in result.pages:
-    print(f"\nLines found on page {page.page_number}")
-    if page.lines:
-        for line in page.lines:
-            print(f"...Line '{line.content}'")
-    if page.words:
-        for word in page.words:
-            print(f"...Word '{word.content}' has a confidence of {word.confidence}")
-    if page.selection_marks:
-        print(f"\nSelection marks found on page {page.page_number}")
-        for selection_mark in page.selection_marks:
-            print(
-                f"...Selection mark is '{selection_mark.state}' and has a confidence of {selection_mark.confidence}"
-            )
+    # Extract table cell values
+    SYMBOL_OF_TABLE_TYPE = "array"
+    SYMBOL_OF_OBJECT_TYPE = "object"
+    KEY_OF_VALUE_OBJECT = "valueObject"
+    KEY_OF_CELL_CONTENT = "content"
 
-if result.tables:
-    for i, table in enumerate(result.tables):
-        print(f"\nTable {i + 1} can be found on page:")
-        if table.bounding_regions:
-            for region in table.bounding_regions:
-                print(f"...{region.page_number}")
-        for cell in table.cells:
-            print(f"...Cell[{cell.row_index}][{cell.column_index}] has text '{cell.content}'")
-print("-----------------------------------")
+    for doc in result.documents:
+        if not doc.fields is None:
+            for field_name, field_value in doc.fields.items():
+                # Dynamic Table cell information store as array in document field.
+                if field_value.type == SYMBOL_OF_TABLE_TYPE and field_value.value_array:
+                    col_names = []
+                    sample_obj = field_value.value_array[0]
+                    if KEY_OF_VALUE_OBJECT in sample_obj:
+                        col_names = list(sample_obj[KEY_OF_VALUE_OBJECT].keys())
+                    print("----Extracting Dynamic Table Cell Values----")
+                    table_rows = []
+                    for obj in field_value.value_array:
+                        if KEY_OF_VALUE_OBJECT in obj:
+                            value_obj = obj[KEY_OF_VALUE_OBJECT]
+                            extract_value_by_col_name = lambda key: (
+                                value_obj[key].get(KEY_OF_CELL_CONTENT)
+                                if key in value_obj and KEY_OF_CELL_CONTENT in value_obj[key]
+                                else "None"
+                            )
+                            row_data = list(map(extract_value_by_col_name, col_names))
+                            table_rows.append(row_data)
+                    _print_table(col_names, table_rows)
+
+                elif (
+                    field_value.type == SYMBOL_OF_OBJECT_TYPE
+                    and KEY_OF_VALUE_OBJECT in field_value
+                    and field_value[KEY_OF_VALUE_OBJECT] is not None
+                ):
+                    rows_by_columns = list(field_value[KEY_OF_VALUE_OBJECT].values())
+                    is_fixed_table = all(
+                        (
+                            rows_of_column["type"] == SYMBOL_OF_OBJECT_TYPE
+                            and Counter(list(rows_by_columns[0][KEY_OF_VALUE_OBJECT].keys()))
+                            == Counter(list(rows_of_column[KEY_OF_VALUE_OBJECT].keys()))
+                        )
+                        for rows_of_column in rows_by_columns
+                    )
+
+                    # Fixed Table cell information store as object in document field.
+                    if is_fixed_table:
+                        print("----Extracting Fixed Table Cell Values----")
+                        col_names = list(field_value[KEY_OF_VALUE_OBJECT].keys())
+                        row_dict: dict = {}
+                        for rows_of_column in rows_by_columns:
+                            rows = rows_of_column[KEY_OF_VALUE_OBJECT]
+                            for row_key in list(rows.keys()):
+                                if row_key in row_dict:
+                                    row_dict[row_key].append(rows[row_key].get(KEY_OF_CELL_CONTENT))
+                                else:
+                                    row_dict[row_key] = [
+                                        row_key,
+                                        rows[row_key].get(KEY_OF_CELL_CONTENT),
+                                    ]
+
+                        col_names.insert(0, "")
+                        _print_table(col_names, list(row_dict.values()))
+
+print("------------------------------------")
 ```
 
 <!-- END SNIPPET -->
@@ -527,28 +811,24 @@ if model.doc_types:
     print("Doc types the model can recognize:")
     for name, doc_type in model.doc_types.items():
         print(f"Doc Type: '{name}' built with '{doc_type.build_mode}' mode which has the following fields:")
-        for field_name, field in doc_type.field_schema.items():
-            if doc_type.field_confidence:
-                print(
-                    f"Field: '{field_name}' has type '{field['type']}' and confidence score "
-                    f"{doc_type.field_confidence[field_name]}"
-                )
+        if doc_type.field_schema:
+            for field_name, field in doc_type.field_schema.items():
+                if doc_type.field_confidence:
+                    print(
+                        f"Field: '{field_name}' has type '{field['type']}' and confidence score "
+                        f"{doc_type.field_confidence[field_name]}"
+                    )
 ```
 
 <!-- END SNIPPET -->
 
-<!-- SNIPPET:sample_manage_models.get_resource_info -->
+<!-- SNIPPET:sample_manage_models.get_resource_details -->
 
 ```python
-account_details = document_intelligence_admin_client.get_resource_info()
+account_details = document_intelligence_admin_client.get_resource_details()
 print(
     f"Our resource has {account_details.custom_document_models.count} custom models, "
     f"and we can have at most {account_details.custom_document_models.limit} custom models"
-)
-neural_models = account_details.custom_neural_document_model_builds
-print(
-    f"The quota limit for custom neural document models is {neural_models.quota} and the resource has"
-    f"used {neural_models.used}. The resource quota will reset on {neural_models.quota_reset_date_time}"
 )
 ```
 
@@ -575,6 +855,10 @@ print(f"\nModel ID: {my_model.model_id}")
 print(f"Description: {my_model.description}")
 print(f"Model created on: {my_model.created_date_time}")
 print(f"Model expires on: {my_model.expiration_date_time}")
+if my_model.warnings:
+    print("Warnings encountered while building the model:")
+    for warning in my_model.warnings:
+        print(f"warning code: {warning.code}, message: {warning.message}, target of the error: {warning.target}")
 ```
 
 <!-- END SNIPPET -->
@@ -596,9 +880,11 @@ except ResourceNotFoundError:
 <!-- END SNIPPET -->
 
 ### Add-on Capabilities
+
 Document Intelligence supports more sophisticated analysis capabilities. These optional features can be enabled and disabled depending on the scenario of the document extraction.
 
 The following add-on capabilities are available in this SDK:
+
 - [barcode/QR code][addon_barcodes_sample]
 - [formula][addon_formulas_sample]
 - [font/style][addon_fonts_sample]
@@ -607,6 +893,114 @@ The following add-on capabilities are available in this SDK:
 - [query fields][query_fields_sample]
 
 Note that some add-on capabilities will incur additional charges. See pricing: https://azure.microsoft.com/pricing/details/ai-document-intelligence/.
+
+### Get Raw JSON Result
+
+Can get the HTTP response by passing parameter `raw_response_hook` to any client method.
+
+<!-- SNIPPET:sample_get_raw_response.raw_response_hook -->
+
+```python
+import os
+from azure.core.credentials import AzureKeyCredential
+from azure.ai.documentintelligence import DocumentIntelligenceAdministrationClient
+
+endpoint = os.environ["DOCUMENTINTELLIGENCE_ENDPOINT"]
+key = os.environ["DOCUMENTINTELLIGENCE_API_KEY"]
+
+client = DocumentIntelligenceAdministrationClient(endpoint=endpoint, credential=AzureKeyCredential(key))
+
+responses = {}
+
+def callback(response):
+    responses["status_code"] = response.http_response.status_code
+    responses["response_body"] = response.http_response.json()
+
+client.get_resource_details(raw_response_hook=callback)
+
+print(f"Response status code is: {responses['status_code']}")
+response_body = responses["response_body"]
+print(
+    f"Our resource has {response_body['customDocumentModels']['count']} custom models, "
+    f"and we can have at most {response_body['customDocumentModels']['limit']} custom models."
+    f"The quota limit for custom neural document models is {response_body['customNeuralDocumentModelBuilds']['quota']} and the resource has"
+    f"used {response_body['customNeuralDocumentModelBuilds']['used']}. The resource quota will reset on {response_body['customNeuralDocumentModelBuilds']['quotaResetDateTime']}"
+)
+```
+
+<!-- END SNIPPET -->
+
+Also, can use the `send_request` method to send custom HTTP requests and get raw JSON result from HTTP responses.
+
+<!-- SNIPPET:sample_send_request.send_request -->
+
+```python
+import os
+from azure.core.credentials import AzureKeyCredential
+from azure.core.rest import HttpRequest
+from azure.ai.documentintelligence import DocumentIntelligenceAdministrationClient
+
+endpoint = os.environ["DOCUMENTINTELLIGENCE_ENDPOINT"]
+key = os.environ["DOCUMENTINTELLIGENCE_API_KEY"]
+
+client = DocumentIntelligenceAdministrationClient(endpoint=endpoint, credential=AzureKeyCredential(key))
+
+# The `send_request` method can send custom HTTP requests that share the client's existing pipeline,
+# Now let's use the `send_request` method to make a resource details fetching request.
+# The URL of the request should be absolute, and append the API version used for the request.
+request = HttpRequest(method="GET", url=f"{endpoint}/documentintelligence/info?api-version=2024-11-30")
+response = client.send_request(request)
+response.raise_for_status()
+response_body = response.json()
+print(
+    f"Our resource has {response_body['customDocumentModels']['count']} custom models, "
+    f"and we can have at most {response_body['customDocumentModels']['limit']} custom models."
+    f"The quota limit for custom neural document models is {response_body['customNeuralDocumentModelBuilds']['quota']} and the resource has"
+    f"used {response_body['customNeuralDocumentModelBuilds']['used']}. The resource quota will reset on {response_body['customNeuralDocumentModelBuilds']['quotaResetDateTime']}"
+)
+```
+
+<!-- END SNIPPET -->
+
+### Parse analyzed result to JSON format
+
+The result from poller is not JSON parse-able by default, you should call `as_dict()` before parsing to JSON.
+
+<!-- SNIPPET:sample_convert_to_and_from_dict.convert -->
+
+```python
+from azure.core.credentials import AzureKeyCredential
+from azure.ai.documentintelligence import DocumentIntelligenceClient
+from azure.ai.documentintelligence.models import AnalyzeResult
+
+endpoint = os.environ["DOCUMENTINTELLIGENCE_ENDPOINT"]
+key = os.environ["DOCUMENTINTELLIGENCE_API_KEY"]
+
+document_intelligence_client = DocumentIntelligenceClient(endpoint=endpoint, credential=AzureKeyCredential(key))
+with open(path_to_sample_documents, "rb") as f:
+    poller = document_intelligence_client.begin_analyze_document("prebuilt-layout", body=f)
+result: AnalyzeResult = poller.result()
+
+# convert the received model to a dictionary
+analyze_result_dict = result.as_dict()
+
+# save the dictionary as JSON content in a JSON file
+with open("data.json", "w") as output_file:
+    json.dump(analyze_result_dict, output_file, indent=4)
+
+# convert the dictionary back to the original model
+model = AnalyzeResult(analyze_result_dict)
+
+# use the model as normal
+print("----Converted from dictionary AnalyzeResult----")
+print(f"Model ID: '{model.model_id}'")
+print(f"Number of pages analyzed {len(model.pages)}")
+print(f"API version used: {model.api_version}")
+
+print("----------------------------------------")
+```
+
+<!-- END SNIPPET -->
 
 ## Troubleshooting
 
@@ -643,7 +1037,6 @@ See the [Sample README][sample_readme] for several code snippets illustrating co
 
 For more extensive documentation on Azure AI Document Intelligence, see the [Document Intelligence documentation][python-di-product-docs] on docs.microsoft.com.
 
-
 ## Contributing
 
 This project welcomes contributions and suggestions. Most contributions require
@@ -662,14 +1055,20 @@ see the Code of Conduct FAQ or contact opencode@microsoft.com with any
 additional questions or comments.
 
 <!-- LINKS -->
+
 [code_of_conduct]: https://opensource.microsoft.com/codeofconduct/
 [default_azure_credential]: https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/identity/azure-identity#defaultazurecredential
 [azure_sub]: https://azure.microsoft.com/free/
-[python-di-product-docs]: https://learn.microsoft.com/azure/applied-ai-services/form-recognizer/overview?view=form-recog-3.0.0
+[python-di-src]: https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/documentintelligence/azure-ai-documentintelligence/azure/ai/documentintelligence
+[python-di-pypi]: https://pypi.org/project/azure-ai-documentintelligence/
+[python-di-product-docs]: https://learn.microsoft.com/azure/ai-services/document-intelligence/overview?view=doc-intel-4.0.0&viewFallbackFrom=form-recog-3.0.0
+[python-di-ref-docs]: https://aka.ms/azsdk/python/documentintelligence/docs
+[python-di-samples]: https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/documentintelligence/azure-ai-documentintelligence/samples
+[python-di-available-regions]: https://aka.ms/azsdk/documentintelligence/available-regions
 [azure_portal]: https://ms.portal.azure.com/
 [regional_endpoints]: https://azure.microsoft.com/global-infrastructure/services/?products=form-recognizer
 [cognitive_resource_portal]: https://ms.portal.azure.com/#create/Microsoft.CognitiveServicesFormRecognizer
-[cognitive_resource_cli]: https://docs.microsoft.com/azure/cognitive-services/cognitive-services-apis-create-account-cli?tabs=windows
+[cognitive_resource_cli]: https://learn.microsoft.com/azure/cognitive-services/cognitive-services-apis-create-account-cli?tabs=windows
 [azure-key-credential]: https://aka.ms/azsdk/python/core/azurekeycredential
 [di-studio]: https://documentintelligence.ai.azure.com/studio
 [di-build-model]: https://aka.ms/azsdk/documentintelligence/buildmodel
@@ -679,13 +1078,14 @@ additional questions or comments.
 [azure_core_ref_docs]: https://aka.ms/azsdk/python/core/docs
 [azure_core_exceptions]: https://aka.ms/azsdk/python/core/docs#module-azure.core.exceptions
 [python_logging]: https://docs.python.org/3/library/logging.html
-[azure_cli_endpoint_lookup]: https://docs.microsoft.com/cli/azure/cognitiveservices/account?view=azure-cli-latest#az-cognitiveservices-account-show
-[azure_portal_get_endpoint]: https://docs.microsoft.com/azure/cognitive-services/cognitive-services-apis-create-account?tabs=multiservice%2Cwindows#get-the-keys-for-your-resource
-[cognitive_authentication_api_key]: https://docs.microsoft.com/azure/cognitive-services/cognitive-services-apis-create-account?tabs=multiservice%2Cwindows#get-the-keys-for-your-resource
-[register_aad_app]: https://docs.microsoft.com/azure/cognitive-services/authentication#assign-a-role-to-a-service-principal
-[custom_subdomain]: https://docs.microsoft.com/azure/cognitive-services/authentication#create-a-resource-with-a-custom-subdomain
+[azure_cli_endpoint_lookup]: https://learn.microsoft.com/cli/azure/cognitiveservices/account?view=azure-cli-latest#az-cognitiveservices-account-show
+[azure_portal_get_endpoint]: https://learn.microsoft.com/azure/cognitive-services/cognitive-services-apis-create-account?tabs=multiservice%2Cwindows#get-the-keys-for-your-resource
+[cognitive_authentication_api_key]: https://learn.microsoft.com/azure/cognitive-services/cognitive-services-apis-create-account?tabs=multiservice%2Cwindows#get-the-keys-for-your-resource
+[register_aad_app]: https://learn.microsoft.com/azure/cognitive-services/authentication#assign-a-role-to-a-service-principal
+[entra_auth_role]: https://learn.microsoft.com/azure/role-based-access-control/built-in-roles/ai-machine-learning#cognitive-services-data-reader
+[custom_subdomain]: https://learn.microsoft.com/azure/cognitive-services/authentication#create-a-resource-with-a-custom-subdomain
 [azure_identity]: https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/identity/azure-identity
-[sdk_logging_docs]: https://docs.microsoft.com/azure/developer/python/sdk/azure-sdk-logging
+[sdk_logging_docs]: https://learn.microsoft.com/azure/developer/python/sdk/azure-sdk-logging
 [migration-guide]: https://github.com/Azure/azure-sdk-for-python/blob/main/sdk/documentintelligence/azure-ai-documentintelligence/MIGRATION_GUIDE.md
 [sample_readme]: https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/documentintelligence/azure-ai-documentintelligence/samples
 [addon_barcodes_sample]: https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/documentintelligence/azure-ai-documentintelligence/samples/sample_analyze_addon_barcodes.py
@@ -695,3 +1095,4 @@ additional questions or comments.
 [addon_languages_sample]: https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/documentintelligence/azure-ai-documentintelligence/samples/sample_analyze_addon_languages.py
 [query_fields_sample]: https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/documentintelligence/azure-ai-documentintelligence/samples/sample_analyze_addon_query_fields.py
 [service-rename]: https://techcommunity.microsoft.com/t5/azure-ai-services-blog/azure-form-recognizer-is-now-azure-ai-document-intelligence-with/ba-p/3875765
+[service_prebuilt_document]: https://learn.microsoft.com/azure/ai-services/document-intelligence/concept-general-document#general-document-features

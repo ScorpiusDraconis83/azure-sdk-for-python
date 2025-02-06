@@ -3,6 +3,7 @@
 # ---------------------------------------------------------
 from enum import Enum
 
+from azure.ai.ml._utils._experimental import experimental
 from azure.core import CaseInsensitiveEnumMeta
 
 
@@ -23,12 +24,21 @@ class IsolationMode:
     ALLOW_ONLY_APPROVED_OUTBOUND = "AllowOnlyApprovedOutbound"
 
 
+@experimental
+class FirewallSku:
+    """Firewall Sku for FQDN rules in AllowOnlyApprovedOutbound."""
+
+    STANDARD = "Standard"
+    BASIC = "Basic"
+
+
 class OutboundRuleCategory:
     """Category for a managed network outbound rule."""
 
     REQUIRED = "Required"
     RECOMMENDED = "Recommended"
     USER_DEFINED = "UserDefined"
+    DEPENDENCY = "Dependency"
 
 
 class OutboundRuleType:
@@ -37,3 +47,10 @@ class OutboundRuleType:
     FQDN = "FQDN"
     PRIVATE_ENDPOINT = "PrivateEndpoint"
     SERVICE_TAG = "ServiceTag"
+
+
+@experimental
+class CapabilityHostKind(str, Enum, metaclass=CaseInsensitiveEnumMeta):
+    """Capabilityhost kind."""
+
+    AGENTS = "Agents"

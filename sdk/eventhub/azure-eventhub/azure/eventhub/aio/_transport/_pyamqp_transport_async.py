@@ -7,21 +7,19 @@ from __future__ import annotations
 import asyncio
 import time
 import logging
-from typing import Union, cast, TYPE_CHECKING
+from typing import Any, Callable, Dict, List, Optional, Union, cast, TYPE_CHECKING
 
 from ..._pyamqp import constants, error as errors
 from ..._pyamqp.aio import AMQPClientAsync, SendClientAsync, ReceiveClientAsync
 from ..._pyamqp.aio._authentication_async import JWTTokenAuthAsync
 from ..._pyamqp.aio._connection_async import Connection as ConnectionAsync
+from ..._pyamqp.endpoints import Source
 
 from ._base_async import AmqpTransportAsync
 from ..._transport._pyamqp_transport import PyamqpTransport
-from ...exceptions import (
-    EventHubError,
-    EventDataSendError,
-    OperationTimeoutError
-)
-from ..._common import EventData
+from ...exceptions import EventHubError, EventDataSendError, OperationTimeoutError
+from ..._constants import MAX_BUFFER_LENGTH
+
 
 if TYPE_CHECKING:
     from .._client_base_async import ClientBaseAsync, ConsumerProducerMixin
@@ -36,18 +34,31 @@ class PyamqpTransportAsync(PyamqpTransport, AmqpTransportAsync):
     """
 
     @staticmethod
-    async def create_connection_async(**kwargs) -> ConnectionAsync:
+    async def create_connection_async(
+        *,
+        endpoint: str,
+        auth: JWTTokenAuthAsync,
+        container_id: Optional[str] = None,
+        max_frame_size: int,
+        channel_max: int,
+        idle_timeout: Optional[float],
+        properties: Optional[Dict[str, Any]] = None,
+        remote_idle_timeout_empty_frame_send_ratio: float,
+        error_policy: Any,
+        debug: bool,
+        encoding: str,
+        **kwargs: Any,
+    ) -> ConnectionAsync:
         """
         Creates and returns the pyamqp Connection object.
-        :keyword str host: The hostname, used by pyamqp.
-        :keyword ~pyamqp.aio._authentication_async.JWTTokenAuthAsync auth: The auth, used by pyamqp.
         :keyword str endpoint: The endpoint, used by pyamqp.
+        :keyword ~pyamqp.aio._authentication_async.JWTTokenAuthAsync auth: The auth, used by pyamqp.
         :keyword str container_id: Required.
         :keyword int max_frame_size: Required.
         :keyword int channel_max: Required.
-        :keyword int idle_timeout: Required.
-        :keyword Dict properties: Required.
-        :keyword int remote_idle_timeout_empty_frame_send_ratio: Required.
+        :keyword float idle_timeout: Required.
+        :keyword dict[str, Any] or None properties: Required.
+        :keyword float remote_idle_timeout_empty_frame_send_ratio: Required.
         :keyword error_policy: Required.
         :keyword bool debug: Required.
         :keyword str encoding: Required.
@@ -55,11 +66,18 @@ class PyamqpTransportAsync(PyamqpTransport, AmqpTransportAsync):
         :return: The created ConnectionAsync.
         :rtype: ~pyamqp.aio.Connection
         """
-        endpoint = kwargs.pop("endpoint")
-        host = kwargs.pop("host")  # pylint:disable=unused-variable
-        auth = kwargs.pop("auth")  # pylint:disable=unused-variable
-        network_trace = kwargs.pop("debug")
-        return ConnectionAsync(endpoint, network_trace=network_trace, **kwargs)
+        network_trace = debug
+        return ConnectionAsync(
+            endpoint,
+            container_id=container_id,
+            max_frame_size=max_frame_size,
+            channel_max=channel_max,
+            idle_timeout=idle_timeout,
+            properties=properties,
+            idle_timeout_empty_frame_send_ratio=remote_idle_timeout_empty_frame_send_ratio,
+            network_trace=network_trace,
+            **kwargs,
+        )
 
     @staticmethod
     async def close_connection_async(connection):
@@ -70,7 +88,20 @@ class PyamqpTransportAsync(PyamqpTransport, AmqpTransportAsync):
         await connection.close()
 
     @staticmethod
-    def create_send_client(*, config, **kwargs):  # pylint:disable=unused-argument
+    def create_send_client(
+        *,
+        config,
+        target: str,
+        auth: JWTTokenAuthAsync,  # type: ignore
+        idle_timeout: Optional[float],
+        network_trace: bool,
+        retry_policy: Any,
+        keep_alive_interval: int,
+        client_name: str,
+        link_properties: Optional[Dict[str, Any]],
+        properties: Optional[Dict[str, Any]] = None,
+        **kwargs: Any,
+    ):
         """
         Creates and returns the pyamqp SendClient.
         :keyword ~azure.eventhub._configuration.Configuration config: The configuration.
@@ -83,12 +114,11 @@ class PyamqpTransportAsync(PyamqpTransport, AmqpTransportAsync):
         :keyword keep_alive_interval: Required.
         :keyword str client_name: Required.
         :keyword dict link_properties: Required.
-        :keyword properties: Required.
+        :keyword dict[str, Any] or None properties: Required.
 
         :return: The created SendClientAsync.
         :rtype: ~pyamqp.aio.SendClientAsync
         """
-        target = kwargs.pop("target")
         # TODO: extra passed in to pyamqp, but not used. should be used?
         msg_timeout = kwargs.pop("msg_timeout")  # pylint: disable=unused-variable  # TODO: not used by pyamqp?
 
@@ -97,9 +127,19 @@ class PyamqpTransportAsync(PyamqpTransport, AmqpTransportAsync):
             target,
             custom_endpoint_address=config.custom_endpoint_address,
             connection_verify=config.connection_verify,
+            ssl_context=config.ssl_context,
             transport_type=config.transport_type,
             http_proxy=config.http_proxy,
             socket_timeout=config.socket_timeout,
+            auth=auth,
+            idle_timeout=idle_timeout,
+            network_trace=network_trace,
+            retry_policy=retry_policy,
+            keep_alive_interval=keep_alive_interval,
+            link_properties=link_properties,
+            properties=properties,
+            client_name=client_name,
+            use_tls=config.use_tls,
             **kwargs,
         )
 
@@ -123,33 +163,47 @@ class PyamqpTransportAsync(PyamqpTransport, AmqpTransportAsync):
             raise OperationTimeoutError(message=str(exc), details=exc) from exc
 
     @staticmethod
-    def create_receive_client(*, config, **kwargs):  # pylint:disable=unused-argument
+    def create_receive_client(
+        *,
+        config,
+        source: Source,
+        auth: JWTTokenAuthAsync,  # type: ignore
+        idle_timeout: Optional[float],
+        network_trace: bool,
+        retry_policy: Any,
+        client_name: str,
+        link_properties: Dict[bytes, Any],
+        properties: Optional[Dict[str, Any]] = None,
+        link_credit: int,
+        keep_alive_interval: int,
+        desired_capabilities: Optional[List[bytes]] = None,
+        streaming_receive: bool,
+        message_received_callback: Callable,
+        timeout: float,
+        **kwargs,
+    ):
         """
         Creates and returns the receive client.
         :keyword ~azure.eventhub._configuration.Configuration config: The configuration.
 
-        :keyword str source: Required. The source.
-        :keyword str offset: Required.
-        :keyword str offset_inclusive: Required.
+        :keyword Source source: Required. The source.
         :keyword ~pyamqp.aio._authentication_async.JWTTokenAuthAsync auth: Required.
         :keyword int idle_timeout: Required.
         :keyword network_trace: Required.
         :keyword retry_policy: Required.
         :keyword str client_name: Required.
         :keyword dict link_properties: Required.
-        :keyword properties: Required.
+        :keyword dict[str, Any] or None properties: Required.
         :keyword link_credit: Required. The prefetch.
         :keyword keep_alive_interval: Required.
-        :keyword desired_capabilities: Required.
+        :keyword list[bytes] or None desired_capabilities: Required.
         :keyword streaming_receive: Required.
         :keyword message_received_callback: Required.
-        :keyword timeout: Required.
+        :keyword float timeout: Required.
 
         :return: The created ReceiveClientAsync.
         :rtype: ~pyamqp.aio.ReceiveClientAsync
         """
-
-        source = kwargs.pop("source")
         return ReceiveClientAsync(
             config.hostname,
             source,
@@ -158,32 +212,48 @@ class PyamqpTransportAsync(PyamqpTransport, AmqpTransportAsync):
             transport_type=config.transport_type,
             custom_endpoint_address=config.custom_endpoint_address,
             connection_verify=config.connection_verify,
+            ssl_context=config.ssl_context,
             socket_timeout=config.socket_timeout,
+            auth=auth,
+            idle_timeout=idle_timeout,
+            network_trace=network_trace,
+            retry_policy=retry_policy,
+            client_name=client_name,
+            link_properties=link_properties,
+            properties=properties,
+            link_credit=link_credit,
+            keep_alive_interval=keep_alive_interval,
+            desired_capabilities=desired_capabilities,
+            streaming_receive=streaming_receive,
+            message_received_callback=message_received_callback,
+            timeout=timeout,
+            use_tls=config.use_tls,
             **kwargs,
         )
 
     @staticmethod
     async def _callback_task(consumer, batch, max_batch_size, max_wait_time):
-        while consumer._callback_task_run: # pylint: disable=protected-access
-            async with consumer._message_buffer_lock: # pylint: disable=protected-access
+        # pylint: disable=protected-access
+        while consumer._callback_task_run:
+            async with consumer._message_buffer_lock:
                 events = [
-                    consumer._next_message_in_buffer() # pylint: disable=protected-access
-                    for _ in range(min(max_batch_size, len(consumer._message_buffer))) # pylint: disable=protected-access
+                    consumer._next_message_in_buffer()
+                    for _ in range(min(max_batch_size, len(consumer._message_buffer)))
                 ]
             now_time = time.time()
             if len(events) > 0:
-                await consumer._on_event_received(events if batch else events[0]) # pylint: disable=protected-access
-                consumer._last_callback_called_time = now_time # pylint: disable=protected-access
+                await consumer._on_event_received(events if batch else events[0])
+                consumer._last_callback_called_time = now_time
             else:
-                if max_wait_time and (now_time - consumer._last_callback_called_time) > max_wait_time: # pylint: disable=protected-access
+                if max_wait_time and (now_time - consumer._last_callback_called_time) > max_wait_time:
                     # no events received, and need to callback
-                    await consumer._on_event_received([] if batch else None) # pylint: disable=protected-access
-                    consumer._last_callback_called_time = now_time # pylint: disable=protected-access
+                    await consumer._on_event_received([] if batch else None)
+                    consumer._last_callback_called_time = now_time
                 # backoff a bit to avoid throttling CPU when no events are coming
                 await asyncio.sleep(0.05)
 
     @staticmethod
-    async def _receive_task(consumer):
+    async def _receive_task(consumer, max_batch_size):
         # pylint:disable=protected-access
         max_retries = consumer._client._config.max_retries
         retried_times = 0
@@ -191,8 +261,16 @@ class PyamqpTransportAsync(PyamqpTransport, AmqpTransportAsync):
         try:
             while retried_times <= max_retries and running and consumer._callback_task_run:
                 try:
-                    await consumer._open() # pylint: disable=protected-access
-                    running = await cast(ReceiveClientAsync, consumer._handler).do_work_async(batch=consumer._prefetch)
+                    # set a default value of consumer._prefetch for buffer length
+                    buff_length = MAX_BUFFER_LENGTH
+                    await consumer._open()  # pylint: disable=protected-access
+                    async with consumer._message_buffer_lock:
+                        buff_length = len(consumer._message_buffer)
+                    if buff_length <= max_batch_size:
+                        running = await cast(ReceiveClientAsync, consumer._handler).do_work_async(
+                            batch=consumer._prefetch
+                        )
+                    await asyncio.sleep(0.05)
                 except asyncio.CancelledError:  # pylint: disable=try-except-raise
                     raise
                 except Exception as exception:  # pylint: disable=broad-except
@@ -222,8 +300,8 @@ class PyamqpTransportAsync(PyamqpTransport, AmqpTransportAsync):
 
     @staticmethod
     async def message_received_async(consumer, message: Message) -> None:
-        async with consumer._message_buffer_lock: # pylint: disable=protected-access
-            consumer._message_buffer.append(message) # pylint: disable=protected-access
+        async with consumer._message_buffer_lock:  # pylint: disable=protected-access
+            consumer._message_buffer.append(message)  # pylint: disable=protected-access
 
     @staticmethod
     async def receive_messages_async(consumer, batch, max_batch_size, max_wait_time):
@@ -241,7 +319,7 @@ class PyamqpTransportAsync(PyamqpTransport, AmqpTransportAsync):
         callback_task = asyncio.create_task(
             PyamqpTransportAsync._callback_task(consumer, batch, max_batch_size, max_wait_time)
         )
-        receive_task = asyncio.create_task(PyamqpTransportAsync._receive_task(consumer))
+        receive_task = asyncio.create_task(PyamqpTransportAsync._receive_task(consumer, max_batch_size))
 
         tasks = [callback_task, receive_task]
         try:
@@ -253,7 +331,14 @@ class PyamqpTransportAsync(PyamqpTransport, AmqpTransportAsync):
                     await asyncio.wait([t], timeout=1)
 
     @staticmethod
-    async def create_token_auth_async(auth_uri, get_token, token_type, config, **kwargs):
+    async def create_token_auth_async(
+        auth_uri: str,
+        get_token: Callable,
+        token_type: bytes,
+        config,
+        *,
+        update_token: bool,
+    ):
         """
         Creates the JWTTokenAuth.
         :param str auth_uri: The auth uri to pass to JWTTokenAuth.
@@ -269,7 +354,6 @@ class PyamqpTransportAsync(PyamqpTransport, AmqpTransportAsync):
         :rtype: ~pyamqp.aio._authentication_async.JWTTokenAuthAsync
         """
         # TODO: figure out why we're passing all these args to pyamqp JWTTokenAuth, which aren't being used
-        update_token = kwargs.pop("update_token")  # pylint: disable=unused-variable
         if update_token:
             # update_token not actually needed by pyamqp
             # just using to detect wh
@@ -282,13 +366,12 @@ class PyamqpTransportAsync(PyamqpTransport, AmqpTransportAsync):
             timeout=config.auth_timeout,
             custom_endpoint_hostname=config.custom_endpoint_hostname,
             port=config.connection_port,
-            verify=config.connection_verify,
         )
         # if update_token:
         #    token_auth.update_token()  # TODO: why don't we need to update in pyamqp?
 
     @staticmethod
-    def create_mgmt_client(address, mgmt_auth, config):  # pylint: disable=unused-argument
+    def create_mgmt_client(address, mgmt_auth, config):
         """
         Creates and returns the mgmt AMQP client.
         :param _Address address: Required. The Address.
@@ -307,6 +390,8 @@ class PyamqpTransportAsync(PyamqpTransport, AmqpTransportAsync):
             http_proxy=config.http_proxy,
             custom_endpoint_address=config.custom_endpoint_address,
             connection_verify=config.connection_verify,
+            ssl_context=config.ssl_context,
+            use_tls=config.use_tls,
         )
 
     @staticmethod
@@ -321,7 +406,16 @@ class PyamqpTransportAsync(PyamqpTransport, AmqpTransportAsync):
         return (await mgmt_auth.get_token()).token
 
     @staticmethod
-    async def mgmt_client_request_async(mgmt_client, mgmt_msg, **kwargs):
+    async def mgmt_client_request_async(
+        mgmt_client: AMQPClientAsync,
+        mgmt_msg: str,
+        *,
+        operation: bytes,
+        operation_type: bytes,
+        status_code_field: bytes,
+        description_fields: bytes,
+        **kwargs,
+    ):
         """
         Send mgmt request.
         :param ~pyamqp.aio.AMQPClientAsync mgmt_client: Client to send request with.
@@ -334,14 +428,17 @@ class PyamqpTransportAsync(PyamqpTransport, AmqpTransportAsync):
         :return: The mgmt client.
         :rtype: ~pyamqp.aio.AMQPClientAsync
         """
-        operation_type = kwargs.pop("operation_type")
-        operation = kwargs.pop("operation")
         return await mgmt_client.mgmt_request_async(
-            mgmt_msg, operation=operation.decode(), operation_type=operation_type.decode(), **kwargs
+            mgmt_msg,
+            operation=operation.decode(),
+            operation_type=operation_type.decode(),
+            status_code_field=status_code_field,
+            description_fields=description_fields,
+            **kwargs,
         )
 
     @staticmethod
-    async def _handle_exception_async(  # pylint:disable=too-many-branches, too-many-statements
+    async def _handle_exception_async(
         exception: Exception, closable: Union["ClientBaseAsync", "ConsumerProducerMixin"], *, is_consumer=False
     ) -> Exception:
         # pylint: disable=protected-access
@@ -376,20 +473,23 @@ class PyamqpTransportAsync(PyamqpTransport, AmqpTransportAsync):
         #     raise error
         elif isinstance(exception, errors.MessageException):
             _LOGGER.info("%r Event data send error (%r)", name, exception)
-            error = EventDataSendError(str(exception), exception)
+            # TODO: issue #34266
+            error = EventDataSendError(str(exception), exception)  # type: ignore[arg-type]
             raise error
         else:
             try:
                 if isinstance(exception, errors.AuthenticationException):
                     await closable._close_connection_async()  # pylint:disable=protected-access
                 elif isinstance(exception, errors.AMQPLinkError):
-                    await cast("ConsumerProducerMixin", closable)._close_handler_async()  # pylint:disable=protected-access
+                    await cast(
+                        "ConsumerProducerMixin", closable
+                    )._close_handler_async()
                 elif isinstance(exception, errors.AMQPConnectionError):
                     await closable._close_connection_async()  # pylint:disable=protected-access
                 # TODO: add MessageHandlerError in amqp?
                 # elif isinstance(exception, errors.MessageHandlerError):
                 #     if hasattr(closable, "_close_handler"):
-                #         closable._close_handler()  # pylint:disable=protected-access
+                #         closable._close_handler()
                 else:  # errors.AMQPConnectionError, compat.TimeoutException
                     await closable._close_connection_async()  # pylint:disable=protected-access
                 return PyamqpTransportAsync._create_eventhub_exception(exception, is_consumer=is_consumer)

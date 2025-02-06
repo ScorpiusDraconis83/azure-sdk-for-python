@@ -1,5 +1,5 @@
-# coding=utf-8
 # pylint: disable=too-many-lines
+# coding=utf-8
 # --------------------------------------------------------------------------
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License. See License.txt in the project root for license information.
@@ -16,10 +16,9 @@ from .. import _serialization
 if sys.version_info >= (3, 9):
     from collections.abc import MutableMapping
 else:
-    from typing import MutableMapping  # type: ignore  # pylint: disable=ungrouped-imports
+    from typing import MutableMapping  # type: ignore
 
 if TYPE_CHECKING:
-    # pylint: disable=unused-import,ungrouped-imports
     from .. import models as _models
 JSON = MutableMapping[str, Any]  # pylint: disable=unsubscriptable-object
 
@@ -104,7 +103,7 @@ class AppendPositionAccessConditions(_serialization.Model):
 class ArrowConfiguration(_serialization.Model):
     """Groups the settings used for formatting the response if the response should be Arrow formatted.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar schema: Required.
     :vartype schema: list[~azure.storage.blob.models.ArrowField]
@@ -135,7 +134,7 @@ class ArrowConfiguration(_serialization.Model):
 class ArrowField(_serialization.Model):
     """Groups settings regarding specific field of an arrow schema.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar type: Required.
     :vartype type: str
@@ -188,7 +187,7 @@ class ArrowField(_serialization.Model):
 class BlobFlatListSegment(_serialization.Model):
     """BlobFlatListSegment.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar blob_items: Required.
     :vartype blob_items: list[~azure.storage.blob.models.BlobItemInternal]
@@ -215,7 +214,7 @@ class BlobFlatListSegment(_serialization.Model):
 class BlobHierarchyListSegment(_serialization.Model):
     """BlobHierarchyListSegment.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar blob_prefixes:
     :vartype blob_prefixes: list[~azure.storage.blob.models.BlobPrefix]
@@ -324,7 +323,7 @@ class BlobHTTPHeaders(_serialization.Model):
 class BlobItemInternal(_serialization.Model):
     """An Azure Storage blob.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar name: Required.
     :vartype name: ~azure.storage.blob.models.BlobName
@@ -479,7 +478,7 @@ class BlobName(_serialization.Model):
 class BlobPrefix(_serialization.Model):
     """BlobPrefix.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar name: Required.
     :vartype name: ~azure.storage.blob.models.BlobName
@@ -502,10 +501,10 @@ class BlobPrefix(_serialization.Model):
         self.name = name
 
 
-class BlobPropertiesInternal(_serialization.Model):  # pylint: disable=too-many-instance-attributes
+class BlobPropertiesInternal(_serialization.Model):
     """Properties of a blob.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar creation_time:
     :vartype creation_time: ~datetime.datetime
@@ -822,7 +821,7 @@ class BlobPropertiesInternal(_serialization.Model):  # pylint: disable=too-many-
 class BlobTag(_serialization.Model):
     """BlobTag.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar key: Required.
     :vartype key: str
@@ -856,7 +855,7 @@ class BlobTag(_serialization.Model):
 class BlobTags(_serialization.Model):
     """Blob tags.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar blob_tag_set: Required.
     :vartype blob_tag_set: list[~azure.storage.blob.models.BlobTag]
@@ -887,7 +886,7 @@ class BlobTags(_serialization.Model):
 class Block(_serialization.Model):
     """Represents a single block in a block blob.  It describes the block's ID and size.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar name: The base64 encoded block ID. Required.
     :vartype name: str
@@ -992,7 +991,7 @@ class BlockLookupList(_serialization.Model):
 class ClearRange(_serialization.Model):
     """ClearRange.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar start: Required.
     :vartype start: int
@@ -1064,7 +1063,7 @@ class ContainerCpkScopeInfo(_serialization.Model):
 class ContainerItem(_serialization.Model):
     """An Azure Storage container.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar name: Required.
     :vartype name: str
@@ -1122,10 +1121,10 @@ class ContainerItem(_serialization.Model):
         self.metadata = metadata
 
 
-class ContainerProperties(_serialization.Model):  # pylint: disable=too-many-instance-attributes
+class ContainerProperties(_serialization.Model):
     """Properties of a container.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar last_modified: Required.
     :vartype last_modified: ~datetime.datetime
@@ -1251,7 +1250,7 @@ class CorsRule(_serialization.Model):
     policy that prevents a web page from calling APIs in a different domain; CORS provides a secure
     way to allow one domain (the origin domain) to call APIs in another domain.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar allowed_origins: The origin domains that are permitted to make a request against the
      storage service via CORS. The origin domain is the domain from which the request originates.
@@ -1460,7 +1459,7 @@ class DelimitedTextConfiguration(_serialization.Model):
 class FilterBlobItem(_serialization.Model):
     """Blob info from a Filter Blobs API call.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar name: Required.
     :vartype name: str
@@ -1521,7 +1520,7 @@ class FilterBlobItem(_serialization.Model):
 class FilterBlobSegment(_serialization.Model):
     """The result of a Filter Blobs API call.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar service_endpoint: Required.
     :vartype service_endpoint: str
@@ -1580,7 +1579,7 @@ class FilterBlobSegment(_serialization.Model):
 class GeoReplication(_serialization.Model):
     """Geo-Replication information for the Secondary Storage Service.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar status: The status of the secondary location. Required. Known values are: "live",
      "bootstrap", and "unavailable".
@@ -1646,7 +1645,7 @@ class JsonTextConfiguration(_serialization.Model):
 class KeyInfo(_serialization.Model):
     """Key information.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar start: The date-time the key is active in ISO 8601 UTC time. Required.
     :vartype start: str
@@ -1701,7 +1700,7 @@ class LeaseAccessConditions(_serialization.Model):
 class ListBlobsFlatSegmentResponse(_serialization.Model):
     """An enumeration of blobs.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar service_endpoint: Required.
     :vartype service_endpoint: str
@@ -1777,7 +1776,7 @@ class ListBlobsFlatSegmentResponse(_serialization.Model):
 class ListBlobsHierarchySegmentResponse(_serialization.Model):
     """An enumeration of blobs.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar service_endpoint: Required.
     :vartype service_endpoint: str
@@ -1860,7 +1859,7 @@ class ListBlobsHierarchySegmentResponse(_serialization.Model):
 class ListContainersSegmentResponse(_serialization.Model):
     """An enumeration of containers.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar service_endpoint: Required.
     :vartype service_endpoint: str
@@ -1932,7 +1931,7 @@ class ListContainersSegmentResponse(_serialization.Model):
 class Logging(_serialization.Model):
     """Azure Analytics Logging settings.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar version: The version of Storage Analytics to configure. Required.
     :vartype version: str
@@ -1997,7 +1996,7 @@ class Logging(_serialization.Model):
 class Metrics(_serialization.Model):
     """a summary of request statistics grouped by API in hour or minute aggregates for blobs.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar version: The version of Storage Analytics to configure.
     :vartype version: str
@@ -2152,7 +2151,7 @@ class PageList(_serialization.Model):
 class PageRange(_serialization.Model):
     """PageRange.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar start: Required.
     :vartype start: int
@@ -2186,7 +2185,7 @@ class PageRange(_serialization.Model):
 class QueryFormat(_serialization.Model):
     """QueryFormat.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar type: The quick query format type. Required. Known values are: "delimited", "json",
      "arrow", and "parquet".
@@ -2253,7 +2252,7 @@ class QueryRequest(_serialization.Model):
 
     Variables are only populated by the server, and will be ignored when sending a request.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar query_type: Required. The type of the provided query expression. Required. Default value
      is "SQL".
@@ -2308,7 +2307,7 @@ class QueryRequest(_serialization.Model):
 class QuerySerialization(_serialization.Model):
     """QuerySerialization.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar format: Required.
     :vartype format: ~azure.storage.blob.models.QueryFormat
@@ -2334,7 +2333,7 @@ class QuerySerialization(_serialization.Model):
 class RetentionPolicy(_serialization.Model):
     """the retention policy which determines how long the associated data should persist.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar enabled: Indicates whether a retention policy is enabled for the storage service.
      Required.
@@ -2426,7 +2425,7 @@ class SequenceNumberAccessConditions(_serialization.Model):
 class SignedIdentifier(_serialization.Model):
     """signed identifier.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar id: a unique id. Required.
     :vartype id: str
@@ -2526,7 +2525,7 @@ class SourceModifiedAccessConditions(_serialization.Model):
 class StaticWebsite(_serialization.Model):
     """The properties that enable an account to host a static website.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar enabled: Indicates whether this account is hosting a static website. Required.
     :vartype enabled: bool
@@ -2695,7 +2694,7 @@ class StorageServiceStats(_serialization.Model):
 class UserDelegationKey(_serialization.Model):
     """A user delegation key.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar signed_oid: The Azure Active Directory object ID in GUID format. Required.
     :vartype signed_oid: str

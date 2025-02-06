@@ -4,8 +4,6 @@
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
 # --------------------------------------------------------------------------
-from __future__ import division
-
 import functools
 import os.path
 
@@ -38,9 +36,6 @@ os.environ['AZURE_SKIP_LIVE_RECORDING'] = os.environ.get('AZURE_SKIP_LIVE_RECORD
 os.environ['PROTOCOL'] = PROTOCOL
 os.environ['ACCOUNT_URL_SUFFIX'] = ACCOUNT_URL_SUFFIX
 
-os.environ['STORAGE_TENANT_ID'] = os.environ.get('STORAGE_TENANT_ID', None) or TENANT_ID
-os.environ['STORAGE_CLIENT_ID'] = os.environ.get('STORAGE_CLIENT_ID', None) or CLIENT_ID
-os.environ['STORAGE_CLIENT_SECRET'] = os.environ.get('STORAGE_CLIENT_SECRET', None) or CLIENT_SECRET
 
 QueuePreparer = functools.partial(
     PowerShellPreparer, "storage",

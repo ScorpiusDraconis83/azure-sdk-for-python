@@ -7,6 +7,7 @@
 # --------------------------------------------------------------------------
 
 from azure.identity import DefaultAzureCredential
+
 from azure.mgmt.web import WebSiteManagementClient
 
 """
@@ -53,6 +54,6 @@ def main():
     )
 
 
-# x-ms-original-file: specification/web/resource-manager/Microsoft.CertificateRegistration/stable/2023-01-01/examples/ValidateAppServiceCertificatePurchaseInformationBySubscription.json
+# x-ms-original-file: specification/web/resource-manager/Microsoft.CertificateRegistration/stable/2024-04-01/examples/ValidateAppServiceCertificatePurchaseInformationBySubscription.json
 if __name__ == "__main__":
     main()

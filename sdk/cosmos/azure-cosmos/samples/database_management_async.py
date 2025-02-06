@@ -14,7 +14,7 @@ import config
 # Prerequisites -
 #
 # 1. An Azure Cosmos account -
-#    https://docs.microsoft.com/azure/cosmos-db/create-sql-api-python#create-a-database-account
+#    https://learn.microsoft.com/azure/cosmos-db/create-sql-api-python#create-a-database-account
 #
 # 2. Microsoft Azure Cosmos PyPi package -
 #    https://pypi.python.org/pypi/azure-cosmos/
@@ -73,7 +73,7 @@ async def create_database(client, id):
     except exceptions.CosmosResourceExistsError:
         print('A database with id \'{0}\' already exists'.format(id))
 
-    print("\n2.8 Create Database - With auto scale settings")
+    print("\n2.8 Create Database - With autoscale settings")
 
     try:
         await client.create_database(

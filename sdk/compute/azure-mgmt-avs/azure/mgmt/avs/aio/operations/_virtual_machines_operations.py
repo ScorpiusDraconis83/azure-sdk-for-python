@@ -1,4 +1,4 @@
-# pylint: disable=too-many-lines
+# pylint: disable=too-many-lines,too-many-statements
 # coding=utf-8
 # --------------------------------------------------------------------------
 # Copyright (c) Microsoft Corporation. All rights reserved.
@@ -7,7 +7,8 @@
 # Changes may cause incorrect behavior and will be lost if the code is regenerated.
 # --------------------------------------------------------------------------
 from io import IOBase
-from typing import Any, AsyncIterable, Callable, Dict, IO, Optional, TypeVar, Union, cast, overload
+import sys
+from typing import Any, AsyncIterable, AsyncIterator, Callable, Dict, IO, Optional, Type, TypeVar, Union, cast, overload
 import urllib.parse
 
 from azure.core.async_paging import AsyncItemPaged, AsyncList
@@ -17,12 +18,13 @@ from azure.core.exceptions import (
     ResourceExistsError,
     ResourceNotFoundError,
     ResourceNotModifiedError,
+    StreamClosedError,
+    StreamConsumedError,
     map_error,
 )
 from azure.core.pipeline import PipelineResponse
-from azure.core.pipeline.transport import AsyncHttpResponse
 from azure.core.polling import AsyncLROPoller, AsyncNoPolling, AsyncPollingMethod
-from azure.core.rest import HttpRequest
+from azure.core.rest import AsyncHttpResponse, HttpRequest
 from azure.core.tracing.decorator import distributed_trace
 from azure.core.tracing.decorator_async import distributed_trace_async
 from azure.core.utils import case_insensitive_dict
@@ -30,13 +32,16 @@ from azure.mgmt.core.exceptions import ARMErrorFormat
 from azure.mgmt.core.polling.async_arm_polling import AsyncARMPolling
 
 from ... import models as _models
-from ..._vendor import _convert_request
 from ...operations._virtual_machines_operations import (
     build_get_request,
     build_list_request,
     build_restrict_movement_request,
 )
 
+if sys.version_info >= (3, 9):
+    from collections.abc import MutableMapping
+else:
+    from typing import MutableMapping  # type: ignore  # pylint: disable=ungrouped-imports
 T = TypeVar("T")
 ClsType = Optional[Callable[[PipelineResponse[HttpRequest, AsyncHttpResponse], T, Dict[str, Any]], Any]]
 
@@ -64,18 +69,15 @@ class VirtualMachinesOperations:
     def list(
         self, resource_group_name: str, private_cloud_name: str, cluster_name: str, **kwargs: Any
     ) -> AsyncIterable["_models.VirtualMachine"]:
-        """List of virtual machines in a private cloud cluster.
-
-        List of virtual machines in a private cloud cluster.
+        """List VirtualMachine resources by Cluster.
 
         :param resource_group_name: The name of the resource group. The name is case insensitive.
          Required.
         :type resource_group_name: str
         :param private_cloud_name: Name of the private cloud. Required.
         :type private_cloud_name: str
-        :param cluster_name: Name of the cluster in the private cloud. Required.
+        :param cluster_name: Name of the cluster. Required.
         :type cluster_name: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: An iterator like instance of either VirtualMachine or the result of cls(response)
         :rtype: ~azure.core.async_paging.AsyncItemPaged[~azure.mgmt.avs.models.VirtualMachine]
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -86,7 +88,7 @@ class VirtualMachinesOperations:
         api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._config.api_version))
         cls: ClsType[_models.VirtualMachinesList] = kwargs.pop("cls", None)
 
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -97,18 +99,16 @@ class VirtualMachinesOperations:
         def prepare_request(next_link=None):
             if not next_link:
 
-                request = build_list_request(
+                _request = build_list_request(
                     resource_group_name=resource_group_name,
                     private_cloud_name=private_cloud_name,
                     cluster_name=cluster_name,
                     subscription_id=self._config.subscription_id,
                     api_version=api_version,
-                    template_url=self.list.metadata["url"],
                     headers=_headers,
                     params=_params,
                 )
-                request = _convert_request(request)
-                request.url = self._client.format_url(request.url)
+                _request.url = self._client.format_url(_request.url)
 
             else:
                 # make call to next link with the client's api-version
@@ -120,13 +120,12 @@ class VirtualMachinesOperations:
                     }
                 )
                 _next_request_params["api-version"] = self._config.api_version
-                request = HttpRequest(
+                _request = HttpRequest(
                     "GET", urllib.parse.urljoin(next_link, _parsed_next_link.path), params=_next_request_params
                 )
-                request = _convert_request(request)
-                request.url = self._client.format_url(request.url)
-                request.method = "GET"
-            return request
+                _request.url = self._client.format_url(_request.url)
+                _request.method = "GET"
+            return _request
 
         async def extract_data(pipeline_response):
             deserialized = self._deserialize("VirtualMachinesList", pipeline_response)
@@ -136,11 +135,11 @@ class VirtualMachinesOperations:
             return deserialized.next_link or None, AsyncList(list_of_elem)
 
         async def get_next(next_link=None):
-            request = prepare_request(next_link)
+            _request = prepare_request(next_link)
 
             _stream = False
             pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-                request, stream=_stream, **kwargs
+                _request, stream=_stream, **kwargs
             )
             response = pipeline_response.http_response
 
@@ -153,10 +152,6 @@ class VirtualMachinesOperations:
 
         return AsyncItemPaged(get_next, extract_data)
 
-    list.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.AVS/privateClouds/{privateCloudName}/clusters/{clusterName}/virtualMachines"
-    }
-
     @distributed_trace_async
     async def get(
         self,
@@ -166,25 +161,22 @@ class VirtualMachinesOperations:
         virtual_machine_id: str,
         **kwargs: Any
     ) -> _models.VirtualMachine:
-        """Get a virtual machine by id in a private cloud cluster.
-
-        Get a virtual machine by id in a private cloud cluster.
+        """Get a VirtualMachine.
 
         :param resource_group_name: The name of the resource group. The name is case insensitive.
          Required.
         :type resource_group_name: str
         :param private_cloud_name: Name of the private cloud. Required.
         :type private_cloud_name: str
-        :param cluster_name: Name of the cluster in the private cloud. Required.
+        :param cluster_name: Name of the cluster. Required.
         :type cluster_name: str
-        :param virtual_machine_id: Virtual Machine identifier. Required.
+        :param virtual_machine_id: ID of the virtual machine. Required.
         :type virtual_machine_id: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: VirtualMachine or the result of cls(response)
         :rtype: ~azure.mgmt.avs.models.VirtualMachine
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -198,23 +190,21 @@ class VirtualMachinesOperations:
         api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._config.api_version))
         cls: ClsType[_models.VirtualMachine] = kwargs.pop("cls", None)
 
-        request = build_get_request(
+        _request = build_get_request(
             resource_group_name=resource_group_name,
             private_cloud_name=private_cloud_name,
             cluster_name=cluster_name,
             virtual_machine_id=virtual_machine_id,
             subscription_id=self._config.subscription_id,
             api_version=api_version,
-            template_url=self.get.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -224,27 +214,23 @@ class VirtualMachinesOperations:
             error = self._deserialize.failsafe_deserialize(_models.ErrorResponse, pipeline_response)
             raise HttpResponseError(response=response, model=error, error_format=ARMErrorFormat)
 
-        deserialized = self._deserialize("VirtualMachine", pipeline_response)
+        deserialized = self._deserialize("VirtualMachine", pipeline_response.http_response)
 
         if cls:
-            return cls(pipeline_response, deserialized, {})
+            return cls(pipeline_response, deserialized, {})  # type: ignore
 
-        return deserialized
+        return deserialized  # type: ignore
 
-    get.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.AVS/privateClouds/{privateCloudName}/clusters/{clusterName}/virtualMachines/{virtualMachineId}"
-    }
-
-    async def _restrict_movement_initial(  # pylint: disable=inconsistent-return-statements
+    async def _restrict_movement_initial(
         self,
         resource_group_name: str,
         private_cloud_name: str,
         cluster_name: str,
         virtual_machine_id: str,
-        restrict_movement: Union[_models.VirtualMachineRestrictMovement, IO],
+        restrict_movement: Union[_models.VirtualMachineRestrictMovement, IO[bytes]],
         **kwargs: Any
-    ) -> None:
-        error_map = {
+    ) -> AsyncIterator[bytes]:
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -257,7 +243,7 @@ class VirtualMachinesOperations:
 
         api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._config.api_version))
         content_type: Optional[str] = kwargs.pop("content_type", _headers.pop("Content-Type", None))
-        cls: ClsType[None] = kwargs.pop("cls", None)
+        cls: ClsType[AsyncIterator[bytes]] = kwargs.pop("cls", None)
 
         content_type = content_type or "application/json"
         _json = None
@@ -267,7 +253,7 @@ class VirtualMachinesOperations:
         else:
             _json = self._serialize.body(restrict_movement, "VirtualMachineRestrictMovement")
 
-        request = build_restrict_movement_request(
+        _request = build_restrict_movement_request(
             resource_group_name=resource_group_name,
             private_cloud_name=private_cloud_name,
             cluster_name=cluster_name,
@@ -277,31 +263,38 @@ class VirtualMachinesOperations:
             content_type=content_type,
             json=_json,
             content=_content,
-            template_url=self._restrict_movement_initial.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
-        _stream = False
+        _decompress = kwargs.pop("decompress", True)
+        _stream = True
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
 
         if response.status_code not in [202]:
+            try:
+                await response.read()  # Load the body in memory and close the socket
+            except (StreamConsumedError, StreamClosedError):
+                pass
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             error = self._deserialize.failsafe_deserialize(_models.ErrorResponse, pipeline_response)
             raise HttpResponseError(response=response, model=error, error_format=ARMErrorFormat)
 
-        if cls:
-            return cls(pipeline_response, None, {})
+        response_headers = {}
+        response_headers["Location"] = self._deserialize("str", response.headers.get("Location"))
+        response_headers["Retry-After"] = self._deserialize("int", response.headers.get("Retry-After"))
 
-    _restrict_movement_initial.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.AVS/privateClouds/{privateCloudName}/clusters/{clusterName}/virtualMachines/{virtualMachineId}/restrictMovement"
-    }
+        deserialized = response.stream_download(self._client._pipeline, decompress=_decompress)
+
+        if cls:
+            return cls(pipeline_response, deserialized, response_headers)  # type: ignore
+
+        return deserialized  # type: ignore
 
     @overload
     async def begin_restrict_movement(
@@ -317,31 +310,20 @@ class VirtualMachinesOperations:
     ) -> AsyncLROPoller[None]:
         """Enable or disable DRS-driven VM movement restriction.
 
-        Enable or disable DRS-driven VM movement restriction.
-
         :param resource_group_name: The name of the resource group. The name is case insensitive.
          Required.
         :type resource_group_name: str
         :param private_cloud_name: Name of the private cloud. Required.
         :type private_cloud_name: str
-        :param cluster_name: Name of the cluster in the private cloud. Required.
+        :param cluster_name: Name of the cluster. Required.
         :type cluster_name: str
-        :param virtual_machine_id: Virtual Machine identifier. Required.
+        :param virtual_machine_id: ID of the virtual machine. Required.
         :type virtual_machine_id: str
-        :param restrict_movement: Whether VM DRS-driven movement is restricted (Enabled) or not
-         (Disabled). Required.
+        :param restrict_movement: The body type of the operation request. Required.
         :type restrict_movement: ~azure.mgmt.avs.models.VirtualMachineRestrictMovement
         :keyword content_type: Body Parameter content-type. Content type parameter for JSON body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be AsyncARMPolling. Pass in False for
-         this operation to not poll, or pass in your own initialized polling object for a personal
-         polling strategy.
-        :paramtype polling: bool or ~azure.core.polling.AsyncPollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of AsyncLROPoller that returns either None or the result of cls(response)
         :rtype: ~azure.core.polling.AsyncLROPoller[None]
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -354,38 +336,27 @@ class VirtualMachinesOperations:
         private_cloud_name: str,
         cluster_name: str,
         virtual_machine_id: str,
-        restrict_movement: IO,
+        restrict_movement: IO[bytes],
         *,
         content_type: str = "application/json",
         **kwargs: Any
     ) -> AsyncLROPoller[None]:
         """Enable or disable DRS-driven VM movement restriction.
 
-        Enable or disable DRS-driven VM movement restriction.
-
         :param resource_group_name: The name of the resource group. The name is case insensitive.
          Required.
         :type resource_group_name: str
         :param private_cloud_name: Name of the private cloud. Required.
         :type private_cloud_name: str
-        :param cluster_name: Name of the cluster in the private cloud. Required.
+        :param cluster_name: Name of the cluster. Required.
         :type cluster_name: str
-        :param virtual_machine_id: Virtual Machine identifier. Required.
+        :param virtual_machine_id: ID of the virtual machine. Required.
         :type virtual_machine_id: str
-        :param restrict_movement: Whether VM DRS-driven movement is restricted (Enabled) or not
-         (Disabled). Required.
-        :type restrict_movement: IO
+        :param restrict_movement: The body type of the operation request. Required.
+        :type restrict_movement: IO[bytes]
         :keyword content_type: Body Parameter content-type. Content type parameter for binary body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be AsyncARMPolling. Pass in False for
-         this operation to not poll, or pass in your own initialized polling object for a personal
-         polling strategy.
-        :paramtype polling: bool or ~azure.core.polling.AsyncPollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of AsyncLROPoller that returns either None or the result of cls(response)
         :rtype: ~azure.core.polling.AsyncLROPoller[None]
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -398,36 +369,23 @@ class VirtualMachinesOperations:
         private_cloud_name: str,
         cluster_name: str,
         virtual_machine_id: str,
-        restrict_movement: Union[_models.VirtualMachineRestrictMovement, IO],
+        restrict_movement: Union[_models.VirtualMachineRestrictMovement, IO[bytes]],
         **kwargs: Any
     ) -> AsyncLROPoller[None]:
         """Enable or disable DRS-driven VM movement restriction.
-
-        Enable or disable DRS-driven VM movement restriction.
 
         :param resource_group_name: The name of the resource group. The name is case insensitive.
          Required.
         :type resource_group_name: str
         :param private_cloud_name: Name of the private cloud. Required.
         :type private_cloud_name: str
-        :param cluster_name: Name of the cluster in the private cloud. Required.
+        :param cluster_name: Name of the cluster. Required.
         :type cluster_name: str
-        :param virtual_machine_id: Virtual Machine identifier. Required.
+        :param virtual_machine_id: ID of the virtual machine. Required.
         :type virtual_machine_id: str
-        :param restrict_movement: Whether VM DRS-driven movement is restricted (Enabled) or not
-         (Disabled). Is either a VirtualMachineRestrictMovement type or a IO type. Required.
-        :type restrict_movement: ~azure.mgmt.avs.models.VirtualMachineRestrictMovement or IO
-        :keyword content_type: Body Parameter content-type. Known values are: 'application/json'.
-         Default value is None.
-        :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be AsyncARMPolling. Pass in False for
-         this operation to not poll, or pass in your own initialized polling object for a personal
-         polling strategy.
-        :paramtype polling: bool or ~azure.core.polling.AsyncPollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
+        :param restrict_movement: The body type of the operation request. Is either a
+         VirtualMachineRestrictMovement type or a IO[bytes] type. Required.
+        :type restrict_movement: ~azure.mgmt.avs.models.VirtualMachineRestrictMovement or IO[bytes]
         :return: An instance of AsyncLROPoller that returns either None or the result of cls(response)
         :rtype: ~azure.core.polling.AsyncLROPoller[None]
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -442,7 +400,7 @@ class VirtualMachinesOperations:
         lro_delay = kwargs.pop("polling_interval", self._config.polling_interval)
         cont_token: Optional[str] = kwargs.pop("continuation_token", None)
         if cont_token is None:
-            raw_result = await self._restrict_movement_initial(  # type: ignore
+            raw_result = await self._restrict_movement_initial(
                 resource_group_name=resource_group_name,
                 private_cloud_name=private_cloud_name,
                 cluster_name=cluster_name,
@@ -455,27 +413,26 @@ class VirtualMachinesOperations:
                 params=_params,
                 **kwargs
             )
+            await raw_result.http_response.read()  # type: ignore
         kwargs.pop("error_map", None)
 
         def get_long_running_output(pipeline_response):  # pylint: disable=inconsistent-return-statements
             if cls:
-                return cls(pipeline_response, None, {})
+                return cls(pipeline_response, None, {})  # type: ignore
 
         if polling is True:
-            polling_method: AsyncPollingMethod = cast(AsyncPollingMethod, AsyncARMPolling(lro_delay, **kwargs))
+            polling_method: AsyncPollingMethod = cast(
+                AsyncPollingMethod, AsyncARMPolling(lro_delay, lro_options={"final-state-via": "location"}, **kwargs)
+            )
         elif polling is False:
             polling_method = cast(AsyncPollingMethod, AsyncNoPolling())
         else:
             polling_method = polling
         if cont_token:
-            return AsyncLROPoller.from_continuation_token(
+            return AsyncLROPoller[None].from_continuation_token(
                 polling_method=polling_method,
                 continuation_token=cont_token,
                 client=self._client,
                 deserialization_callback=get_long_running_output,
             )
-        return AsyncLROPoller(self._client, raw_result, get_long_running_output, polling_method)  # type: ignore
-
-    begin_restrict_movement.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.AVS/privateClouds/{privateCloudName}/clusters/{clusterName}/virtualMachines/{virtualMachineId}/restrictMovement"
-    }
+        return AsyncLROPoller[None](self._client, raw_result, get_long_running_output, polling_method)  # type: ignore

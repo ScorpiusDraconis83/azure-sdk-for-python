@@ -15,7 +15,7 @@ import config
 # Prerequisites -
 #
 # 1. An Azure Cosmos account -
-#    https://azure.microsoft.com/en-us/documentation/articles/documentdb-create-account/
+#    https://azure.microsoft.com/documentation/articles/documentdb-create-account/
 #
 # 2. Microsoft Azure Cosmos PyPi package -
 #    https://pypi.python.org/pypi/azure-cosmos/
@@ -206,7 +206,7 @@ async def create_container(db, id):
             print(
                 'Creating container with analytical storage can only happen in synapse link activated accounts, skipping step')
 
-    print("\n2.8 Create Container - With auto scale settings")
+    print("\n2.8 Create Container - With autoscale settings")
 
     try:
         container = await db.create_container(

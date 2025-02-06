@@ -44,7 +44,7 @@ class FeatureStoreConfigurationOptions(object):
         online_store_target = f"/subscriptions/{subscription_id}/resourceGroups/{resource_group}/providers/Microsoft.Cache/Redis/{redis_cache_name}"
 
         FeatureStoreSettings(
-            compute_runtime=ComputeRuntime(spark_runtime_version="3.2.0"),
+            compute_runtime=ComputeRuntime(spark_runtime_version="3.3.0"),
             offline_store_connection_name=offline_store_target,
             online_store_connection_name=online_store_target,
         )
@@ -97,9 +97,7 @@ class FeatureStoreConfigurationOptions(object):
             description="7-day and 3-day rolling aggregation of transactions featureset",
             entities=["azureml:account:1"],
             stage="Development",
-            specification=FeatureSetSpecification(
-                path="../tests/test_configs/feature_set/code_sample/FeatureSetSpec.yaml"
-            ),
+            specification=FeatureSetSpecification(path="../azure-ai-ml/tests/test_configs/feature_set/code_sample/"),
             tags={"data_type": "nonPII"},
         )
 

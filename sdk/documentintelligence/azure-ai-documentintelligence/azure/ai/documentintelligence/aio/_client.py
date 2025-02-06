@@ -8,6 +8,7 @@
 
 from copy import deepcopy
 from typing import Any, Awaitable, TYPE_CHECKING, Union
+from typing_extensions import Self
 
 from azure.core import AsyncPipelineClient
 from azure.core.credentials import AzureKeyCredential
@@ -25,24 +26,20 @@ from ._operations import (
 )
 
 if TYPE_CHECKING:
-    # pylint: disable=unused-import,ungrouped-imports
     from azure.core.credentials_async import AsyncTokenCredential
 
 
-class DocumentIntelligenceClient(
-    DocumentIntelligenceClientOperationsMixin
-):  # pylint: disable=client-accepts-api-version-keyword
+class DocumentIntelligenceClient(DocumentIntelligenceClientOperationsMixin):
     """DocumentIntelligenceClient.
 
     :param endpoint: The Document Intelligence service endpoint. Required.
     :type endpoint: str
-    :param credential: Credential needed for the client to connect to Azure. Is either a
+    :param credential: Credential used to authenticate requests to the service. Is either a
      AzureKeyCredential type or a TokenCredential type. Required.
     :type credential: ~azure.core.credentials.AzureKeyCredential or
      ~azure.core.credentials_async.AsyncTokenCredential
-    :keyword api_version: The API version to use for this operation. Default value is
-     "2023-10-31-preview". Note that overriding this default value may result in unsupported
-     behavior.
+    :keyword api_version: The API version to use for this operation. Default value is "2024-11-30".
+     Note that overriding this default value may result in unsupported behavior.
     :paramtype api_version: str
     :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
      Retry-After header is present.
@@ -107,7 +104,7 @@ class DocumentIntelligenceClient(
     async def close(self) -> None:
         await self._client.close()
 
-    async def __aenter__(self) -> "DocumentIntelligenceClient":
+    async def __aenter__(self) -> Self:
         await self._client.__aenter__()
         return self
 
@@ -115,20 +112,17 @@ class DocumentIntelligenceClient(
         await self._client.__aexit__(*exc_details)
 
 
-class DocumentIntelligenceAdministrationClient(
-    DocumentIntelligenceAdministrationClientOperationsMixin
-):  # pylint: disable=client-accepts-api-version-keyword
+class DocumentIntelligenceAdministrationClient(DocumentIntelligenceAdministrationClientOperationsMixin):
     """DocumentIntelligenceAdministrationClient.
 
     :param endpoint: The Document Intelligence service endpoint. Required.
     :type endpoint: str
-    :param credential: Credential needed for the client to connect to Azure. Is either a
+    :param credential: Credential used to authenticate requests to the service. Is either a
      AzureKeyCredential type or a TokenCredential type. Required.
     :type credential: ~azure.core.credentials.AzureKeyCredential or
      ~azure.core.credentials_async.AsyncTokenCredential
-    :keyword api_version: The API version to use for this operation. Default value is
-     "2023-10-31-preview". Note that overriding this default value may result in unsupported
-     behavior.
+    :keyword api_version: The API version to use for this operation. Default value is "2024-11-30".
+     Note that overriding this default value may result in unsupported behavior.
     :paramtype api_version: str
     :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
      Retry-After header is present.
@@ -195,7 +189,7 @@ class DocumentIntelligenceAdministrationClient(
     async def close(self) -> None:
         await self._client.close()
 
-    async def __aenter__(self) -> "DocumentIntelligenceAdministrationClient":
+    async def __aenter__(self) -> Self:
         await self._client.__aenter__()
         return self
 

@@ -4,7 +4,7 @@
 # ------------------------------------
 from typing import Optional, Any
 
-from azure.core.credentials import AccessToken
+from azure.core.credentials import AccessTokenInfo
 from .._internal import AadClient, AsyncContextManager
 from .._internal.get_token_mixin import GetTokenMixin
 from ..._credentials.certificate import get_client_credential
@@ -16,7 +16,7 @@ class CertificateCredential(AsyncContextManager, GetTokenMixin):
 
     The certificate must have an RSA private key, because this credential signs assertions using RS256. See
     `Microsoft Entra ID documentation
-    <https://docs.microsoft.com/azure/active-directory/develop/active-directory-certificate-credentials#register-your-certificate-with-microsoft-identity-platform>`__
+    <https://learn.microsoft.com/entra/identity-platform/certificate-credentials#register-your-certificate-with-microsoft-identity-platform>`__
     for more information on configuring certificate authentication.
 
     :param str tenant_id: ID of the service principal's tenant. Also called its 'directory' ID.
@@ -70,8 +70,8 @@ class CertificateCredential(AsyncContextManager, GetTokenMixin):
 
         await self._client.__aexit__()
 
-    async def _acquire_token_silently(self, *scopes: str, **kwargs: Any) -> Optional[AccessToken]:
+    async def _acquire_token_silently(self, *scopes: str, **kwargs: Any) -> Optional[AccessTokenInfo]:
         return self._client.get_cached_access_token(scopes, **kwargs)
 
-    async def _request_token(self, *scopes: str, **kwargs: Any) -> AccessToken:
+    async def _request_token(self, *scopes: str, **kwargs: Any) -> AccessTokenInfo:
         return await self._client.obtain_token_by_client_certificate(scopes, self._certificate, **kwargs)

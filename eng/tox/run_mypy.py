@@ -19,7 +19,6 @@ from ci_tools.environment_exclusions import (
 from ci_tools.parsing import ParsedSetup
 from ci_tools.variables import in_ci
 
-
 logging.getLogger().setLevel(logging.INFO)
 
 root_dir = os.path.abspath(os.path.join(os.path.abspath(__file__), "..", "..", ".."))
@@ -81,7 +80,9 @@ if __name__ == "__main__":
         )
     else:
         # check if samples dir exists, if not, skip sample code check
-        if not os.path.exists(os.path.join(args.target_package, "samples")):
+        samples = os.path.exists(os.path.join(args.target_package, "samples"))
+        generated_samples = os.path.exists(os.path.join(args.target_package, "generated_samples"))
+        if not samples and not generated_samples:
             logging.info(
                 f"Package {package_name} does not have a samples directory."
             )
@@ -90,7 +91,7 @@ if __name__ == "__main__":
                 *commands,
                 "--check-untyped-defs",
                 "--follow-imports=silent",
-                os.path.join(args.target_package, "samples")
+                os.path.join(args.target_package, "samples" if samples else "generated_samples"),
             ]
             try:
                 logging.info(
@@ -101,9 +102,11 @@ if __name__ == "__main__":
                 sample_code_error = sample_err
 
     if args.next and in_ci() and not is_typing_ignored(package_name):
-        from gh_tools.vnext_issue_creator import create_vnext_issue
+        from gh_tools.vnext_issue_creator import create_vnext_issue, close_vnext_issue
         if src_code_error or sample_code_error:
-            create_vnext_issue(package_name, "mypy")
+            create_vnext_issue(package_dir, "mypy")
+        else:
+            close_vnext_issue(package_name, "mypy")
 
     if src_code_error and sample_code_error:
         raise Exception(

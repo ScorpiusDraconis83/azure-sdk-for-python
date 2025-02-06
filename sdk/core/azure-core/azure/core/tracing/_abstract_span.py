@@ -7,7 +7,17 @@ from __future__ import annotations
 from enum import Enum
 from urllib.parse import urlparse
 
-from typing import Any, Sequence, Optional, Union, Callable, Dict, Type, Generic, TypeVar
+from typing import (
+    Any,
+    Sequence,
+    Optional,
+    Union,
+    Callable,
+    Dict,
+    Type,
+    Generic,
+    TypeVar,
+)
 from types import TracebackType
 from typing_extensions import Protocol, ContextManager, runtime_checkable
 from azure.core.pipeline.transport import HttpRequest, HttpResponse, AsyncHttpResponse
@@ -56,9 +66,7 @@ class AbstractSpan(Protocol, Generic[SpanType]):
     :type name: str
     """
 
-    def __init__(  # pylint: disable=super-init-not-called
-        self, span: Optional[SpanType] = None, name: Optional[str] = None, **kwargs: Any
-    ) -> None:
+    def __init__(self, span: Optional[SpanType] = None, name: Optional[str] = None, **kwargs: Any) -> None:
         pass
 
     def span(self, name: str = "child_span", **kwargs: Any) -> AbstractSpan[SpanType]:
@@ -260,9 +268,12 @@ class HttpSpanMixin:
     _HTTP_STATUS_CODE = "http.status_code"
     _NET_PEER_NAME = "net.peer.name"
     _NET_PEER_PORT = "net.peer.port"
+    _ERROR_TYPE = "error.type"
 
     def set_http_attributes(
-        self: AbstractSpan, request: HttpRequestType, response: Optional[HttpResponseType] = None
+        self: AbstractSpan,
+        request: HttpRequestType,
+        response: Optional[HttpResponseType] = None,
     ) -> None:
         """
         Add correct attributes for a http client span.
@@ -289,13 +300,17 @@ class HttpSpanMixin:
             self.add_attribute(HttpSpanMixin._HTTP_USER_AGENT, user_agent)
         if response and response.status_code:
             self.add_attribute(HttpSpanMixin._HTTP_STATUS_CODE, response.status_code)
+            if response.status_code >= 400:
+                self.add_attribute(HttpSpanMixin._ERROR_TYPE, str(response.status_code))
         else:
             self.add_attribute(HttpSpanMixin._HTTP_STATUS_CODE, 504)
+            self.add_attribute(HttpSpanMixin._ERROR_TYPE, "504")
 
 
 class Link:
     """
     This is a wrapper class to link the context to the current tracer.
+
     :param headers: A dictionary of the request header as key value pairs.
     :type headers: dict
     :param attributes: Any additional attributes that should be added to link

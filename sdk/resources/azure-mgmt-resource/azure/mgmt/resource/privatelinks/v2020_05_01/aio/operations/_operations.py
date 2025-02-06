@@ -1,4 +1,4 @@
-# pylint: disable=too-many-lines
+# pylint: disable=too-many-lines,too-many-statements
 # coding=utf-8
 # --------------------------------------------------------------------------
 # Copyright (c) Microsoft Corporation. All rights reserved.
@@ -7,7 +7,8 @@
 # Changes may cause incorrect behavior and will be lost if the code is regenerated.
 # --------------------------------------------------------------------------
 from io import IOBase
-from typing import Any, Callable, Dict, IO, Optional, TypeVar, Union, overload
+import sys
+from typing import Any, Callable, Dict, IO, Optional, Type, TypeVar, Union, overload
 
 from azure.core.exceptions import (
     ClientAuthenticationError,
@@ -18,14 +19,12 @@ from azure.core.exceptions import (
     map_error,
 )
 from azure.core.pipeline import PipelineResponse
-from azure.core.pipeline.transport import AsyncHttpResponse
-from azure.core.rest import HttpRequest
+from azure.core.rest import AsyncHttpResponse, HttpRequest
 from azure.core.tracing.decorator_async import distributed_trace_async
 from azure.core.utils import case_insensitive_dict
 from azure.mgmt.core.exceptions import ARMErrorFormat
 
 from ... import models as _models
-from ..._vendor import _convert_request
 from ...operations._operations import (
     build_private_link_association_delete_request,
     build_private_link_association_get_request,
@@ -38,6 +37,10 @@ from ...operations._operations import (
     build_resource_management_private_link_put_request,
 )
 
+if sys.version_info >= (3, 9):
+    from collections.abc import MutableMapping
+else:
+    from typing import MutableMapping  # type: ignore  # pylint: disable=ungrouped-imports
 T = TypeVar("T")
 ClsType = Optional[Callable[[PipelineResponse[HttpRequest, AsyncHttpResponse], T, Dict[str, Any]], Any]]
 
@@ -60,6 +63,7 @@ class PrivateLinkAssociationOperations:
         self._config = input_args.pop(0) if input_args else kwargs.pop("config")
         self._serialize = input_args.pop(0) if input_args else kwargs.pop("serializer")
         self._deserialize = input_args.pop(0) if input_args else kwargs.pop("deserializer")
+        self._api_version = input_args.pop(0) if input_args else kwargs.pop("api_version")
 
     @overload
     async def put(
@@ -83,7 +87,6 @@ class PrivateLinkAssociationOperations:
         :keyword content_type: Body Parameter content-type. Content type parameter for JSON body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: PrivateLinkAssociation or the result of cls(response)
         :rtype: ~azure.mgmt.resource.privatelinks.v2020_05_01.models.PrivateLinkAssociation
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -91,7 +94,13 @@ class PrivateLinkAssociationOperations:
 
     @overload
     async def put(
-        self, group_id: str, pla_id: str, parameters: IO, *, content_type: str = "application/json", **kwargs: Any
+        self,
+        group_id: str,
+        pla_id: str,
+        parameters: IO[bytes],
+        *,
+        content_type: str = "application/json",
+        **kwargs: Any
     ) -> _models.PrivateLinkAssociation:
         """Create a PrivateLinkAssociation.
 
@@ -100,11 +109,10 @@ class PrivateLinkAssociationOperations:
         :param pla_id: The ID of the PLA. Required.
         :type pla_id: str
         :param parameters: Parameters supplied to create the private link association. Required.
-        :type parameters: IO
+        :type parameters: IO[bytes]
         :keyword content_type: Body Parameter content-type. Content type parameter for binary body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: PrivateLinkAssociation or the result of cls(response)
         :rtype: ~azure.mgmt.resource.privatelinks.v2020_05_01.models.PrivateLinkAssociation
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -112,7 +120,11 @@ class PrivateLinkAssociationOperations:
 
     @distributed_trace_async
     async def put(
-        self, group_id: str, pla_id: str, parameters: Union[_models.PrivateLinkAssociationObject, IO], **kwargs: Any
+        self,
+        group_id: str,
+        pla_id: str,
+        parameters: Union[_models.PrivateLinkAssociationObject, IO[bytes]],
+        **kwargs: Any
     ) -> _models.PrivateLinkAssociation:
         """Create a PrivateLinkAssociation.
 
@@ -121,18 +133,14 @@ class PrivateLinkAssociationOperations:
         :param pla_id: The ID of the PLA. Required.
         :type pla_id: str
         :param parameters: Parameters supplied to create the private link association. Is either a
-         PrivateLinkAssociationObject type or a IO type. Required.
+         PrivateLinkAssociationObject type or a IO[bytes] type. Required.
         :type parameters:
-         ~azure.mgmt.resource.privatelinks.v2020_05_01.models.PrivateLinkAssociationObject or IO
-        :keyword content_type: Body Parameter content-type. Known values are: 'application/json'.
-         Default value is None.
-        :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
+         ~azure.mgmt.resource.privatelinks.v2020_05_01.models.PrivateLinkAssociationObject or IO[bytes]
         :return: PrivateLinkAssociation or the result of cls(response)
         :rtype: ~azure.mgmt.resource.privatelinks.v2020_05_01.models.PrivateLinkAssociation
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -143,7 +151,7 @@ class PrivateLinkAssociationOperations:
         _headers = case_insensitive_dict(kwargs.pop("headers", {}) or {})
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2020-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2020-05-01"))
         content_type: Optional[str] = kwargs.pop("content_type", _headers.pop("Content-Type", None))
         cls: ClsType[_models.PrivateLinkAssociation] = kwargs.pop("cls", None)
 
@@ -155,23 +163,21 @@ class PrivateLinkAssociationOperations:
         else:
             _json = self._serialize.body(parameters, "PrivateLinkAssociationObject")
 
-        request = build_private_link_association_put_request(
+        _request = build_private_link_association_put_request(
             group_id=group_id,
             pla_id=pla_id,
             api_version=api_version,
             content_type=content_type,
             json=_json,
             content=_content,
-            template_url=self.put.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -180,20 +186,12 @@ class PrivateLinkAssociationOperations:
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        if response.status_code == 200:
-            deserialized = self._deserialize("PrivateLinkAssociation", pipeline_response)
-
-        if response.status_code == 201:
-            deserialized = self._deserialize("PrivateLinkAssociation", pipeline_response)
+        deserialized = self._deserialize("PrivateLinkAssociation", pipeline_response.http_response)
 
         if cls:
             return cls(pipeline_response, deserialized, {})  # type: ignore
 
         return deserialized  # type: ignore
-
-    put.metadata = {
-        "url": "/providers/Microsoft.Management/managementGroups/{groupId}/providers/Microsoft.Authorization/privateLinkAssociations/{plaId}"
-    }
 
     @distributed_trace_async
     async def get(self, group_id: str, pla_id: str, **kwargs: Any) -> _models.PrivateLinkAssociation:
@@ -203,12 +201,11 @@ class PrivateLinkAssociationOperations:
         :type group_id: str
         :param pla_id: The ID of the PLA. Required.
         :type pla_id: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: PrivateLinkAssociation or the result of cls(response)
         :rtype: ~azure.mgmt.resource.privatelinks.v2020_05_01.models.PrivateLinkAssociation
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -219,23 +216,21 @@ class PrivateLinkAssociationOperations:
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2020-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2020-05-01"))
         cls: ClsType[_models.PrivateLinkAssociation] = kwargs.pop("cls", None)
 
-        request = build_private_link_association_get_request(
+        _request = build_private_link_association_get_request(
             group_id=group_id,
             pla_id=pla_id,
             api_version=api_version,
-            template_url=self.get.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -244,16 +239,12 @@ class PrivateLinkAssociationOperations:
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        deserialized = self._deserialize("PrivateLinkAssociation", pipeline_response)
+        deserialized = self._deserialize("PrivateLinkAssociation", pipeline_response.http_response)
 
         if cls:
-            return cls(pipeline_response, deserialized, {})
+            return cls(pipeline_response, deserialized, {})  # type: ignore
 
-        return deserialized
-
-    get.metadata = {
-        "url": "/providers/Microsoft.Management/managementGroups/{groupId}/providers/Microsoft.Authorization/privateLinkAssociations/{plaId}"
-    }
+        return deserialized  # type: ignore
 
     @distributed_trace_async
     async def delete(  # pylint: disable=inconsistent-return-statements
@@ -265,12 +256,11 @@ class PrivateLinkAssociationOperations:
         :type group_id: str
         :param pla_id: The ID of the PLA. Required.
         :type pla_id: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: None or the result of cls(response)
         :rtype: None
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -281,23 +271,21 @@ class PrivateLinkAssociationOperations:
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2020-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2020-05-01"))
         cls: ClsType[None] = kwargs.pop("cls", None)
 
-        request = build_private_link_association_delete_request(
+        _request = build_private_link_association_delete_request(
             group_id=group_id,
             pla_id=pla_id,
             api_version=api_version,
-            template_url=self.delete.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -307,11 +295,7 @@ class PrivateLinkAssociationOperations:
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
         if cls:
-            return cls(pipeline_response, None, {})
-
-    delete.metadata = {
-        "url": "/providers/Microsoft.Management/managementGroups/{groupId}/providers/Microsoft.Authorization/privateLinkAssociations/{plaId}"
-    }
+            return cls(pipeline_response, None, {})  # type: ignore
 
     @distributed_trace_async
     async def list(self, group_id: str, **kwargs: Any) -> _models.PrivateLinkAssociationGetResult:
@@ -319,12 +303,11 @@ class PrivateLinkAssociationOperations:
 
         :param group_id: The management group ID. Required.
         :type group_id: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: PrivateLinkAssociationGetResult or the result of cls(response)
         :rtype: ~azure.mgmt.resource.privatelinks.v2020_05_01.models.PrivateLinkAssociationGetResult
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -335,22 +318,20 @@ class PrivateLinkAssociationOperations:
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2020-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2020-05-01"))
         cls: ClsType[_models.PrivateLinkAssociationGetResult] = kwargs.pop("cls", None)
 
-        request = build_private_link_association_list_request(
+        _request = build_private_link_association_list_request(
             group_id=group_id,
             api_version=api_version,
-            template_url=self.list.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -359,16 +340,12 @@ class PrivateLinkAssociationOperations:
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        deserialized = self._deserialize("PrivateLinkAssociationGetResult", pipeline_response)
+        deserialized = self._deserialize("PrivateLinkAssociationGetResult", pipeline_response.http_response)
 
         if cls:
-            return cls(pipeline_response, deserialized, {})
+            return cls(pipeline_response, deserialized, {})  # type: ignore
 
-        return deserialized
-
-    list.metadata = {
-        "url": "/providers/Microsoft.Management/managementGroups/{groupId}/providers/Microsoft.Authorization/privateLinkAssociations"
-    }
+        return deserialized  # type: ignore
 
 
 class ResourceManagementPrivateLinkOperations:
@@ -389,6 +366,7 @@ class ResourceManagementPrivateLinkOperations:
         self._config = input_args.pop(0) if input_args else kwargs.pop("config")
         self._serialize = input_args.pop(0) if input_args else kwargs.pop("serializer")
         self._deserialize = input_args.pop(0) if input_args else kwargs.pop("deserializer")
+        self._api_version = input_args.pop(0) if input_args else kwargs.pop("api_version")
 
     @overload
     async def put(
@@ -413,7 +391,6 @@ class ResourceManagementPrivateLinkOperations:
         :keyword content_type: Body Parameter content-type. Content type parameter for JSON body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: ResourceManagementPrivateLink or the result of cls(response)
         :rtype: ~azure.mgmt.resource.privatelinks.v2020_05_01.models.ResourceManagementPrivateLink
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -424,7 +401,7 @@ class ResourceManagementPrivateLinkOperations:
         self,
         resource_group_name: str,
         rmpl_name: str,
-        parameters: IO,
+        parameters: IO[bytes],
         *,
         content_type: str = "application/json",
         **kwargs: Any
@@ -437,11 +414,10 @@ class ResourceManagementPrivateLinkOperations:
         :param rmpl_name: The name of the resource management private link. Required.
         :type rmpl_name: str
         :param parameters: The region to create the Resource Management private link. Required.
-        :type parameters: IO
+        :type parameters: IO[bytes]
         :keyword content_type: Body Parameter content-type. Content type parameter for binary body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: ResourceManagementPrivateLink or the result of cls(response)
         :rtype: ~azure.mgmt.resource.privatelinks.v2020_05_01.models.ResourceManagementPrivateLink
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -452,7 +428,7 @@ class ResourceManagementPrivateLinkOperations:
         self,
         resource_group_name: str,
         rmpl_name: str,
-        parameters: Union[_models.ResourceManagementPrivateLinkLocation, IO],
+        parameters: Union[_models.ResourceManagementPrivateLinkLocation, IO[bytes]],
         **kwargs: Any
     ) -> _models.ResourceManagementPrivateLink:
         """Create a resource management group private link.
@@ -463,19 +439,15 @@ class ResourceManagementPrivateLinkOperations:
         :param rmpl_name: The name of the resource management private link. Required.
         :type rmpl_name: str
         :param parameters: The region to create the Resource Management private link. Is either a
-         ResourceManagementPrivateLinkLocation type or a IO type. Required.
+         ResourceManagementPrivateLinkLocation type or a IO[bytes] type. Required.
         :type parameters:
          ~azure.mgmt.resource.privatelinks.v2020_05_01.models.ResourceManagementPrivateLinkLocation or
-         IO
-        :keyword content_type: Body Parameter content-type. Known values are: 'application/json'.
-         Default value is None.
-        :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
+         IO[bytes]
         :return: ResourceManagementPrivateLink or the result of cls(response)
         :rtype: ~azure.mgmt.resource.privatelinks.v2020_05_01.models.ResourceManagementPrivateLink
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -486,7 +458,7 @@ class ResourceManagementPrivateLinkOperations:
         _headers = case_insensitive_dict(kwargs.pop("headers", {}) or {})
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2020-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2020-05-01"))
         content_type: Optional[str] = kwargs.pop("content_type", _headers.pop("Content-Type", None))
         cls: ClsType[_models.ResourceManagementPrivateLink] = kwargs.pop("cls", None)
 
@@ -498,7 +470,7 @@ class ResourceManagementPrivateLinkOperations:
         else:
             _json = self._serialize.body(parameters, "ResourceManagementPrivateLinkLocation")
 
-        request = build_resource_management_private_link_put_request(
+        _request = build_resource_management_private_link_put_request(
             resource_group_name=resource_group_name,
             rmpl_name=rmpl_name,
             subscription_id=self._config.subscription_id,
@@ -506,16 +478,14 @@ class ResourceManagementPrivateLinkOperations:
             content_type=content_type,
             json=_json,
             content=_content,
-            template_url=self.put.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -524,20 +494,12 @@ class ResourceManagementPrivateLinkOperations:
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        if response.status_code == 200:
-            deserialized = self._deserialize("ResourceManagementPrivateLink", pipeline_response)
-
-        if response.status_code == 201:
-            deserialized = self._deserialize("ResourceManagementPrivateLink", pipeline_response)
+        deserialized = self._deserialize("ResourceManagementPrivateLink", pipeline_response.http_response)
 
         if cls:
             return cls(pipeline_response, deserialized, {})  # type: ignore
 
         return deserialized  # type: ignore
-
-    put.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Authorization/resourceManagementPrivateLinks/{rmplName}"
-    }
 
     @distributed_trace_async
     async def get(
@@ -550,12 +512,11 @@ class ResourceManagementPrivateLinkOperations:
         :type resource_group_name: str
         :param rmpl_name: The name of the resource management private link. Required.
         :type rmpl_name: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: ResourceManagementPrivateLink or the result of cls(response)
         :rtype: ~azure.mgmt.resource.privatelinks.v2020_05_01.models.ResourceManagementPrivateLink
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -566,24 +527,22 @@ class ResourceManagementPrivateLinkOperations:
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2020-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2020-05-01"))
         cls: ClsType[_models.ResourceManagementPrivateLink] = kwargs.pop("cls", None)
 
-        request = build_resource_management_private_link_get_request(
+        _request = build_resource_management_private_link_get_request(
             resource_group_name=resource_group_name,
             rmpl_name=rmpl_name,
             subscription_id=self._config.subscription_id,
             api_version=api_version,
-            template_url=self.get.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -592,16 +551,12 @@ class ResourceManagementPrivateLinkOperations:
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        deserialized = self._deserialize("ResourceManagementPrivateLink", pipeline_response)
+        deserialized = self._deserialize("ResourceManagementPrivateLink", pipeline_response.http_response)
 
         if cls:
-            return cls(pipeline_response, deserialized, {})
+            return cls(pipeline_response, deserialized, {})  # type: ignore
 
-        return deserialized
-
-    get.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Authorization/resourceManagementPrivateLinks/{rmplName}"
-    }
+        return deserialized  # type: ignore
 
     @distributed_trace_async
     async def delete(  # pylint: disable=inconsistent-return-statements
@@ -614,12 +569,11 @@ class ResourceManagementPrivateLinkOperations:
         :type resource_group_name: str
         :param rmpl_name: The name of the resource management private link. Required.
         :type rmpl_name: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: None or the result of cls(response)
         :rtype: None
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -630,24 +584,22 @@ class ResourceManagementPrivateLinkOperations:
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2020-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2020-05-01"))
         cls: ClsType[None] = kwargs.pop("cls", None)
 
-        request = build_resource_management_private_link_delete_request(
+        _request = build_resource_management_private_link_delete_request(
             resource_group_name=resource_group_name,
             rmpl_name=rmpl_name,
             subscription_id=self._config.subscription_id,
             api_version=api_version,
-            template_url=self.delete.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -657,23 +609,18 @@ class ResourceManagementPrivateLinkOperations:
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
         if cls:
-            return cls(pipeline_response, None, {})
-
-    delete.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Authorization/resourceManagementPrivateLinks/{rmplName}"
-    }
+            return cls(pipeline_response, None, {})  # type: ignore
 
     @distributed_trace_async
     async def list(self, **kwargs: Any) -> _models.ResourceManagementPrivateLinkListResult:
         """Get all the resource management private links in a subscription.
 
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: ResourceManagementPrivateLinkListResult or the result of cls(response)
         :rtype:
          ~azure.mgmt.resource.privatelinks.v2020_05_01.models.ResourceManagementPrivateLinkListResult
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -684,22 +631,20 @@ class ResourceManagementPrivateLinkOperations:
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2020-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2020-05-01"))
         cls: ClsType[_models.ResourceManagementPrivateLinkListResult] = kwargs.pop("cls", None)
 
-        request = build_resource_management_private_link_list_request(
+        _request = build_resource_management_private_link_list_request(
             subscription_id=self._config.subscription_id,
             api_version=api_version,
-            template_url=self.list.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -708,16 +653,12 @@ class ResourceManagementPrivateLinkOperations:
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        deserialized = self._deserialize("ResourceManagementPrivateLinkListResult", pipeline_response)
+        deserialized = self._deserialize("ResourceManagementPrivateLinkListResult", pipeline_response.http_response)
 
         if cls:
-            return cls(pipeline_response, deserialized, {})
+            return cls(pipeline_response, deserialized, {})  # type: ignore
 
-        return deserialized
-
-    list.metadata = {
-        "url": "/subscriptions/{subscriptionId}/providers/Microsoft.Authorization/resourceManagementPrivateLinks"
-    }
+        return deserialized  # type: ignore
 
     @distributed_trace_async
     async def list_by_resource_group(
@@ -728,13 +669,12 @@ class ResourceManagementPrivateLinkOperations:
         :param resource_group_name: The name of the resource group. The name is case insensitive.
          Required.
         :type resource_group_name: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: ResourceManagementPrivateLinkListResult or the result of cls(response)
         :rtype:
          ~azure.mgmt.resource.privatelinks.v2020_05_01.models.ResourceManagementPrivateLinkListResult
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -745,23 +685,21 @@ class ResourceManagementPrivateLinkOperations:
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2020-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2020-05-01"))
         cls: ClsType[_models.ResourceManagementPrivateLinkListResult] = kwargs.pop("cls", None)
 
-        request = build_resource_management_private_link_list_by_resource_group_request(
+        _request = build_resource_management_private_link_list_by_resource_group_request(
             resource_group_name=resource_group_name,
             subscription_id=self._config.subscription_id,
             api_version=api_version,
-            template_url=self.list_by_resource_group.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -770,13 +708,9 @@ class ResourceManagementPrivateLinkOperations:
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        deserialized = self._deserialize("ResourceManagementPrivateLinkListResult", pipeline_response)
+        deserialized = self._deserialize("ResourceManagementPrivateLinkListResult", pipeline_response.http_response)
 
         if cls:
-            return cls(pipeline_response, deserialized, {})
+            return cls(pipeline_response, deserialized, {})  # type: ignore
 
-        return deserialized
-
-    list_by_resource_group.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Authorization/resourceManagementPrivateLinks"
-    }
+        return deserialized  # type: ignore

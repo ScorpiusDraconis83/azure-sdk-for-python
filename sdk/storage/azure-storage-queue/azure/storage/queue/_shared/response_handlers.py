@@ -17,7 +17,8 @@ from azure.core.exceptions import (
 )
 from azure.core.pipeline.policies import ContentDecodePolicy
 
-from .models import StorageErrorCode, UserDelegationKey, get_enum_value
+from .authentication import AzureSigningError
+from .models import get_enum_value, StorageErrorCode, UserDelegationKey
 from .parser import _to_utc_datetime
 
 
@@ -59,9 +60,9 @@ def normalize_headers(headers):
 
 def deserialize_metadata(response, obj, headers):  # pylint: disable=unused-argument
     try:
-        raw_metadata = {k: v for k, v in response.http_response.headers.items() if k.startswith("x-ms-meta-")}
+        raw_metadata = {k: v for k, v in response.http_response.headers.items() if k.lower().startswith('x-ms-meta-')}
     except AttributeError:
-        raw_metadata = {k: v for k, v in response.headers.items() if k.startswith("x-ms-meta-")}
+        raw_metadata = {k: v for k, v in response.headers.items() if k.lower().startswith('x-ms-meta-')}
     return {k[10:]: v for k, v in raw_metadata.items()}
 
 
@@ -81,9 +82,12 @@ def return_raw_deserialized(response, *_):
     return response.http_response.location_mode, response.context[ContentDecodePolicy.CONTEXT_NAME]
 
 
-def process_storage_error(storage_error) -> NoReturn: # type: ignore [misc] # pylint:disable=too-many-statements
+def process_storage_error(storage_error) -> NoReturn: # type: ignore [misc] # pylint:disable=too-many-statements, too-many-branches
     raise_error = HttpResponseError
     serialized = False
+    if isinstance(storage_error, AzureSigningError):
+        storage_error.message = storage_error.message + \
+            '. This is likely due to an invalid shared key. Please check your shared key and try again.'
     if not storage_error.response or storage_error.response.status_code in [200, 204]:
         raise storage_error
     # If it is one of those three then it has been serialized prior by the generated layer.

@@ -224,7 +224,8 @@ class TestTableClientAsync(AzureRecordedTestCase, AsyncTableTestCase):
 
         async with TableClient(url, table_name, credential=tables_primary_storage_account_key) as client:
             await client.create_table()
-            time.sleep(10)
+            if self.is_live:
+                time.sleep(15)
 
         async with TableClient(
             url, table_name, credential=tables_primary_storage_account_key, location_mode=LocationMode.SECONDARY
@@ -517,7 +518,6 @@ class TestTableClientAsync(AzureRecordedTestCase, AsyncTableTestCase):
 
         async with TableServiceClient(base_url, credential=default_azure_credential) as client:
             await client.create_table(table_name)
-            name_filter = "TableName eq '{}'".format(table_name)
             count = 0
             result = client.query_tables(name_filter)
             async for table in result:

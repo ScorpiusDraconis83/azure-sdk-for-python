@@ -2,25 +2,24 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 # ------------------------------------
+from itertools import product
 import json
 import time
 from unittest import mock
 
-from devtools_testutils.aio import recorded_by_proxy_async
-from azure.core.credentials import AccessToken
 from azure.core.exceptions import ClientAuthenticationError
 from azure.identity import CredentialUnavailableError
 from azure.identity._constants import EnvironmentVariables
 from azure.identity._credentials.imds import IMDS_AUTHORITY, IMDS_TOKEN_PATH
 from azure.identity._internal.user_agent import USER_AGENT
 from azure.identity.aio._credentials.imds import ImdsCredential, PIPELINE_SETTINGS
+from azure.identity._internal.utils import within_credential_chain
 import pytest
 
-from helpers import mock_response, Request
+from helpers import mock_response, Request, GET_TOKEN_METHODS
 from helpers_async import (
     async_validating_transport,
     AsyncMockTransport,
-    await_test,
     get_completed_future,
     wrap_in_future,
 )
@@ -29,18 +28,20 @@ from recorded_test_case import RecordedTestCase
 pytestmark = pytest.mark.asyncio
 
 
-async def test_no_scopes():
+@pytest.mark.parametrize("get_token_method", GET_TOKEN_METHODS)
+async def test_no_scopes(get_token_method):
     """The credential should raise ValueError when get_token is called with no scopes"""
     credential = ImdsCredential()
     with pytest.raises(ValueError):
-        await credential.get_token()
+        await getattr(credential, get_token_method)()
 
 
-async def test_multiple_scopes():
+@pytest.mark.parametrize("get_token_method", GET_TOKEN_METHODS)
+async def test_multiple_scopes(get_token_method):
     """The credential should raise ValueError when get_token is called with more than one scope"""
     credential = ImdsCredential()
     with pytest.raises(ValueError):
-        await credential.get_token("one scope", "and another")
+        await getattr(credential, get_token_method)("one scope", "and another")
 
 
 async def test_imds_close():
@@ -63,7 +64,8 @@ async def test_imds_context_manager():
     assert transport.__aexit__.call_count == 1
 
 
-async def test_identity_not_available():
+@pytest.mark.parametrize("get_token_method", GET_TOKEN_METHODS)
+async def test_identity_not_available(get_token_method):
     """The credential should raise CredentialUnavailableError when the endpoint responds 400 to a token request"""
 
     transport = async_validating_transport(
@@ -73,10 +75,11 @@ async def test_identity_not_available():
     credential = ImdsCredential(transport=transport)
 
     with pytest.raises(CredentialUnavailableError):
-        await credential.get_token("scope")
+        await getattr(credential, get_token_method)("scope")
 
 
-async def test_unexpected_error():
+@pytest.mark.parametrize("get_token_method", GET_TOKEN_METHODS)
+async def test_unexpected_error(get_token_method):
     """The credential should raise ClientAuthenticationError when the endpoint returns an unexpected error"""
 
     error_message = "something went wrong"
@@ -93,29 +96,31 @@ async def test_unexpected_error():
         credential = ImdsCredential(transport=transport)
 
         with pytest.raises(ClientAuthenticationError) as ex:
-            await credential.get_token("scope")
+            await getattr(credential, get_token_method)("scope")
 
         assert error_message in ex.value.message
 
 
-async def test_imds_request_failure_docker_desktop():
+@pytest.mark.parametrize("error_ending,get_token_method", product(("network", "host", "foo"), GET_TOKEN_METHODS))
+async def test_imds_request_failure_docker_desktop(error_ending, get_token_method):
     """The credential should raise CredentialUnavailableError when a 403 with a specific message is received"""
 
     error_message = (
         "connecting to 169.254.169.254:80: connecting to 169.254.169.254:80: dial tcp 169.254.169.254:80: "
-        "connectex: A socket operation was attempted to an unreachable network."  # cspell:disable-line
+        f"connectex: A socket operation was attempted to an unreachable {error_ending}."  # cspell:disable-line
     )
     probe = mock_response(status_code=403, json_payload={"error": error_message})
     transport = mock.Mock(send=mock.Mock(return_value=get_completed_future(probe)))
     credential = ImdsCredential(transport=transport)
 
     with pytest.raises(CredentialUnavailableError) as ex:
-        await credential.get_token("scope")
+        await getattr(credential, get_token_method)("scope")
 
     assert error_message in ex.value.message
 
 
-async def test_cache():
+@pytest.mark.parametrize("get_token_method", GET_TOKEN_METHODS)
+async def test_cache(get_token_method):
     scope = "https://foo.bar"
     expired = "this token's expired"
     now = int(time.time())
@@ -138,7 +143,7 @@ async def test_cache():
     mock_send = mock.Mock(return_value=mock_response)
 
     credential = ImdsCredential(transport=mock.Mock(send=wrap_in_future(mock_send)))
-    token = await credential.get_token(scope)
+    token = await getattr(credential, get_token_method)(scope)
     assert token.token == expired
     assert mock_send.call_count == 1
 
@@ -147,17 +152,18 @@ async def test_cache():
     token_payload["expires_on"] = int(time.time()) + 3600
     token_payload["expires_in"] = 3600
     token_payload["access_token"] = good_for_an_hour
-    token = await credential.get_token(scope)
+    token = await getattr(credential, get_token_method)(scope)
     assert token.token == good_for_an_hour
     assert mock_send.call_count == 2
 
     # get_token should return the cached token now
-    token = await credential.get_token(scope)
+    token = await getattr(credential, get_token_method)(scope)
     assert token.token == good_for_an_hour
     assert mock_send.call_count == 2
 
 
-async def test_retries():
+@pytest.mark.parametrize("get_token_method", GET_TOKEN_METHODS)
+async def test_retries(get_token_method):
     mock_response = mock.Mock(
         text=lambda encoding=None: b"{}",
         headers={"content-type": "application/json"},
@@ -171,20 +177,24 @@ async def test_retries():
         mock_send.reset_mock()
         mock_response.status_code = status_code
         try:
-            await ImdsCredential(
-                transport=mock.Mock(send=wrap_in_future(mock_send), sleep=wrap_in_future(lambda _: None))
-            ).get_token("scope")
+            await getattr(
+                ImdsCredential(
+                    transport=mock.Mock(send=wrap_in_future(mock_send), sleep=wrap_in_future(lambda _: None))
+                ),
+                get_token_method,
+            )("scope")
         except ClientAuthenticationError:
             pass
         # credential should have then exhausted retries for each of these status codes
         assert mock_send.call_count == 1 + total_retries
 
 
-async def test_identity_config():
+@pytest.mark.parametrize("get_token_method", GET_TOKEN_METHODS)
+async def test_identity_config(get_token_method):
     param_name, param_value = "foo", "bar"
     access_token = "****"
     expires_on = 42
-    expected_token = AccessToken(access_token, expires_on)
+    expected_token = access_token
     scope = "scope"
     client_id = "some-guid"
 
@@ -213,12 +223,13 @@ async def test_identity_config():
     )
 
     credential = ImdsCredential(client_id=client_id, identity_config={param_name: param_value}, transport=transport)
-    token = await credential.get_token(scope)
+    token = await getattr(credential, get_token_method)(scope)
 
-    assert token == expected_token
+    assert token.token == expected_token
 
 
-async def test_imds_authority_override():
+@pytest.mark.parametrize("get_token_method", GET_TOKEN_METHODS)
+async def test_imds_authority_override(get_token_method):
     authority = "https://localhost"
     expected_token = "***"
     scope = "scope"
@@ -250,43 +261,88 @@ async def test_imds_authority_override():
 
     with mock.patch.dict("os.environ", {EnvironmentVariables.AZURE_POD_IDENTITY_AUTHORITY_HOST: authority}, clear=True):
         credential = ImdsCredential(transport=transport)
-        token = await credential.get_token(scope)
+        token = await getattr(credential, get_token_method)(scope)
 
     assert token.token == expected_token
 
 
 @pytest.mark.usefixtures("record_imds_test")
 class TestImdsAsync(RecordedTestCase):
-    @await_test
-    @recorded_by_proxy_async
-    async def test_system_assigned(self):
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("get_token_method", GET_TOKEN_METHODS)
+    async def test_system_assigned(self, recorded_test, get_token_method):
         credential = ImdsCredential()
-        token = await credential.get_token(self.scope)
+        token = await getattr(credential, get_token_method)(self.scope)
         assert token.token
         assert isinstance(token.expires_on, int)
 
-    @await_test
-    @recorded_by_proxy_async
-    async def test_system_assigned_tenant_id(self):
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("get_token_method", GET_TOKEN_METHODS)
+    async def test_system_assigned_tenant_id(self, recorded_test, get_token_method):
         credential = ImdsCredential()
-        token = await credential.get_token(self.scope, tenant_id="tenant_id")
+        kwargs = {"tenant_id": "tenant_id"}
+        if get_token_method == "get_token_info":
+            kwargs = {"options": kwargs}
+        token = await getattr(credential, get_token_method)(self.scope, **kwargs)
         assert token.token
         assert isinstance(token.expires_on, int)
 
     @pytest.mark.usefixtures("user_assigned_identity_client_id")
-    @await_test
-    @recorded_by_proxy_async
-    async def test_user_assigned(self):
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("get_token_method", GET_TOKEN_METHODS)
+    async def test_user_assigned(self, recorded_test, get_token_method):
         credential = ImdsCredential(client_id=self.user_assigned_identity_client_id)
-        token = await credential.get_token(self.scope)
+        token = await getattr(credential, get_token_method)(self.scope)
         assert token.token
         assert isinstance(token.expires_on, int)
 
     @pytest.mark.usefixtures("user_assigned_identity_client_id")
-    @await_test
-    @recorded_by_proxy_async
-    async def test_user_assigned_tenant_id(self):
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("get_token_method", GET_TOKEN_METHODS)
+    async def test_user_assigned_tenant_id(self, recorded_test, get_token_method):
         credential = ImdsCredential(client_id=self.user_assigned_identity_client_id)
-        token = await credential.get_token(self.scope, tenant_id="tenant_id")
+        kwargs = {"tenant_id": "tenant_id"}
+        if get_token_method == "get_token_info":
+            kwargs = {"options": kwargs}
+        token = await getattr(credential, get_token_method)(self.scope, **kwargs)
         assert token.token
         assert isinstance(token.expires_on, int)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("get_token_method", GET_TOKEN_METHODS)
+    async def test_managed_identity_aci_probe(self, get_token_method):
+        access_token = "****"
+        expires_on = 42
+        expected_token = access_token
+        scope = "scope"
+        transport = async_validating_transport(
+            requests=[
+                Request(base_url=IMDS_AUTHORITY + IMDS_TOKEN_PATH),
+                Request(
+                    base_url=IMDS_AUTHORITY + IMDS_TOKEN_PATH,
+                    method="GET",
+                    required_headers={"Metadata": "true"},
+                    required_params={"resource": scope},
+                ),
+            ],
+            responses=[
+                mock_response(status_code=400),
+                mock_response(
+                    json_payload={
+                        "access_token": access_token,
+                        "expires_in": 42,
+                        "expires_on": expires_on,
+                        "ext_expires_in": 42,
+                        "not_before": int(time.time()),
+                        "resource": scope,
+                        "token_type": "Bearer",
+                    }
+                ),
+            ],
+        )
+        within_credential_chain.set(True)
+        credential = ImdsCredential(transport=transport)
+        token = await getattr(credential, get_token_method)(scope)
+        assert token.token == expected_token
+        within_credential_chain.set(False)

@@ -1,3 +1,4 @@
+import sys
 import json
 import logging
 import os.path
@@ -5,6 +6,11 @@ from pathlib import Path
 import shutil
 import subprocess
 
+logging.basicConfig(
+    stream=sys.stdout,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    datefmt="%Y-%m-%d %X",
+)
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -144,8 +150,8 @@ def execute_simple_command(cmd_line, cwd=None, shell=False, env=None):
         output = "\n".join(output_buffer)
         if process.returncode:
             # print necessary error info which will be displayed in swagger pr
-            for i in range(-min(len(output_buffer), 7), 0):
-                print(f"[Autorest] {output_buffer[i]}")
+            for i in range(-min(len(output_buffer), 20), 0):
+                _LOGGER.error(output_buffer[i])
             raise subprocess.CalledProcessError(process.returncode, cmd_line, output)
         return output
 

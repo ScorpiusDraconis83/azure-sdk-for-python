@@ -7,6 +7,7 @@
 # --------------------------------------------------------------------------
 
 from azure.identity import DefaultAzureCredential
+
 from azure.mgmt.netapp import NetAppManagementClient
 
 """
@@ -38,7 +39,7 @@ def main():
                 "activeDirectories": [
                     {
                         "aesEncryption": True,
-                        "dns": "10.10.10.3, 10.10.10.4",
+                        "dns": "10.10.10.3",
                         "domain": "10.10.10.3",
                         "ldapOverTLS": False,
                         "ldapSigning": False,
@@ -55,6 +56,6 @@ def main():
     print(response)
 
 
-# x-ms-original-file: specification/netapp/resource-manager/Microsoft.NetApp/preview/2023-05-01-preview/examples/Accounts_CreateOrUpdateAD.json
+# x-ms-original-file: specification/netapp/resource-manager/Microsoft.NetApp/preview/2024-07-01-preview/examples/Accounts_CreateOrUpdateAD.json
 if __name__ == "__main__":
     main()

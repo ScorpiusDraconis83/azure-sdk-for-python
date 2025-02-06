@@ -7,6 +7,7 @@
 import time
 import logging
 from functools import partial
+from typing import Optional, Union
 
 from ..management_link import PendingManagementOperation
 from ._sender_async import SenderLink
@@ -20,7 +21,7 @@ from ..constants import (
     ManagementOpenResult,
     SEND_DISPOSITION_REJECT,
     MessageDeliveryState,
-    LinkDeliverySettleReason
+    LinkDeliverySettleReason,
 )
 from ..error import AMQPException, ErrorCondition
 from ..message import Properties, _MessageDelivery
@@ -38,14 +39,14 @@ class ManagementLink(object):  # pylint:disable=too-many-instance-attributes
         self.state = ManagementLinkState.IDLE
         self._pending_operations = []
         self._session = session
-        self._network_trace_params = kwargs.get('network_trace_params')
+        self._network_trace_params = kwargs.get("network_trace_params")
         self._request_link: SenderLink = session.create_sender_link(
             endpoint,
             source_address=endpoint,
             on_link_state_change=self._on_sender_state_change,
             send_settle_mode=SenderSettleMode.Unsettled,
             rcv_settle_mode=ReceiverSettleMode.First,
-            network_trace=kwargs.get("network_trace", False)
+            network_trace=kwargs.get("network_trace", False),
         )
         self._response_link: ReceiverLink = session.create_receiver_link(
             endpoint,
@@ -54,7 +55,7 @@ class ManagementLink(object):  # pylint:disable=too-many-instance-attributes
             on_transfer=self._on_message_received,
             send_settle_mode=SenderSettleMode.Unsettled,
             rcv_settle_mode=ReceiverSettleMode.First,
-            network_trace=kwargs.get("network_trace", False)
+            network_trace=kwargs.get("network_trace", False),
         )
         self._on_amqp_management_error = kwargs.get("on_amqp_management_error")
         self._on_amqp_management_open_complete = kwargs.get("on_amqp_management_open_complete")
@@ -77,7 +78,7 @@ class ManagementLink(object):  # pylint:disable=too-many-instance-attributes
             "Management link sender state changed: %r -> %r",
             previous_state,
             new_state,
-            extra=self._network_trace_params
+            extra=self._network_trace_params,
         )
         if new_state == previous_state:
             return
@@ -107,7 +108,7 @@ class ManagementLink(object):  # pylint:disable=too-many-instance-attributes
             "Management link receiver state changed: %r -> %r",
             previous_state,
             new_state,
-            extra=self._network_trace_params
+            extra=self._network_trace_params,
         )
         if new_state == previous_state:
             return
@@ -189,7 +190,16 @@ class ManagementLink(object):  # pylint:disable=too-many-instance-attributes
         await self._response_link.attach()
         await self._request_link.attach()
 
-    async def execute_operation(self, message, on_execute_operation_complete, **kwargs):
+    async def execute_operation(
+        self,
+        message,
+        on_execute_operation_complete,
+        *,
+        operation: Optional[Union[bytes, str]] = None,
+        type: Optional[Union[bytes, str]] = None,
+        locales: Optional[str] = None,
+        timeout: Optional[float] = None
+    ):
         """Execute a request and wait on a response.
 
         :param message: The message to send in the management request.
@@ -212,11 +222,10 @@ class ManagementLink(object):  # pylint:disable=too-many-instance-attributes
          to the management request must be received.
         :rtype: None
         """
-        timeout = kwargs.get("timeout")
-        message.application_properties["operation"] = kwargs.get("operation")
-        message.application_properties["type"] = kwargs.get("type")
-        if "locales" in kwargs:
-            message.application_properties["locales"] = kwargs.get("locales")
+        message.application_properties["operation"] = operation
+        message.application_properties["type"] = type
+        if locales:
+            message.application_properties["locales"] = locales
         try:
             # TODO: namedtuple is immutable, which may push us to re-think about the namedtuple approach for Message
             new_properties = message.properties._replace(message_id=self.next_message_id)

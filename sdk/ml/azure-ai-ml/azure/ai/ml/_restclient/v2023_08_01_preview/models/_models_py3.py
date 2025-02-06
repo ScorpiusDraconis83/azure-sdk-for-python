@@ -7103,7 +7103,7 @@ class ComponentContainerProperties(AssetContainer):
 
 .. raw:: html
 
-   <see href="https://docs.microsoft.com/en-us/azure/machine-learning/reference-yaml-component-command" />.
+   <see href="https://learn.microsoft.com/azure/machine-learning/reference-yaml-component-command" />.
 
     Variables are only populated by the server, and will be ignored when sending a request.
 
@@ -7275,7 +7275,7 @@ class ComponentVersionProperties(AssetBase):
      .. raw:: html
     
         <see
-     href="https://docs.microsoft.com/en-us/azure/machine-learning/reference-yaml-component-command"
+     href="https://learn.microsoft.com/azure/machine-learning/reference-yaml-component-command"
      />.
     :vartype component_spec: any
     :ivar provisioning_state: Provisioning state for the component version. Possible values
@@ -7336,7 +7336,7 @@ class ComponentVersionProperties(AssetBase):
          .. raw:: html
         
             <see
-         href="https://docs.microsoft.com/en-us/azure/machine-learning/reference-yaml-component-command"
+         href="https://learn.microsoft.com/azure/machine-learning/reference-yaml-component-command"
          />.
         :paramtype component_spec: any
         :keyword stage: Stage in the component lifecycle.
@@ -8712,7 +8712,7 @@ class Cron(msrest.serialization.Model):
     :vartype start_time: str
     :ivar time_zone: Specifies time zone in which the schedule runs.
      TimeZone should follow Windows time zone format. Refer:
-     https://docs.microsoft.com/en-us/windows-hardware/manufacture/desktop/default-time-zones?view=windows-11.
+     https://learn.microsoft.com/windows-hardware/manufacture/desktop/default-time-zones?view=windows-11.
     :vartype time_zone: str
     :ivar expression: [Required] Specifies cron expression of schedule.
      The expression should follow NCronTab format.
@@ -8738,7 +8738,7 @@ class Cron(msrest.serialization.Model):
         :paramtype start_time: str
         :keyword time_zone: Specifies time zone in which the schedule runs.
          TimeZone should follow Windows time zone format. Refer:
-         https://docs.microsoft.com/en-us/windows-hardware/manufacture/desktop/default-time-zones?view=windows-11.
+         https://learn.microsoft.com/windows-hardware/manufacture/desktop/default-time-zones?view=windows-11.
         :paramtype time_zone: str
         :keyword expression: [Required] Specifies cron expression of schedule.
          The expression should follow NCronTab format.
@@ -8768,7 +8768,7 @@ class TriggerBase(msrest.serialization.Model):
     :vartype start_time: str
     :ivar time_zone: Specifies time zone in which the schedule runs.
      TimeZone should follow Windows time zone format. Refer:
-     https://docs.microsoft.com/en-us/windows-hardware/manufacture/desktop/default-time-zones?view=windows-11.
+     https://learn.microsoft.com/windows-hardware/manufacture/desktop/default-time-zones?view=windows-11.
     :vartype time_zone: str
     :ivar trigger_type: Required. [Required].Constant filled by server. Possible values include:
      "Recurrence", "Cron".
@@ -8809,7 +8809,7 @@ class TriggerBase(msrest.serialization.Model):
         :paramtype start_time: str
         :keyword time_zone: Specifies time zone in which the schedule runs.
          TimeZone should follow Windows time zone format. Refer:
-         https://docs.microsoft.com/en-us/windows-hardware/manufacture/desktop/default-time-zones?view=windows-11.
+         https://learn.microsoft.com/windows-hardware/manufacture/desktop/default-time-zones?view=windows-11.
         :paramtype time_zone: str
         """
         super(TriggerBase, self).__init__(**kwargs)
@@ -8834,7 +8834,7 @@ class CronTrigger(TriggerBase):
     :vartype start_time: str
     :ivar time_zone: Specifies time zone in which the schedule runs.
      TimeZone should follow Windows time zone format. Refer:
-     https://docs.microsoft.com/en-us/windows-hardware/manufacture/desktop/default-time-zones?view=windows-11.
+     https://learn.microsoft.com/windows-hardware/manufacture/desktop/default-time-zones?view=windows-11.
     :vartype time_zone: str
     :ivar trigger_type: Required. [Required].Constant filled by server. Possible values include:
      "Recurrence", "Cron".
@@ -8877,7 +8877,7 @@ class CronTrigger(TriggerBase):
         :paramtype start_time: str
         :keyword time_zone: Specifies time zone in which the schedule runs.
          TimeZone should follow Windows time zone format. Refer:
-         https://docs.microsoft.com/en-us/windows-hardware/manufacture/desktop/default-time-zones?view=windows-11.
+         https://learn.microsoft.com/windows-hardware/manufacture/desktop/default-time-zones?view=windows-11.
         :paramtype time_zone: str
         :keyword expression: Required. [Required] Specifies cron expression of schedule.
          The expression should follow NCronTab format.
@@ -12411,7 +12411,7 @@ class EnvironmentVersionProperties(AssetBase):
      .. raw:: html
     
         <see
-     href="https://docs.microsoft.com/en-us/azure/machine-learning/resource-curated-environments"
+     href="https://learn.microsoft.com/azure/machine-learning/resource-curated-environments"
      />. Possible values include: "Curated", "UserCreated".
     :vartype environment_type: str or ~azure.mgmt.machinelearningservices.models.EnvironmentType
     :ivar image: Name of the image that will be used for the environment.
@@ -12420,7 +12420,7 @@ class EnvironmentVersionProperties(AssetBase):
      .. raw:: html
     
         <seealso
-     href="https://docs.microsoft.com/en-us/azure/machine-learning/how-to-deploy-custom-docker-image#use-a-custom-base-image"
+     href="https://learn.microsoft.com/azure/machine-learning/how-to-deploy-custom-docker-image#use-a-custom-base-image"
      />.
     :vartype image: str
     :ivar inference_config: Defines configuration specific to inference.
@@ -12518,7 +12518,7 @@ class EnvironmentVersionProperties(AssetBase):
          .. raw:: html
         
             <seealso
-         href="https://docs.microsoft.com/en-us/azure/machine-learning/how-to-deploy-custom-docker-image#use-a-custom-base-image"
+         href="https://learn.microsoft.com/azure/machine-learning/how-to-deploy-custom-docker-image#use-a-custom-base-image"
          />.
         :paramtype image: str
         :keyword inference_config: Defines configuration specific to inference.
@@ -16355,9 +16355,9 @@ LayersToFreeze = "choice(0, 2)";
 All distributions can be specified as distribution_name(min, max) or choice(val1, val2, ..., valn)
 where distribution name can be: uniform, quniform, loguniform, etc
 For more details on how to compose distribution expressions please check the documentation:
-https://docs.microsoft.com/en-us/azure/machine-learning/how-to-tune-hyperparameters
+https://learn.microsoft.com/azure/machine-learning/how-to-tune-hyperparameters
 For more information on the available settings please visit the official documentation:
-https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-models.
+https://learn.microsoft.com/azure/machine-learning/how-to-auto-train-image-models.
 
     :ivar ams_gradient: Enable AMSGrad when optimizer is 'adam' or 'adamw'.
     :vartype ams_gradient: str
@@ -16395,7 +16395,7 @@ https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-
      For instance, passing 2 as value for 'seresnext' means
      freezing layer0 and layer1. For a full list of models supported and details on layer freeze,
      please
-     see: https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-models.
+     see: https://learn.microsoft.com/azure/machine-learning/how-to-auto-train-image-models.
     :vartype layers_to_freeze: str
     :ivar learning_rate: Initial learning rate. Must be a float in the range [0, 1].
     :vartype learning_rate: str
@@ -16404,7 +16404,7 @@ https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-
     :vartype learning_rate_scheduler: str
     :ivar model_name: Name of the model to use for training.
      For more information on the available models please visit the official documentation:
-     https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-models.
+     https://learn.microsoft.com/azure/machine-learning/how-to-auto-train-image-models.
     :vartype model_name: str
     :ivar momentum: Value of momentum when optimizer is 'sgd'. Must be a float in the range [0, 1].
     :vartype momentum: str
@@ -16541,7 +16541,7 @@ https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-
          For instance, passing 2 as value for 'seresnext' means
          freezing layer0 and layer1. For a full list of models supported and details on layer freeze,
          please
-         see: https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-models.
+         see: https://learn.microsoft.com/azure/machine-learning/how-to-auto-train-image-models.
         :paramtype layers_to_freeze: str
         :keyword learning_rate: Initial learning rate. Must be a float in the range [0, 1].
         :paramtype learning_rate: str
@@ -16550,7 +16550,7 @@ https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-
         :paramtype learning_rate_scheduler: str
         :keyword model_name: Name of the model to use for training.
          For more information on the available models please visit the official documentation:
-         https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-models.
+         https://learn.microsoft.com/azure/machine-learning/how-to-auto-train-image-models.
         :paramtype model_name: str
         :keyword momentum: Value of momentum when optimizer is 'sgd'. Must be a float in the range [0,
          1].
@@ -16627,9 +16627,9 @@ LearningRate = "uniform(0.001, 0.01)";
 LayersToFreeze = "choice(0, 2)";
 ```</example>`
 For more details on how to compose distribution expressions please check the documentation:
-https://docs.microsoft.com/en-us/azure/machine-learning/how-to-tune-hyperparameters
+https://learn.microsoft.com/azure/machine-learning/how-to-tune-hyperparameters
 For more information on the available settings please visit the official documentation:
-https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-models.
+https://learn.microsoft.com/azure/machine-learning/how-to-auto-train-image-models.
 
     :ivar ams_gradient: Enable AMSGrad when optimizer is 'adam' or 'adamw'.
     :vartype ams_gradient: str
@@ -16667,7 +16667,7 @@ https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-
      For instance, passing 2 as value for 'seresnext' means
      freezing layer0 and layer1. For a full list of models supported and details on layer freeze,
      please
-     see: https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-models.
+     see: https://learn.microsoft.com/azure/machine-learning/how-to-auto-train-image-models.
     :vartype layers_to_freeze: str
     :ivar learning_rate: Initial learning rate. Must be a float in the range [0, 1].
     :vartype learning_rate: str
@@ -16676,7 +16676,7 @@ https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-
     :vartype learning_rate_scheduler: str
     :ivar model_name: Name of the model to use for training.
      For more information on the available models please visit the official documentation:
-     https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-models.
+     https://learn.microsoft.com/azure/machine-learning/how-to-auto-train-image-models.
     :vartype model_name: str
     :ivar momentum: Value of momentum when optimizer is 'sgd'. Must be a float in the range [0, 1].
     :vartype momentum: str
@@ -16834,7 +16834,7 @@ https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-
          For instance, passing 2 as value for 'seresnext' means
          freezing layer0 and layer1. For a full list of models supported and details on layer freeze,
          please
-         see: https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-models.
+         see: https://learn.microsoft.com/azure/machine-learning/how-to-auto-train-image-models.
         :paramtype layers_to_freeze: str
         :keyword learning_rate: Initial learning rate. Must be a float in the range [0, 1].
         :paramtype learning_rate: str
@@ -16843,7 +16843,7 @@ https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-
         :paramtype learning_rate_scheduler: str
         :keyword model_name: Name of the model to use for training.
          For more information on the available models please visit the official documentation:
-         https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-models.
+         https://learn.microsoft.com/azure/machine-learning/how-to-auto-train-image-models.
         :paramtype model_name: str
         :keyword momentum: Value of momentum when optimizer is 'sgd'. Must be a float in the range [0,
          1].
@@ -16909,9 +16909,9 @@ LearningRate = "uniform(0.001, 0.01)";
 LayersToFreeze = "choice(0, 2)";
 ```</example>`
 For more details on how to compose distribution expressions please check the documentation:
-https://docs.microsoft.com/en-us/azure/machine-learning/how-to-tune-hyperparameters
+https://learn.microsoft.com/azure/machine-learning/how-to-tune-hyperparameters
 For more information on the available settings please visit the official documentation:
-https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-models.
+https://learn.microsoft.com/azure/machine-learning/how-to-auto-train-image-models.
 
     :ivar ams_gradient: Enable AMSGrad when optimizer is 'adam' or 'adamw'.
     :vartype ams_gradient: str
@@ -16949,7 +16949,7 @@ https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-
      For instance, passing 2 as value for 'seresnext' means
      freezing layer0 and layer1. For a full list of models supported and details on layer freeze,
      please
-     see: https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-models.
+     see: https://learn.microsoft.com/azure/machine-learning/how-to-auto-train-image-models.
     :vartype layers_to_freeze: str
     :ivar learning_rate: Initial learning rate. Must be a float in the range [0, 1].
     :vartype learning_rate: str
@@ -16958,7 +16958,7 @@ https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-
     :vartype learning_rate_scheduler: str
     :ivar model_name: Name of the model to use for training.
      For more information on the available models please visit the official documentation:
-     https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-models.
+     https://learn.microsoft.com/azure/machine-learning/how-to-auto-train-image-models.
     :vartype model_name: str
     :ivar momentum: Value of momentum when optimizer is 'sgd'. Must be a float in the range [0, 1].
     :vartype momentum: str
@@ -17173,7 +17173,7 @@ https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-
          For instance, passing 2 as value for 'seresnext' means
          freezing layer0 and layer1. For a full list of models supported and details on layer freeze,
          please
-         see: https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-models.
+         see: https://learn.microsoft.com/azure/machine-learning/how-to-auto-train-image-models.
         :paramtype layers_to_freeze: str
         :keyword learning_rate: Initial learning rate. Must be a float in the range [0, 1].
         :paramtype learning_rate: str
@@ -17182,7 +17182,7 @@ https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-
         :paramtype learning_rate_scheduler: str
         :keyword model_name: Name of the model to use for training.
          For more information on the available models please visit the official documentation:
-         https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-models.
+         https://learn.microsoft.com/azure/machine-learning/how-to-auto-train-image-models.
         :paramtype model_name: str
         :keyword momentum: Value of momentum when optimizer is 'sgd'. Must be a float in the range [0,
          1].
@@ -17288,7 +17288,7 @@ https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-
 class ImageModelSettings(msrest.serialization.Model):
     """Settings used for training the model.
 For more information on the available settings please visit the official documentation:
-https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-models.
+https://learn.microsoft.com/azure/machine-learning/how-to-auto-train-image-models.
 
     :ivar advanced_settings: Settings for advanced scenarios.
     :vartype advanced_settings: str
@@ -17335,7 +17335,7 @@ https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-
      For instance, passing 2 as value for 'seresnext' means
      freezing layer0 and layer1. For a full list of models supported and details on layer freeze,
      please
-     see: https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-models.
+     see: https://learn.microsoft.com/azure/machine-learning/how-to-auto-train-image-models.
     :vartype layers_to_freeze: int
     :ivar learning_rate: Initial learning rate. Must be a float in the range [0, 1].
     :vartype learning_rate: float
@@ -17345,7 +17345,7 @@ https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-
      ~azure.mgmt.machinelearningservices.models.LearningRateScheduler
     :ivar model_name: Name of the model to use for training.
      For more information on the available models please visit the official documentation:
-     https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-models.
+     https://learn.microsoft.com/azure/machine-learning/how-to-auto-train-image-models.
     :vartype model_name: str
     :ivar momentum: Value of momentum when optimizer is 'sgd'. Must be a float in the range [0, 1].
     :vartype momentum: float
@@ -17500,7 +17500,7 @@ https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-
          For instance, passing 2 as value for 'seresnext' means
          freezing layer0 and layer1. For a full list of models supported and details on layer freeze,
          please
-         see: https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-models.
+         see: https://learn.microsoft.com/azure/machine-learning/how-to-auto-train-image-models.
         :paramtype layers_to_freeze: int
         :keyword learning_rate: Initial learning rate. Must be a float in the range [0, 1].
         :paramtype learning_rate: float
@@ -17510,7 +17510,7 @@ https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-
          ~azure.mgmt.machinelearningservices.models.LearningRateScheduler
         :keyword model_name: Name of the model to use for training.
          For more information on the available models please visit the official documentation:
-         https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-models.
+         https://learn.microsoft.com/azure/machine-learning/how-to-auto-train-image-models.
         :paramtype model_name: str
         :keyword momentum: Value of momentum when optimizer is 'sgd'. Must be a float in the range [0,
          1].
@@ -17583,7 +17583,7 @@ https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-
 class ImageModelSettingsClassification(ImageModelSettings):
     """Settings used for training the model.
 For more information on the available settings please visit the official documentation:
-https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-models.
+https://learn.microsoft.com/azure/machine-learning/how-to-auto-train-image-models.
 
     :ivar advanced_settings: Settings for advanced scenarios.
     :vartype advanced_settings: str
@@ -17630,7 +17630,7 @@ https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-
      For instance, passing 2 as value for 'seresnext' means
      freezing layer0 and layer1. For a full list of models supported and details on layer freeze,
      please
-     see: https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-models.
+     see: https://learn.microsoft.com/azure/machine-learning/how-to-auto-train-image-models.
     :vartype layers_to_freeze: int
     :ivar learning_rate: Initial learning rate. Must be a float in the range [0, 1].
     :vartype learning_rate: float
@@ -17640,7 +17640,7 @@ https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-
      ~azure.mgmt.machinelearningservices.models.LearningRateScheduler
     :ivar model_name: Name of the model to use for training.
      For more information on the available models please visit the official documentation:
-     https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-models.
+     https://learn.microsoft.com/azure/machine-learning/how-to-auto-train-image-models.
     :vartype model_name: str
     :ivar momentum: Value of momentum when optimizer is 'sgd'. Must be a float in the range [0, 1].
     :vartype momentum: float
@@ -17816,7 +17816,7 @@ https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-
          For instance, passing 2 as value for 'seresnext' means
          freezing layer0 and layer1. For a full list of models supported and details on layer freeze,
          please
-         see: https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-models.
+         see: https://learn.microsoft.com/azure/machine-learning/how-to-auto-train-image-models.
         :paramtype layers_to_freeze: int
         :keyword learning_rate: Initial learning rate. Must be a float in the range [0, 1].
         :paramtype learning_rate: float
@@ -17826,7 +17826,7 @@ https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-
          ~azure.mgmt.machinelearningservices.models.LearningRateScheduler
         :keyword model_name: Name of the model to use for training.
          For more information on the available models please visit the official documentation:
-         https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-models.
+         https://learn.microsoft.com/azure/machine-learning/how-to-auto-train-image-models.
         :paramtype model_name: str
         :keyword momentum: Value of momentum when optimizer is 'sgd'. Must be a float in the range [0,
          1].
@@ -17884,7 +17884,7 @@ https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-
 class ImageModelSettingsObjectDetection(ImageModelSettings):
     """Settings used for training the model.
 For more information on the available settings please visit the official documentation:
-https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-models.
+https://learn.microsoft.com/azure/machine-learning/how-to-auto-train-image-models.
 
     :ivar advanced_settings: Settings for advanced scenarios.
     :vartype advanced_settings: str
@@ -17931,7 +17931,7 @@ https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-
      For instance, passing 2 as value for 'seresnext' means
      freezing layer0 and layer1. For a full list of models supported and details on layer freeze,
      please
-     see: https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-models.
+     see: https://learn.microsoft.com/azure/machine-learning/how-to-auto-train-image-models.
     :vartype layers_to_freeze: int
     :ivar learning_rate: Initial learning rate. Must be a float in the range [0, 1].
     :vartype learning_rate: float
@@ -17941,7 +17941,7 @@ https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-
      ~azure.mgmt.machinelearningservices.models.LearningRateScheduler
     :ivar model_name: Name of the model to use for training.
      For more information on the available models please visit the official documentation:
-     https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-models.
+     https://learn.microsoft.com/azure/machine-learning/how-to-auto-train-image-models.
     :vartype model_name: str
     :ivar momentum: Value of momentum when optimizer is 'sgd'. Must be a float in the range [0, 1].
     :vartype momentum: float
@@ -18187,7 +18187,7 @@ https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-
          For instance, passing 2 as value for 'seresnext' means
          freezing layer0 and layer1. For a full list of models supported and details on layer freeze,
          please
-         see: https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-models.
+         see: https://learn.microsoft.com/azure/machine-learning/how-to-auto-train-image-models.
         :paramtype layers_to_freeze: int
         :keyword learning_rate: Initial learning rate. Must be a float in the range [0, 1].
         :paramtype learning_rate: float
@@ -18197,7 +18197,7 @@ https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-
          ~azure.mgmt.machinelearningservices.models.LearningRateScheduler
         :keyword model_name: Name of the model to use for training.
          For more information on the available models please visit the official documentation:
-         https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-models.
+         https://learn.microsoft.com/azure/machine-learning/how-to-auto-train-image-models.
         :paramtype model_name: str
         :keyword momentum: Value of momentum when optimizer is 'sgd'. Must be a float in the range [0,
          1].
@@ -27293,7 +27293,7 @@ class Recurrence(msrest.serialization.Model):
     :vartype start_time: str
     :ivar time_zone: Specifies time zone in which the schedule runs.
      TimeZone should follow Windows time zone format. Refer:
-     https://docs.microsoft.com/en-us/windows-hardware/manufacture/desktop/default-time-zones?view=windows-11.
+     https://learn.microsoft.com/windows-hardware/manufacture/desktop/default-time-zones?view=windows-11.
     :vartype time_zone: str
     :ivar schedule: [Required] The recurrence schedule.
     :vartype schedule: ~azure.mgmt.machinelearningservices.models.ComputeRecurrenceSchedule
@@ -27328,7 +27328,7 @@ class Recurrence(msrest.serialization.Model):
         :paramtype start_time: str
         :keyword time_zone: Specifies time zone in which the schedule runs.
          TimeZone should follow Windows time zone format. Refer:
-         https://docs.microsoft.com/en-us/windows-hardware/manufacture/desktop/default-time-zones?view=windows-11.
+         https://learn.microsoft.com/windows-hardware/manufacture/desktop/default-time-zones?view=windows-11.
         :paramtype time_zone: str
         :keyword schedule: [Required] The recurrence schedule.
         :paramtype schedule: ~azure.mgmt.machinelearningservices.models.ComputeRecurrenceSchedule
@@ -27409,7 +27409,7 @@ class RecurrenceTrigger(TriggerBase):
     :vartype start_time: str
     :ivar time_zone: Specifies time zone in which the schedule runs.
      TimeZone should follow Windows time zone format. Refer:
-     https://docs.microsoft.com/en-us/windows-hardware/manufacture/desktop/default-time-zones?view=windows-11.
+     https://learn.microsoft.com/windows-hardware/manufacture/desktop/default-time-zones?view=windows-11.
     :vartype time_zone: str
     :ivar trigger_type: Required. [Required].Constant filled by server. Possible values include:
      "Recurrence", "Cron".
@@ -27461,7 +27461,7 @@ class RecurrenceTrigger(TriggerBase):
         :paramtype start_time: str
         :keyword time_zone: Specifies time zone in which the schedule runs.
          TimeZone should follow Windows time zone format. Refer:
-         https://docs.microsoft.com/en-us/windows-hardware/manufacture/desktop/default-time-zones?view=windows-11.
+         https://learn.microsoft.com/windows-hardware/manufacture/desktop/default-time-zones?view=windows-11.
         :paramtype time_zone: str
         :keyword frequency: Required. [Required] The frequency to trigger schedule. Possible values
          include: "Minute", "Hour", "Day", "Week", "Month".
@@ -34323,6 +34323,8 @@ class Workspace(Resource):
     :vartype discovery_url: str
     :ivar enable_data_isolation:
     :vartype enable_data_isolation: bool
+    :ivar allow_roleassignment_on_rg: Determine whether allow workspace role assignment on resource group level.
+    :vartype allow_roleassignment_on_rg: bool
     :ivar encryption:
     :vartype encryption: ~azure.mgmt.machinelearningservices.models.EncryptionProperty
     :ivar existing_workspaces:
@@ -34439,6 +34441,7 @@ class Workspace(Resource):
         'description': {'key': 'properties.description', 'type': 'str'},
         'discovery_url': {'key': 'properties.discoveryUrl', 'type': 'str'},
         'enable_data_isolation': {'key': 'properties.enableDataIsolation', 'type': 'bool'},
+        'allow_roleassignment_on_rg': {'key': 'properties.allowRoleAssignmentOnRG', 'type': 'bool'},
         'encryption': {'key': 'properties.encryption', 'type': 'EncryptionProperty'},
         'existing_workspaces': {'key': 'properties.existingWorkspaces', 'type': '[str]'},
         'feature_store_settings': {'key': 'properties.featureStoreSettings', 'type': 'FeatureStoreSettings'},
@@ -34487,6 +34490,7 @@ class Workspace(Resource):
         description: Optional[str] = None,
         discovery_url: Optional[str] = None,
         enable_data_isolation: Optional[bool] = None,
+        allow_roleassignment_on_rg: Optional[bool] = None,
         encryption: Optional["EncryptionProperty"] = None,
         existing_workspaces: Optional[List[str]] = None,
         feature_store_settings: Optional["FeatureStoreSettings"] = None,
@@ -34541,6 +34545,8 @@ class Workspace(Resource):
         :paramtype discovery_url: str
         :keyword enable_data_isolation:
         :paramtype enable_data_isolation: bool
+        :keyword allow_roleassignment_on_rg: Determine whether allow workspace role assignment on resource group level.
+        :paramtype allow_roleassignment_on_rg: bool
         :keyword encryption:
         :paramtype encryption: ~azure.mgmt.machinelearningservices.models.EncryptionProperty
         :keyword existing_workspaces:
@@ -34612,6 +34618,7 @@ class Workspace(Resource):
         self.description = description
         self.discovery_url = discovery_url
         self.enable_data_isolation = enable_data_isolation
+        self.allow_roleassignment_on_rg = allow_roleassignment_on_rg
         self.encryption = encryption
         self.existing_workspaces = existing_workspaces
         self.feature_store_settings = feature_store_settings
@@ -35088,6 +35095,8 @@ class WorkspaceUpdateParameters(msrest.serialization.Model):
     :vartype description: str
     :ivar enable_data_isolation:
     :vartype enable_data_isolation: bool
+    :ivar allow_roleassignment_on_rg: Determine whether allow workspace role assignment on resource group level.
+    :vartype allow_roleassignment_on_rg: bool
     :ivar encryption:
     :vartype encryption: ~azure.mgmt.machinelearningservices.models.EncryptionUpdateProperties
     :ivar feature_store_settings: Settings for feature store type workspace.
@@ -35117,6 +35126,9 @@ class WorkspaceUpdateParameters(msrest.serialization.Model):
     :ivar v1_legacy_mode: Enabling v1_legacy_mode may prevent you from using features provided by
      the v2 API.
     :vartype v1_legacy_mode: bool
+    :ivar system_datastores_auth_mode: The auth mode used for accessing the system datastores of
+     the workspace.
+    :vartype system_datastores_auth_mode: str
     """
 
     _attribute_map = {
@@ -35138,6 +35150,8 @@ class WorkspaceUpdateParameters(msrest.serialization.Model):
         'service_managed_resources_settings': {'key': 'properties.serviceManagedResourcesSettings', 'type': 'ServiceManagedResourcesSettings'},
         'soft_delete_retention_in_days': {'key': 'properties.softDeleteRetentionInDays', 'type': 'int'},
         'v1_legacy_mode': {'key': 'properties.v1LegacyMode', 'type': 'bool'},
+        'system_datastores_auth_mode': {'key': 'properties.systemDatastoresAuthMode', 'type': 'str'},
+        'allow_roleassignment_on_rg' : {'key': 'properties.allowRoleAssignmentOnRG', 'type': 'bool'}
     }
 
     def __init__(
@@ -35150,6 +35164,7 @@ class WorkspaceUpdateParameters(msrest.serialization.Model):
         container_registry: Optional[str] = None,
         description: Optional[str] = None,
         enable_data_isolation: Optional[bool] = None,
+        allow_roleassignment_on_rg: Optional[bool] = None,
         encryption: Optional["EncryptionUpdateProperties"] = None,
         feature_store_settings: Optional["FeatureStoreSettings"] = None,
         friendly_name: Optional[str] = None,
@@ -35161,6 +35176,7 @@ class WorkspaceUpdateParameters(msrest.serialization.Model):
         service_managed_resources_settings: Optional["ServiceManagedResourcesSettings"] = None,
         soft_delete_retention_in_days: Optional[int] = None,
         v1_legacy_mode: Optional[bool] = None,
+        system_datastores_auth_mode: Optional[str] = None, 
         **kwargs
     ):
         """
@@ -35180,6 +35196,8 @@ class WorkspaceUpdateParameters(msrest.serialization.Model):
         :paramtype description: str
         :keyword enable_data_isolation:
         :paramtype enable_data_isolation: bool
+        :keyword allow_roleassignment_on_rg: Determine whether allow workspace role assignment on resource group level.
+        :paramtype allow_roleassignment_on_rg: bool
         :keyword encryption:
         :paramtype encryption: ~azure.mgmt.machinelearningservices.models.EncryptionUpdateProperties
         :keyword feature_store_settings: Settings for feature store type workspace.
@@ -35210,6 +35228,9 @@ class WorkspaceUpdateParameters(msrest.serialization.Model):
         :keyword v1_legacy_mode: Enabling v1_legacy_mode may prevent you from using features provided
          by the v2 API.
         :paramtype v1_legacy_mode: bool
+        :keyword system_datastores_auth_mode: The auth mode used for accessing the system datastores of
+         the workspace.
+        :paramtype system_datastores_auth_mode: str
         """
         super(WorkspaceUpdateParameters, self).__init__(**kwargs)
         self.identity = identity
@@ -35219,6 +35240,7 @@ class WorkspaceUpdateParameters(msrest.serialization.Model):
         self.container_registry = container_registry
         self.description = description
         self.enable_data_isolation = enable_data_isolation
+        self.allow_roleassignment_on_rg = allow_roleassignment_on_rg
         self.encryption = encryption
         self.feature_store_settings = feature_store_settings
         self.friendly_name = friendly_name
@@ -35230,3 +35252,4 @@ class WorkspaceUpdateParameters(msrest.serialization.Model):
         self.service_managed_resources_settings = service_managed_resources_settings
         self.soft_delete_retention_in_days = soft_delete_retention_in_days
         self.v1_legacy_mode = v1_legacy_mode
+        self.system_datastores_auth_mode = system_datastores_auth_mode

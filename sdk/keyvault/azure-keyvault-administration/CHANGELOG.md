@@ -1,6 +1,6 @@
 # Release History
 
-## 4.4.0b3 (Unreleased)
+## 4.5.1 (Unreleased)
 
 ### Features Added
 
@@ -9,7 +9,35 @@
 ### Bugs Fixed
 
 ### Other Changes
+
+## 4.5.0 (2024-10-17)
+
+### Features Added
+- Added support for Continuous Access Evaluation (CAE). `enable_cae=True` is passed to all `get_token` requests.
+
+### Bugs Fixed
+- Typing errors from using Key Vault clients as context managers have been fixed
+  ([#34744](https://github.com/Azure/azure-sdk-for-python/issues/34744))
+
+### Other Changes
+- Updated minimum `azure-core` version to 1.31.0
+
+## 4.4.0 (2024-02-22)
+
+### Features Added
+- Added support for service API version `7.5`
+- (From 4.4.0b2) `KeyVaultBackupClient.begin_backup` and `KeyVaultBackupClient.begin_restore` now accept a
+  `use_managed_identity` keyword-only argument to enable authentication via Managed Identity
+
+### Bugs Fixed
+- (From 4.4.0b1) Token requests made during AD FS authentication no longer specify an erroneous "adfs" tenant ID
+  ([#29888](https://github.com/Azure/azure-sdk-for-python/issues/29888))
+
+### Other Changes
 - Python 3.7 is no longer supported. Please use Python version 3.8 or later.
+- Key Vault API version `7.5` is now the default
+- Updated minimum `azure-core` version to 1.29.5
+- Dropped `azure-common` requirement
 
 ## 4.4.0b2 (2023-11-03)
 

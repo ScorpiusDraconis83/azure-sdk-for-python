@@ -1,10 +1,66 @@
 # Release History
 
-## 12.15.0b1 (Unreleased)
+## 12.19.0b1 (Unreleased)
+
+### Features Added
+- Added support for service version 2025-05-05.
+
+## 12.18.1 (2025-01-22)
+
+### Bugs Fixed
+- Fixed an issue where custom transports may encounter `AttributeError` on certain requests.
+- Fixed request handler to handle `None` value for `expires_on` keyword to `set_file_expiry` API.
+
+## 12.18.0 (2024-11-13)
+
+### Features Added
+- Stable release of features from 12.18.0b1
+
+## 12.18.0b1 (2024-10-10)
+
+### Features Added
+- Added support for service version 2025-01-05.
+- Added support for `get_paths()` on `DataLakeDirectoryClient`.
+
+## 12.17.0 (2024-09-17)
+
+### Features Added
+- Stable release of features from 12.17.0b1
+
+## 12.17.0b1 (2024-08-07)
+
+### Features Added
+- Added support for service version 2024-11-04.
+
+### Other Changes
+- Bumped minimum `azure-core` dependency to 1.30.0.
+
+## 12.16.0 (2024-07-18)
+
+### Features Added
+- Stable release of features from 12.16.0b1
+
+## 12.16.0b1 (2024-06-11)
+
+### Features Added
+- Updated OAuth implementation to use the AAD scope returned in a Bearer challenge.
+
+## 12.15.0 (2024-05-07)
+
+### Features Added
+- Stable release of features from 12.15.0b1
+
+## 12.15.0b1 (2024-04-16)
 
 This version and all future versions will require Python 3.8+. Python 3.7 is no longer supported.
 
 ### Features Added
+- Added support for service version 2024-05-04.
+- The `services` parameter has been added to the `generate_account_sas` API, which enables the ability to generate SAS
+tokens to be used with multiple services. By default, the SAS token service scope will default to the current service.
+- Added `upn` as an optional keyword that can be specified on APIs that return an instance of `PathProperties`, `DirectoryProperties` or
+`FileProperties`. Specifying this keyword transforms the user identity values returned in the `owner`, `group`, and `acl` fields of the
+corresponding Properties from Azure Active Directory Object IDs to User Principal Names.
 
 ### Bugs Fixed
 - Bumped dependency of `typing-extensions` to `>=4.6.0` to avoid potential `TypeError` with `typing.TypeVar` on
@@ -190,7 +246,7 @@ in a future release.
     - `permanent_delete`
     - `set_immutability_policy`
 **Fixes**
-- `FileSystemProperties` was not subscriptable. Now it is both subscriptable and attributes can also be accessed directly (#20772) 
+- `FileSystemProperties` was not subscriptable. Now it is both subscriptable and attributes can also be accessed directly (#20772)
 - Datalake Client Typing annotation issues have been resolved (#19906)
 
 ## 12.5.0 (2021-09-15)

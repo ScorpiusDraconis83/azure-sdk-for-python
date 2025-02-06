@@ -7,6 +7,7 @@
 # --------------------------------------------------------------------------
 
 from azure.identity import DefaultAzureCredential
+
 from azure.mgmt.servicefabricmanagedclusters import ServiceFabricManagedClustersManagementClient
 
 """
@@ -29,15 +30,15 @@ def main():
         subscription_id="00000000-0000-0000-0000-000000000000",
     )
 
-    response = client.node_types.update(
+    response = client.node_types.begin_update(
         resource_group_name="resRg",
         cluster_name="myCluster",
         node_type_name="BE",
         parameters={"tags": {"a": "b"}},
-    )
+    ).result()
     print(response)
 
 
-# x-ms-original-file: specification/servicefabricmanagedclusters/resource-manager/Microsoft.ServiceFabric/preview/2023-02-01-preview/examples/NodeTypePatchOperation_example.json
+# x-ms-original-file: specification/servicefabricmanagedclusters/resource-manager/Microsoft.ServiceFabric/preview/2024-09-01-preview/examples/NodeTypePatchOperation_example.json
 if __name__ == "__main__":
     main()

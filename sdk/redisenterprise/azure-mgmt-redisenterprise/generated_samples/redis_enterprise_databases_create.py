@@ -7,6 +7,7 @@
 # --------------------------------------------------------------------------
 
 from azure.identity import DefaultAzureCredential
+
 from azure.mgmt.redisenterprise import RedisEnterpriseManagementClient
 
 """
@@ -26,7 +27,7 @@ from azure.mgmt.redisenterprise import RedisEnterpriseManagementClient
 def main():
     client = RedisEnterpriseManagementClient(
         credential=DefaultAzureCredential(),
-        subscription_id="subid",
+        subscription_id="e7b5a9d2-6b6a-4d2f-9143-20d9a10f5b8f",
     )
 
     response = client.databases.begin_create(
@@ -35,8 +36,10 @@ def main():
         database_name="default",
         parameters={
             "properties": {
+                "accessKeysAuthentication": "Enabled",
                 "clientProtocol": "Encrypted",
                 "clusteringPolicy": "EnterpriseCluster",
+                "deferUpgrade": "NotDeferred",
                 "evictionPolicy": "AllKeysLRU",
                 "modules": [
                     {"args": "ERROR_RATE 0.00 INITIAL_SIZE 400", "name": "RedisBloom"},
@@ -51,6 +54,6 @@ def main():
     print(response)
 
 
-# x-ms-original-file: specification/redisenterprise/resource-manager/Microsoft.Cache/preview/2023-03-01-preview/examples/RedisEnterpriseDatabasesCreate.json
+# x-ms-original-file: specification/redisenterprise/resource-manager/Microsoft.Cache/preview/2024-09-01-preview/examples/RedisEnterpriseDatabasesCreate.json
 if __name__ == "__main__":
     main()

@@ -40,6 +40,8 @@ class _PartitionedQueryExecutionInfo(object):
     AggregatesPath = [QueryInfoPath, "aggregates"]
     QueryRangesPath = "queryRanges"
     RewrittenQueryPath = [QueryInfoPath, "rewrittenQuery"]
+    HasNonStreamingOrderByPath = [QueryInfoPath, "hasNonStreamingOrderBy"]
+    HybridSearchQueryInfoPath = "hybridSearchQueryInfo"
 
     def __init__(self, query_execution_info):
         """
@@ -106,6 +108,20 @@ class _PartitionedQueryExecutionInfo(object):
             # Hardcode formattable filter to true for now
             rewrittenQuery = rewrittenQuery.replace("{documentdb-formattableorderbyquery-filter}", "true")
         return rewrittenQuery
+
+    def get_non_streaming_order_by(self):
+        """Returns if the query is a non-streaming order by query.
+        :returns: Query is a non-streaming order by query.
+        :rtype: bool
+        """
+        return self._extract(_PartitionedQueryExecutionInfo.HasNonStreamingOrderByPath)
+
+    def has_hybrid_search_query_info(self):
+        """Returns if the query is a hybrid search query.
+        :returns: Query is a hybrid search query.
+        :rtype: bool
+        """
+        return self._extract(_PartitionedQueryExecutionInfo.HybridSearchQueryInfoPath)
 
     def has_select_value(self):
         return self._extract(self.HasSelectValue)

@@ -8,9 +8,12 @@
 
 from copy import deepcopy
 from typing import Any, TYPE_CHECKING
+from typing_extensions import Self
 
+from azure.core.pipeline import policies
 from azure.core.rest import HttpRequest, HttpResponse
 from azure.mgmt.core import ARMPipelineClient
+from azure.mgmt.core.policies import ARMAutoResourceProviderRegistrationPolicy
 
 from . import models as _models
 from ._configuration import ServiceFabricManagedClustersManagementClientConfiguration
@@ -19,9 +22,11 @@ from .operations import (
     ApplicationTypeVersionsOperations,
     ApplicationTypesOperations,
     ApplicationsOperations,
+    ManagedApplyMaintenanceWindowOperations,
     ManagedAzResiliencyStatusOperations,
     ManagedClusterVersionOperations,
     ManagedClustersOperations,
+    ManagedMaintenanceWindowStatusOperations,
     ManagedUnsupportedVMSizesOperations,
     NodeTypeSkusOperations,
     NodeTypesOperations,
@@ -32,11 +37,10 @@ from .operations import (
 )
 
 if TYPE_CHECKING:
-    # pylint: disable=unused-import,ungrouped-imports
     from azure.core.credentials import TokenCredential
 
 
-class ServiceFabricManagedClustersManagementClient:  # pylint: disable=client-accepts-api-version-keyword,too-many-instance-attributes,name-too-long
+class ServiceFabricManagedClustersManagementClient:  # pylint: disable=too-many-instance-attributes,name-too-long
     """Service Fabric Managed Clusters Management Client.
 
     :ivar application_types: ApplicationTypesOperations operations
@@ -56,6 +60,12 @@ class ServiceFabricManagedClustersManagementClient:  # pylint: disable=client-ac
     :ivar managed_az_resiliency_status: ManagedAzResiliencyStatusOperations operations
     :vartype managed_az_resiliency_status:
      azure.mgmt.servicefabricmanagedclusters.operations.ManagedAzResiliencyStatusOperations
+    :ivar managed_maintenance_window_status: ManagedMaintenanceWindowStatusOperations operations
+    :vartype managed_maintenance_window_status:
+     azure.mgmt.servicefabricmanagedclusters.operations.ManagedMaintenanceWindowStatusOperations
+    :ivar managed_apply_maintenance_window: ManagedApplyMaintenanceWindowOperations operations
+    :vartype managed_apply_maintenance_window:
+     azure.mgmt.servicefabricmanagedclusters.operations.ManagedApplyMaintenanceWindowOperations
     :ivar managed_cluster_version: ManagedClusterVersionOperations operations
     :vartype managed_cluster_version:
      azure.mgmt.servicefabricmanagedclusters.operations.ManagedClusterVersionOperations
@@ -81,7 +91,7 @@ class ServiceFabricManagedClustersManagementClient:  # pylint: disable=client-ac
     :type subscription_id: str
     :param base_url: Service URL. Default value is "https://management.azure.com".
     :type base_url: str
-    :keyword api_version: Api Version. Default value is "2023-02-01-preview". Note that overriding
+    :keyword api_version: Api Version. Default value is "2024-09-01-preview". Note that overriding
      this default value may result in unsupported behavior.
     :paramtype api_version: str
     :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
@@ -98,7 +108,25 @@ class ServiceFabricManagedClustersManagementClient:  # pylint: disable=client-ac
         self._config = ServiceFabricManagedClustersManagementClientConfiguration(
             credential=credential, subscription_id=subscription_id, **kwargs
         )
-        self._client: ARMPipelineClient = ARMPipelineClient(base_url=base_url, config=self._config, **kwargs)
+        _policies = kwargs.pop("policies", None)
+        if _policies is None:
+            _policies = [
+                policies.RequestIdPolicy(**kwargs),
+                self._config.headers_policy,
+                self._config.user_agent_policy,
+                self._config.proxy_policy,
+                policies.ContentDecodePolicy(**kwargs),
+                ARMAutoResourceProviderRegistrationPolicy(),
+                self._config.redirect_policy,
+                self._config.retry_policy,
+                self._config.authentication_policy,
+                self._config.custom_hook_policy,
+                self._config.logging_policy,
+                policies.DistributedTracingPolicy(**kwargs),
+                policies.SensitiveHeaderCleanupPolicy(**kwargs) if self._config.redirect_policy else None,
+                self._config.http_logging_policy,
+            ]
+        self._client: ARMPipelineClient = ARMPipelineClient(base_url=base_url, policies=_policies, **kwargs)
 
         client_models = {k: v for k, v in _models.__dict__.items() if isinstance(v, type)}
         self._serialize = Serializer(client_models)
@@ -118,6 +146,12 @@ class ServiceFabricManagedClustersManagementClient:  # pylint: disable=client-ac
         self.managed_az_resiliency_status = ManagedAzResiliencyStatusOperations(
             self._client, self._config, self._serialize, self._deserialize
         )
+        self.managed_maintenance_window_status = ManagedMaintenanceWindowStatusOperations(
+            self._client, self._config, self._serialize, self._deserialize
+        )
+        self.managed_apply_maintenance_window = ManagedApplyMaintenanceWindowOperations(
+            self._client, self._config, self._serialize, self._deserialize
+        )
         self.managed_cluster_version = ManagedClusterVersionOperations(
             self._client, self._config, self._serialize, self._deserialize
         )
@@ -134,7 +168,7 @@ class ServiceFabricManagedClustersManagementClient:  # pylint: disable=client-ac
         self.node_types = NodeTypesOperations(self._client, self._config, self._serialize, self._deserialize)
         self.node_type_skus = NodeTypeSkusOperations(self._client, self._config, self._serialize, self._deserialize)
 
-    def _send_request(self, request: HttpRequest, **kwargs: Any) -> HttpResponse:
+    def _send_request(self, request: HttpRequest, *, stream: bool = False, **kwargs: Any) -> HttpResponse:
         """Runs the network request through the client's chained policies.
 
         >>> from azure.core.rest import HttpRequest
@@ -154,12 +188,12 @@ class ServiceFabricManagedClustersManagementClient:  # pylint: disable=client-ac
 
         request_copy = deepcopy(request)
         request_copy.url = self._client.format_url(request_copy.url)
-        return self._client.send_request(request_copy, **kwargs)
+        return self._client.send_request(request_copy, stream=stream, **kwargs)  # type: ignore
 
     def close(self) -> None:
         self._client.close()
 
-    def __enter__(self) -> "ServiceFabricManagedClustersManagementClient":
+    def __enter__(self) -> Self:
         self._client.__enter__()
         return self
 

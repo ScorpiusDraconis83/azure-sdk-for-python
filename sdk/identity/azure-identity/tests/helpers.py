@@ -6,15 +6,16 @@ import base64
 import json
 import time
 from urllib.parse import urlparse
+from unittest import mock
 
-try:
-    from unittest import mock
-except ImportError:  # python < 3.3
-    import mock  # type: ignore
+from azure.core.credentials import AccessToken, AccessTokenInfo
 
 
 FAKE_CLIENT_ID = "fake-client-id"
 INVALID_CHARACTERS = "|\\`;{&' "
+INVALID_SUBSCRIPTION_CHARACTERS = "|\\`;{&'"
+ACCESS_TOKEN_CLASSES = (AccessToken, AccessTokenInfo)
+GET_TOKEN_METHODS = ("get_token", "get_token_info")
 
 
 def build_id_token(
@@ -162,7 +163,12 @@ def get_discovery_response(endpoint="https://a/b"):
     sufficient. MSAL will send token requests to "{endpoint}/oauth2/v2.0/token_endpoint" after receiving a tenant
     discovery response created by this method.
     """
-    aad_metadata_endpoint_names = ("authorization_endpoint", "token_endpoint", "tenant_discovery_endpoint")
+    aad_metadata_endpoint_names = (
+        "authorization_endpoint",
+        "token_endpoint",
+        "tenant_discovery_endpoint",
+        "device_authorization_endpoint",
+    )
     payload = {name: endpoint + "/oauth2/v2.0/" + name for name in aad_metadata_endpoint_names}
     payload["metadata"] = ""
     return mock_response(json_payload=payload)

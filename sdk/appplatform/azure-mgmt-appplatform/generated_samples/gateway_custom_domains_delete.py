@@ -7,6 +7,7 @@
 # --------------------------------------------------------------------------
 
 from azure.identity import DefaultAzureCredential
+
 from azure.mgmt.appplatform import AppPlatformManagementClient
 
 """
@@ -29,15 +30,14 @@ def main():
         subscription_id="00000000-0000-0000-0000-000000000000",
     )
 
-    response = client.gateway_custom_domains.begin_delete(
+    client.gateway_custom_domains.begin_delete(
         resource_group_name="myResourceGroup",
         service_name="myservice",
         gateway_name="default",
         domain_name="myDomainName",
     ).result()
-    print(response)
 
 
-# x-ms-original-file: specification/appplatform/resource-manager/Microsoft.AppPlatform/stable/2022-12-01/examples/GatewayCustomDomains_Delete.json
+# x-ms-original-file: specification/appplatform/resource-manager/Microsoft.AppPlatform/stable/2023-12-01/examples/GatewayCustomDomains_Delete.json
 if __name__ == "__main__":
     main()

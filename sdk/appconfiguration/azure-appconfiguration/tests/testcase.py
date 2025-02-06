@@ -35,7 +35,7 @@ class AppConfigTestCase(AzureRecordedTestCase):
             label=LABEL,
             value=TEST_VALUE,
             content_type=TEST_CONTENT_TYPE,
-            tags={"tag1": "tag1", "tag2": "tag2"},
+            tags={"tag1": "value1", "tag2": "value2"},
         )
 
     def create_config_setting_no_label(self):
@@ -44,7 +44,7 @@ class AppConfigTestCase(AzureRecordedTestCase):
             label=None,
             value=TEST_VALUE,
             content_type=TEST_CONTENT_TYPE,
-            tags={"tag1": "tag1", "tag2": "tag2"},
+            tags={"tag3": "value3", "tag4": "value4"},
         )
 
     def add_for_test(self, client, config_setting):
@@ -87,7 +87,9 @@ class AppConfigTestCase(AzureRecordedTestCase):
         assert key1.value == key2.value
         if isinstance(key1, FeatureFlagConfigurationSetting):
             assert key1.enabled == key2.enabled
-            assert len(key1.filters) == len(key2.filters)
+            if key1.filters and key2.filters:
+                assert len(key1.filters) == len(key2.filters)
+            assert key1.description == key2.description
         elif isinstance(key1, SecretReferenceConfigurationSetting):
             assert key1.secret_id == key2.secret_id
 

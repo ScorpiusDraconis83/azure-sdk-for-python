@@ -8,6 +8,7 @@
 
 from ._models_py3 import AccessKeyInfoBase
 from ._models_py3 import AuthInfoBase
+from ._models_py3 import AzureAppConfigProperties
 from ._models_py3 import AzureKeyVaultProperties
 from ._models_py3 import AzureResource
 from ._models_py3 import AzureResourcePropertiesBase
@@ -17,9 +18,14 @@ from ._models_py3 import ConfigurationName
 from ._models_py3 import ConfigurationNameItem
 from ._models_py3 import ConfigurationNameResult
 from ._models_py3 import ConfigurationResult
+from ._models_py3 import ConfigurationStore
 from ._models_py3 import ConfluentBootstrapServer
 from ._models_py3 import ConfluentSchemaRegistry
 from ._models_py3 import CreateOrUpdateDryrunParameters
+from ._models_py3 import DaprConfigurationList
+from ._models_py3 import DaprConfigurationResource
+from ._models_py3 import DaprMetadata
+from ._models_py3 import DaprProperties
 from ._models_py3 import DatabaseAadAuthInfo
 from ._models_py3 import DryrunList
 from ._models_py3 import DryrunOperationPreview
@@ -27,9 +33,11 @@ from ._models_py3 import DryrunParameters
 from ._models_py3 import DryrunPatch
 from ._models_py3 import DryrunPrerequisiteResult
 from ._models_py3 import DryrunResource
+from ._models_py3 import EasyAuthMicrosoftEntraIDAuthInfo
 from ._models_py3 import ErrorAdditionalInfo
 from ._models_py3 import ErrorDetail
 from ._models_py3 import ErrorResponse
+from ._models_py3 import FabricPlatform
 from ._models_py3 import FirewallRules
 from ._models_py3 import KeyVaultSecretReferenceSecretInfo
 from ._models_py3 import KeyVaultSecretUriSecretInfo
@@ -64,15 +72,20 @@ from ._models_py3 import ValueSecretInfo
 from ._service_linker_management_client_enums import AccessKeyPermissions
 from ._service_linker_management_client_enums import ActionType
 from ._service_linker_management_client_enums import AllowType
+from ._service_linker_management_client_enums import AuthMode
 from ._service_linker_management_client_enums import AuthType
 from ._service_linker_management_client_enums import AzureResourceType
 from ._service_linker_management_client_enums import ClientType
 from ._service_linker_management_client_enums import CreatedByType
+from ._service_linker_management_client_enums import DaprBindingComponentDirection
+from ._service_linker_management_client_enums import DaprMetadataRequired
 from ._service_linker_management_client_enums import DeleteOrUpdateBehavior
 from ._service_linker_management_client_enums import DryrunActionName
 from ._service_linker_management_client_enums import DryrunPrerequisiteResultType
 from ._service_linker_management_client_enums import DryrunPreviewOperationType
+from ._service_linker_management_client_enums import LinkerConfigurationType
 from ._service_linker_management_client_enums import Origin
+from ._service_linker_management_client_enums import SecretSourceType
 from ._service_linker_management_client_enums import SecretType
 from ._service_linker_management_client_enums import TargetServiceType
 from ._service_linker_management_client_enums import VNetSolutionType
@@ -84,6 +97,7 @@ from ._patch import patch_sdk as _patch_sdk
 __all__ = [
     "AccessKeyInfoBase",
     "AuthInfoBase",
+    "AzureAppConfigProperties",
     "AzureKeyVaultProperties",
     "AzureResource",
     "AzureResourcePropertiesBase",
@@ -93,9 +107,14 @@ __all__ = [
     "ConfigurationNameItem",
     "ConfigurationNameResult",
     "ConfigurationResult",
+    "ConfigurationStore",
     "ConfluentBootstrapServer",
     "ConfluentSchemaRegistry",
     "CreateOrUpdateDryrunParameters",
+    "DaprConfigurationList",
+    "DaprConfigurationResource",
+    "DaprMetadata",
+    "DaprProperties",
     "DatabaseAadAuthInfo",
     "DryrunList",
     "DryrunOperationPreview",
@@ -103,9 +122,11 @@ __all__ = [
     "DryrunPatch",
     "DryrunPrerequisiteResult",
     "DryrunResource",
+    "EasyAuthMicrosoftEntraIDAuthInfo",
     "ErrorAdditionalInfo",
     "ErrorDetail",
     "ErrorResponse",
+    "FabricPlatform",
     "FirewallRules",
     "KeyVaultSecretReferenceSecretInfo",
     "KeyVaultSecretUriSecretInfo",
@@ -139,15 +160,20 @@ __all__ = [
     "AccessKeyPermissions",
     "ActionType",
     "AllowType",
+    "AuthMode",
     "AuthType",
     "AzureResourceType",
     "ClientType",
     "CreatedByType",
+    "DaprBindingComponentDirection",
+    "DaprMetadataRequired",
     "DeleteOrUpdateBehavior",
     "DryrunActionName",
     "DryrunPrerequisiteResultType",
     "DryrunPreviewOperationType",
+    "LinkerConfigurationType",
     "Origin",
+    "SecretSourceType",
     "SecretType",
     "TargetServiceType",
     "VNetSolutionType",

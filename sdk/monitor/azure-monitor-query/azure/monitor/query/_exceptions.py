@@ -5,14 +5,14 @@
 # license information.
 # --------------------------------------------------------------------------
 import sys
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Literal
 
 from ._enums import LogsQueryStatus
 
 if sys.version_info >= (3, 9):
     from collections.abc import Mapping
 else:
-    from typing import Mapping  # pylint: disable=ungrouped-imports
+    from typing import Mapping
 
 
 JSON = Mapping[str, Any]  # pylint: disable=unsubscriptable-object
@@ -27,7 +27,7 @@ class LogsQueryError:
     """A human readable error message."""
     details: Optional[List[JSON]] = None
     """A list of additional details about the error."""
-    status: LogsQueryStatus
+    status: Literal[LogsQueryStatus.FAILURE]
     """Status for error item when iterating over list of results. Always "Failure" for an instance of a
     LogsQueryError."""
 

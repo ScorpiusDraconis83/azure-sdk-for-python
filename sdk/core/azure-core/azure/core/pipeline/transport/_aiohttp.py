@@ -56,7 +56,10 @@ from azure.core.pipeline import AsyncPipeline
 
 from ._base import HttpRequest
 from ._base_async import AsyncHttpTransport, AsyncHttpResponse, _ResponseStopIteration
-from ...utils._pipeline_transport_rest_shared import _aiohttp_body_helper
+from ...utils._pipeline_transport_rest_shared import (
+    _aiohttp_body_helper,
+    get_file_items,
+)
 from .._tools import is_rest as _is_rest
 from .._tools_async import (
     handle_no_stream_rest_response as _handle_no_stream_rest_response,
@@ -82,7 +85,6 @@ class AioHttpTransport(AsyncHttpTransport):
     :keyword session: The client session.
     :paramtype session: ~aiohttp.ClientSession
     :keyword bool session_owner: Session owner. Defaults True.
-
     :keyword bool use_env_settings: Uses proxy settings from environment. Defaults to True.
 
     .. admonition:: Example:
@@ -112,6 +114,8 @@ class AioHttpTransport(AsyncHttpTransport):
             raise ValueError("session_owner cannot be False if no session is provided")
         self.connection_config = ConnectionConfiguration(**kwargs)
         self._use_env_settings = kwargs.pop("use_env_settings", True)
+        # See https://github.com/Azure/azure-sdk-for-python/issues/25640 to understand why we track this
+        self._has_been_opened = False
 
     async def __aenter__(self):
         await self.open()
@@ -126,26 +130,33 @@ class AioHttpTransport(AsyncHttpTransport):
         await self.close()
 
     async def open(self):
-        """Opens the connection."""
-        if not self.session and self._session_owner:
-            jar = aiohttp.DummyCookieJar()
-            clientsession_kwargs = {
-                "trust_env": self._use_env_settings,
-                "cookie_jar": jar,
-                "auto_decompress": False,
-            }
-            if self._loop is not None:
-                clientsession_kwargs["loop"] = self._loop
-            self.session = aiohttp.ClientSession(**clientsession_kwargs)
-        # pyright has trouble to understand that self.session is not None, since we raised at worst in the init
-        self.session = cast(aiohttp.ClientSession, self.session)
+        if self._has_been_opened and not self.session:
+            raise ValueError(
+                "HTTP transport has already been closed. "
+                "You may check if you're calling a function outside of the `async with` of your client creation, "
+                "or if you called `await close()` on your client already."
+            )
+        if not self.session:
+            if self._session_owner:
+                jar = aiohttp.DummyCookieJar()
+                clientsession_kwargs = {
+                    "trust_env": self._use_env_settings,
+                    "cookie_jar": jar,
+                    "auto_decompress": False,
+                }
+                if self._loop is not None:
+                    clientsession_kwargs["loop"] = self._loop
+                self.session = aiohttp.ClientSession(**clientsession_kwargs)
+            else:
+                raise ValueError("session_owner cannot be False and no session is available")
+
+        self._has_been_opened = True
         await self.session.__aenter__()
 
     async def close(self):
         """Closes the connection."""
         if self._session_owner and self.session:
             await self.session.close()
-            self._session_owner = False
             self.session = None
 
     def _build_ssl_config(self, cert, verify):
@@ -180,7 +191,7 @@ class AioHttpTransport(AsyncHttpTransport):
         """
         if request.files:
             form_data = aiohttp.FormData(request.data or {})
-            for form_file, data in request.files.items():
+            for form_file, data in get_file_items(request.files):
                 content_type = data[2] if len(data) > 2 else None
                 try:
                     form_data.add_field(form_file, data[1], filename=data[0], content_type=content_type)
@@ -324,6 +335,13 @@ class AioHttpTransport(AsyncHttpTransport):
                 )
                 if not stream_response:
                     await response.load_body()
+        except AttributeError as err:
+            if self.session is None:
+                raise ValueError(
+                    "No session available for request. "
+                    "Please report this issue to https://github.com/Azure/azure-sdk-for-python/issues."
+                ) from err
+            raise
         except aiohttp.client_exceptions.ClientResponseError as err:
             raise ServiceResponseError(err, error=err) from err
         except asyncio.TimeoutError as err:
@@ -351,8 +369,7 @@ class AioHttpStreamDownloadGenerator(AsyncIterator):
         response: AioHttpTransportResponse,
         *,
         decompress: bool = True,
-    ) -> None:
-        ...
+    ) -> None: ...
 
     @overload
     def __init__(
@@ -361,8 +378,7 @@ class AioHttpStreamDownloadGenerator(AsyncIterator):
         response: RestAioHttpTransportResponse,
         *,
         decompress: bool = True,
-    ) -> None:
-        ...
+    ) -> None: ...
 
     def __init__(
         self,
@@ -526,7 +542,11 @@ class AioHttpTransportResponse(AsyncHttpResponse):
             raise ServiceRequestError(err, error=err) from err
 
     def stream_download(
-        self, pipeline: AsyncPipeline[HttpRequest, AsyncHttpResponse], *, decompress: bool = True, **kwargs
+        self,
+        pipeline: AsyncPipeline[HttpRequest, AsyncHttpResponse],
+        *,
+        decompress: bool = True,
+        **kwargs,
     ) -> AsyncIteratorType[bytes]:
         """Generator for streaming response body data.
 

@@ -29,7 +29,6 @@ from ..exceptions import (
 
 if TYPE_CHECKING:
     try:
-        # pylint:disable=unused-import
         from uamqp.async_ops.client_async import AMQPClientAsync as uamqp_AMQPClientAsync
     except ImportError:
         pass
@@ -55,9 +54,7 @@ class ServiceBusSASTokenCredential(object):
         self.expiry = expiry
         self.token_type = b"servicebus.windows.net:sastoken"
 
-    async def get_token(
-        self, *scopes: str, **kwargs: Any  # pylint:disable=unused-argument
-    ) -> AccessToken:
+    async def get_token(self, *scopes: str, **kwargs: Any) -> AccessToken:  # pylint:disable=unused-argument
         """
         This method is automatically called when token is about to expire.
         :param any scopes: The list of scopes for which the token has to be fetched.
@@ -79,15 +76,13 @@ class ServiceBusSharedKeyCredential(object):
         self.key = key
         self.token_type = TOKEN_TYPE_SASTOKEN
 
-    async def get_token(
-        self, *scopes: str, **kwargs: Any  # pylint:disable=unused-argument
-    ) -> AccessToken:
+    async def get_token(self, *scopes: str, **kwargs: Any) -> AccessToken:  # pylint:disable=unused-argument
         if not scopes:
             raise ValueError("No token scope provided.")
         return _generate_sas_token(scopes[0], self.policy, self.key)
 
 
-class ServiceBusAzureNamedKeyTokenCredentialAsync(object): # pylint:disable=name-too-long
+class ServiceBusAzureNamedKeyTokenCredentialAsync(object):  # pylint:disable=name-too-long
     """The named key credential used for authentication.
     :param credential: The AzureNamedKeyCredential that should be used.
     :type credential: ~azure.core.credentials.AzureNamedKeyCredential
@@ -110,6 +105,7 @@ class ServiceBusAzureSasTokenCredentialAsync(object):
     :param azure_sas_credential: The credential to be used for authentication.
     :type azure_sas_credential: ~azure.core.credentials.AzureSasCredential
     """
+
     def __init__(self, azure_sas_credential: AzureSasCredential) -> None:
         self._credential = azure_sas_credential
         self.token_type = TOKEN_TYPE_SASTOKEN
@@ -131,32 +127,26 @@ class BaseHandler:  # pylint:disable=too-many-instance-attributes
         fully_qualified_namespace: str,
         entity_name: str,
         credential: Union["AsyncTokenCredential", AzureSasCredential, AzureNamedKeyCredential],
-        **kwargs: Any
+        **kwargs: Any,
     ) -> None:
         self._amqp_transport = kwargs.pop("amqp_transport", PyamqpTransportAsync)
 
         # If the user provided http:// or sb://, let's be polite and strip that.
-        self.fully_qualified_namespace: str = strip_protocol_from_uri(
-            fully_qualified_namespace.strip()
-        )
+        self.fully_qualified_namespace: str = strip_protocol_from_uri(fully_qualified_namespace.strip())
         self._entity_name = entity_name
 
         subscription_name = kwargs.get("subscription_name")
-        self._entity_path = self._entity_name + (
-            ("/Subscriptions/" + subscription_name) if subscription_name else ""
-        )
+        self._entity_path = self._entity_name + (("/Subscriptions/" + subscription_name) if subscription_name else "")
         self._mgmt_target = f"{self._entity_path}{MANAGEMENT_PATH_SUFFIX}"
         if isinstance(credential, AzureSasCredential):
             self._credential = ServiceBusAzureSasTokenCredentialAsync(credential)
         elif isinstance(credential, AzureNamedKeyCredential):
-            self._credential = ServiceBusAzureNamedKeyTokenCredentialAsync(credential) # type: ignore
+            self._credential = ServiceBusAzureNamedKeyTokenCredentialAsync(credential)  # type: ignore
         else:
-            self._credential = credential # type: ignore
+            self._credential = credential  # type: ignore
         self._container_id = CONTAINER_PREFIX + str(uuid.uuid4())[:8]
         self._config = Configuration(
-            hostname=self.fully_qualified_namespace,
-            amqp_transport=self._amqp_transport,
-            **kwargs
+            hostname=self.fully_qualified_namespace, amqp_transport=self._amqp_transport, **kwargs
         )
         self._running = False
         self._handler: Optional[Union["uamqp_AMQPClientAsync", "pyamqp_AMQPClientAsync"]] = None
@@ -174,7 +164,7 @@ class BaseHandler:  # pylint:disable=too-many-instance-attributes
             conn_str,
             token_cred_type=ServiceBusSASTokenCredential,
             key_cred_type=ServiceBusSharedKeyCredential,
-            **kwargs
+            **kwargs,
         )
 
     async def __aexit__(self, *args: Any) -> None:
@@ -191,11 +181,7 @@ class BaseHandler:  # pylint:disable=too-many-instance-attributes
             # the receiver should no longer be used and should create a new session receiver
             # instance to receive from session. There are pitfalls WRT both next session IDs,
             # and the diversity of session failure modes, that motivates us to disallow this.
-            if (
-                self._session
-                and self._running
-                and isinstance(error, (SessionLockLostError, ServiceBusConnectionError))
-            ):
+            if self._session and self._running and isinstance(error, (SessionLockLostError, ServiceBusConnectionError)):
                 self._session._lock_lost = True
                 await self._close_handler()
                 raise error
@@ -214,8 +200,7 @@ class BaseHandler:  # pylint:disable=too-many-instance-attributes
         # pylint: disable=protected-access
         if self._shutdown.is_set():
             raise ValueError(
-                "The handler has already been shutdown. Please use ServiceBusClient to "
-                "create a new instance."
+                "The handler has already been shutdown. Please use ServiceBusClient to create a new instance."
             )
         # The following client validation is for two purposes in a session receiver:
         # 1. self._session._lock_lost is set when a session receiver encounters a connection error,
@@ -228,29 +213,18 @@ class BaseHandler:  # pylint:disable=too-many-instance-attributes
         # Eventually this should be a fix in the uamqp library.
         # see issue: https://github.com/Azure/azure-uamqp-python/issues/183
         try:
-            if self._session and (
-                self._session._lock_lost or self._session._lock_expired
-            ):
+            if self._session and (self._session._lock_lost or self._session._lock_expired):
                 raise SessionLockLostError(error=self._session.auto_renew_error)
         except AttributeError:
             pass
 
-    async def _do_retryable_operation(
-        self,
-        operation: Callable,
-        timeout: Optional[float] = None,
-        **kwargs: Any
-    ) -> Any:
+    async def _do_retryable_operation(self, operation: Callable, timeout: Optional[float] = None, **kwargs: Any) -> Any:
         require_last_exception = kwargs.pop("require_last_exception", False)
         operation_requires_timeout = kwargs.pop("operation_requires_timeout", False)
         retried_times = 0
         max_retries = self._config.retry_total
 
-        abs_timeout_time = (
-            (time.time() + timeout)
-            if (operation_requires_timeout and timeout)
-            else None
-        )
+        abs_timeout_time = (time.time() + timeout) if (operation_requires_timeout and timeout) else None
 
         while retried_times <= max_retries:
             try:
@@ -274,6 +248,16 @@ class BaseHandler:  # pylint:disable=too-many-instance-attributes
                         self._container_id,
                         last_exception,
                     )
+                    if isinstance(last_exception, OperationTimeoutError):
+                        description = (
+                            "If trying to receive from NEXT_AVAILABLE_SESSION, "
+                            "use max_wait_time on the ServiceBusReceiver to control the"
+                            " timeout."
+                        )
+                        error = OperationTimeoutError(
+                            message=description,
+                        )
+                        raise error from last_exception
                     raise last_exception from None
                 await self._backoff(
                     retried_times=retried_times,
@@ -281,9 +265,7 @@ class BaseHandler:  # pylint:disable=too-many-instance-attributes
                     abs_timeout_time=abs_timeout_time,
                 )
 
-    async def _backoff(
-        self, retried_times, last_exception, abs_timeout_time=None, entity_name=None
-    ):
+    async def _backoff(self, retried_times, last_exception, abs_timeout_time=None, entity_name=None):
         entity_name = entity_name or self._container_id
         backoff = _get_backoff_time(
             self._config.retry_mode,
@@ -306,6 +288,16 @@ class BaseHandler:  # pylint:disable=too-many-instance-attributes
                 entity_name,
                 last_exception,
             )
+            if isinstance(last_exception, OperationTimeoutError):
+                description = (
+                    "If trying to receive from NEXT_AVAILABLE_SESSION, "
+                    "use max_wait_time on the ServiceBusReceiver to control the"
+                    " timeout."
+                )
+                error = OperationTimeoutError(
+                    message=description,
+                )
+                raise error from last_exception
             raise last_exception
 
     async def _mgmt_request_response(
@@ -315,7 +307,7 @@ class BaseHandler:  # pylint:disable=too-many-instance-attributes
         callback: Callable,
         keep_alive_associated_link: bool = True,
         timeout: Optional[float] = None,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> "pyamqp_Message":
         """
         Execute an amqp management operation.
@@ -324,13 +316,15 @@ class BaseHandler:  # pylint:disable=too-many-instance-attributes
          be service-specific, but common values include READ, CREATE and UPDATE.
          This value will be added as an application property on the message.
         :param message: The message to send in the management request.
-        :paramtype message: ~uamqp.message.Message
+        :type message: ~uamqp.message.Message
         :param callback: The callback which is used to parse the returning message.
-        :paramtype callback: Callable[int, ~uamqp.message.Message, str]
-        :param keep_alive_associated_link: A boolean flag for keeping associated amqp sender/receiver link alive when
+        :type callback: Callable[int, ~uamqp.message.Message, str]
+        :param bool keep_alive_associated_link: A boolean flag for keeping
+         associated amqp sender/receiver link alive when
          executing operation on mgmt links.
-        :param timeout: timeout in seconds for executing the mgmt operation.
-        :rtype: None
+        :param float or None timeout: timeout in seconds for executing the mgmt operation.
+        :return: The message response.
+        :rtype: Message
         """
         await self._open()
 
@@ -344,12 +338,12 @@ class BaseHandler:  # pylint:disable=too-many-instance-attributes
             except AttributeError:
                 pass
 
-        mgmt_msg = self._amqp_transport.create_mgmt_msg(    # type: ignore  # TODO: fix mypy
+        mgmt_msg = self._amqp_transport.create_mgmt_msg(  # type: ignore  # TODO: fix mypy
             message=message,
             application_properties=application_properties,
             config=self._config,
             reply_to=self._mgmt_target,
-            **kwargs
+            **kwargs,
         )
 
         try:
@@ -360,9 +354,9 @@ class BaseHandler:  # pylint:disable=too-many-instance-attributes
                 operation_type=MGMT_REQUEST_OP_TYPE_ENTITY_MGMT,
                 node=self._mgmt_target.encode(self._config.encoding),
                 timeout=timeout,
-                callback=callback
+                callback=callback,
             )
-        except Exception as exp:  # pylint: disable=broad-except
+        except Exception as exp:
             if isinstance(exp, self._amqp_transport.TIMEOUT_ERROR):
                 raise OperationTimeoutError(error=exp) from exp
             raise
@@ -373,7 +367,7 @@ class BaseHandler:  # pylint:disable=too-many-instance-attributes
         message: Dict[str, Any],
         callback: Callable,
         timeout: Optional[float] = None,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> Any:
         return await self._do_retryable_operation(
             self._mgmt_request_response,
@@ -382,7 +376,7 @@ class BaseHandler:  # pylint:disable=too-many-instance-attributes
             callback=callback,
             timeout=timeout,
             operation_requires_timeout=True,
-            **kwargs
+            **kwargs,
         )
 
     async def _open(self):

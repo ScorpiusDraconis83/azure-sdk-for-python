@@ -4,6 +4,7 @@ import sys
 import subprocess
 import shutil
 import logging
+from typing import Optional
 
 from ci_tools.environment_exclusions import is_check_enabled
 from ci_tools.variables import in_ci
@@ -16,7 +17,7 @@ from ci_tools.functions import (
 )
 from ci_tools.build import cleanup_build_artifacts, create_package
 from ci_tools.parsing import ParsedSetup, parse_require
-from ci_tools.functions import get_package_from_repo, find_whl, get_pip_list_output, pytest
+from ci_tools.functions import get_package_from_repo_or_folder, find_whl, get_pip_list_output, pytest
 from .managed_virtual_env import ManagedVirtualEnv
 
 
@@ -60,8 +61,8 @@ def create_package_and_install(
     if not os.path.exists(tmp_dl_folder):
         os.mkdir(tmp_dl_folder)
 
-    # preview version is enabled when installing dev build so pip will install dev build version from devpos feed
-    if os.getenv("SetDevVersion", "false") == "true":
+    # preview version is enabled when installing dev build so pip will install dev build version from devops feed
+    if os.getenv("SETDEVVERSION", "false") == "true":
         commands_options.append("--pre")
 
     if cache_dir:
@@ -70,6 +71,18 @@ def create_package_and_install(
     discovered_packages = discover_packages(
         setup_py_path, distribution_directory, target_setup, package_type, force_create
     )
+
+    target_package = ParsedSetup.from_path(setup_py_path)
+
+    # ensure that discovered packages are always copied to the distribution directory regardless of other factors
+    for built_package in discovered_packages:
+        if os.getenv("PREBUILT_WHEEL_DIR") is not None:
+            package_path = os.path.join(os.environ["PREBUILT_WHEEL_DIR"], built_package)
+            if os.path.isfile(package_path):
+                built_pkg_path = package_path
+
+                # copy this file to the distribution directory just in case we need it later
+                shutil.copy(built_pkg_path, distribution_directory)
 
     if skip_install:
         logging.info("Flag to skip install whl is passed. Skipping package installation")
@@ -80,6 +93,7 @@ def create_package_and_install(
                 package_path = os.path.join(os.environ["PREBUILT_WHEEL_DIR"], built_package)
                 if os.path.isfile(package_path):
                     built_pkg_path = package_path
+
                     logging.info("Installing {w} from directory".format(w=built_package))
                 # it does't exist, so we need to error out
                 else:
@@ -116,9 +130,12 @@ def create_package_and_install(
                         addition_necessary = True
                         # get all installed packages
                         installed_pkgs = get_pip_list_output(python_exe)
+                        logging.info("Installed packages: {}".format(installed_pkgs))
 
                         # parse the specifier
-                        req_name, req_specifier = parse_require(req)
+                        requirement = parse_require(req)
+                        req_name = requirement.key
+                        req_specifier = requirement.specifier if len(requirement.specifier) else None
 
                         # if we have the package already present...
                         if req_name in installed_pkgs:
@@ -145,12 +162,17 @@ def create_package_and_install(
                                     env=dict(os.environ, PIP_EXTRA_INDEX_URL=""),
                                 )
                             except subprocess.CalledProcessError as e:
-                                req_name, req_specifier = parse_require(addition)
-                                non_present_reqs.append(req_name)
+                                requirement = parse_require(addition)
+                                non_present_reqs.append(requirement.key)
 
                         additional_downloaded_reqs = [
                             os.path.abspath(os.path.join(tmp_dl_folder, pth)) for pth in os.listdir(tmp_dl_folder)
-                        ] + [get_package_from_repo(relative_req).folder for relative_req in non_present_reqs]
+                        ] + [
+                            get_package_from_repo_or_folder(
+                                package_name, os.path.join(target_package.folder, ".tmp_whl_dir")
+                            )
+                            for package_name in non_present_reqs
+                        ]
 
             commands = [python_exe, "-m", "pip", "install", built_pkg_path]
             commands.extend(additional_downloaded_reqs)
@@ -164,7 +186,7 @@ def create_package_and_install(
             logging.info("Installed {w}".format(w=built_package))
 
 
-def replace_dev_reqs(file: str, pkg_root: str) -> None:
+def replace_dev_reqs(file: str, pkg_root: str, wheel_dir: Optional[str]) -> None:
     """Takes a target requirements file, replaces all local relative install locations with wheels assembled from whatever that target path was.
     This is an extremely important step that runs on every dev_requirements.txt file before invoking any tox runs.
 
@@ -173,6 +195,7 @@ def replace_dev_reqs(file: str, pkg_root: str) -> None:
 
     :param str file: the absolute path to the dev_requirements.txt file
     :param str pkg_root: the absolute path to the package's root
+    :param Optional[str] wheel_dir: the absolute path to the prebuilt wheel directory
     :return: None
     """
     adjusted_req_lines = []
@@ -190,7 +213,7 @@ def replace_dev_reqs(file: str, pkg_root: str) -> None:
             if extras:
                 extras = f"[{extras}"
 
-        adjusted_req_lines.append(f"{build_whl_for_req(amended_line, pkg_root)}{extras}")
+        adjusted_req_lines.append(f"{build_whl_for_req(amended_line, pkg_root, wheel_dir)}{extras}")
 
     req_file_name = os.path.basename(file)
     logging.info("Old {0}:{1}".format(req_file_name, original_req_lines))
@@ -254,7 +277,7 @@ def build_and_install_dev_reqs(file: str, pkg_root: str) -> None:
 
             adjusted_req_lines.append(amended_line)
 
-    adjusted_req_lines = list(map(lambda x: build_whl_for_req(x, pkg_root), adjusted_req_lines))
+    adjusted_req_lines = list(map(lambda x: build_whl_for_req(x, pkg_root, None), adjusted_req_lines))
     install_deps_commands = [
         sys.executable,
         "-m",
@@ -277,30 +300,41 @@ def is_relative_install_path(req: str, package_path: str) -> bool:
     return os.path.exists(possible_setup_path)
 
 
-def build_whl_for_req(req: str, package_path: str) -> str:
+def build_whl_for_req(req: str, package_path: str, wheel_dir: Optional[str]) -> str:
     """Builds a whl from the dev_requirements file.
 
     :param str req: a requirement from the dev_requirements.txt
     :param str package_path: the absolute path to the package's root
+    :param Optional[str] wheel_dir: the absolute path to the prebuilt wheel directory
     :return: The absolute path to the whl built or the requirement if a third-party package
     """
     from ci_tools.build import create_package
 
     if is_relative_install_path(req, package_path):
-        # Create temp path if it doesn't exist
-        temp_dir = os.path.join(package_path, ".tmp_whl_dir")
-        if not os.path.exists(temp_dir):
-            os.mkdir(temp_dir)
-
         req_pkg_path = os.path.abspath(os.path.join(package_path, req.replace("\n", "")))
         parsed = ParsedSetup.from_path(req_pkg_path)
 
-        logging.info("Building wheel for package {}".format(parsed.name))
-        create_package(req_pkg_path, temp_dir, enable_sdist=False)
+        # First check for prebuilt wheel
+        logging.info("Checking for prebuilt wheel for package {}".format(parsed.name))
+        prebuilt_whl = None
+        if wheel_dir:
+            prebuilt_whl = find_whl(wheel_dir, parsed.name, parsed.version)
 
-        whl_path = os.path.join(temp_dir, find_whl(temp_dir, parsed.name, parsed.version))
+        if prebuilt_whl:
+            whl_path = os.path.join(wheel_dir, prebuilt_whl)
+        else:
+            # Create temp path if it doesn't exist
+            temp_dir = os.path.join(package_path, ".tmp_whl_dir")
+            if not os.path.exists(temp_dir):
+                os.mkdir(temp_dir)
+
+            logging.info("Building wheel for package {}".format(parsed.name))
+            create_package(req_pkg_path, temp_dir, enable_sdist=False)
+
+            whl_path = os.path.join(temp_dir, find_whl(temp_dir, parsed.name, parsed.version))
+
         logging.info("Wheel for package {0} is {1}".format(parsed.name, whl_path))
-        logging.info("Replacing dev requirement. Old requirement:{0}, New requirement:{1}".format(req, whl_path))
+        logging.info("Replacing dev requirement. Old requirement: {0}, New requirement: {1}".format(req, whl_path))
         return whl_path
     else:
         return req
@@ -327,7 +361,7 @@ def prepare_and_test_optional(mapped_args: argparse.Namespace) -> int:
 
     if in_ci():
         if not is_check_enabled(mapped_args.target, "optional", False):
-            logging.info(f"Package {parsed_package.package_name} opts-out of optional check.")
+            logging.info(f"Package {parsed_package.name} opts-out of optional check.")
             return 0
 
     optional_configs = get_config_setting(mapped_args.target, "optional")
@@ -343,7 +377,9 @@ def prepare_and_test_optional(mapped_args: argparse.Namespace) -> int:
 
         if mapped_args.optional:
             if env_name != mapped_args.optional:
-                logging.info(f"{env_name} does not match targeted environment {mapped_args.optional}, skipping this environment.")
+                logging.info(
+                    f"{env_name} does not match targeted environment {mapped_args.optional}, skipping this environment."
+                )
                 continue
 
         environment_exe = prepare_environment(mapped_args.target, mapped_args.temp_dir, env_name)

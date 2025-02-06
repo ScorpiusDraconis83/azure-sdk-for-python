@@ -7,6 +7,7 @@
 # --------------------------------------------------------------------------
 
 from azure.identity import DefaultAzureCredential
+
 from azure.mgmt.network import NetworkManagementClient
 
 """
@@ -30,13 +31,13 @@ def main():
     )
 
     response = client.network_interface_tap_configurations.list(
-        resource_group_name="rg1",
+        resource_group_name="testrg",
         network_interface_name="mynic",
     )
     for item in response:
         print(item)
 
 
-# x-ms-original-file: specification/network/resource-manager/Microsoft.Network/stable/2023-06-01/examples/NetworkInterfaceTapConfigurationList.json
+# x-ms-original-file: specification/network/resource-manager/Microsoft.Network/stable/2024-05-01/examples/NetworkInterfaceTapConfigurationList.json
 if __name__ == "__main__":
     main()

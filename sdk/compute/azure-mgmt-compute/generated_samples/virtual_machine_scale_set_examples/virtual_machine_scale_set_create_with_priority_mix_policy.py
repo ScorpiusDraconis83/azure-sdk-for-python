@@ -7,6 +7,7 @@
 # --------------------------------------------------------------------------
 
 from azure.identity import DefaultAzureCredential
+
 from azure.mgmt.compute import ComputeManagementClient
 
 """
@@ -36,33 +37,38 @@ def main():
             "location": "westus",
             "properties": {
                 "orchestrationMode": "Flexible",
-                "priorityMixPolicy": {"baseRegularPriorityCount": 4, "regularPriorityPercentageAboveBase": 50},
                 "platformFaultDomainCount": 1,
-                "singlePlacementGroup": False,
+                "priorityMixPolicy": {"baseRegularPriorityCount": 10, "regularPriorityPercentageAboveBase": 50},
                 "virtualMachineProfile": {
-                    "billingProfile": {"maxPrice": -1},
-                    "evictionPolicy": "Deallocate",
                     "networkProfile": {
                         "networkApiVersion": "2020-11-01",
                         "networkInterfaceConfigurations": [
                             {
                                 "name": "{vmss-name}",
                                 "properties": {
+                                    "enableAcceleratedNetworking": False,
                                     "enableIPForwarding": True,
                                     "ipConfigurations": [
                                         {
                                             "name": "{vmss-name}",
                                             "properties": {
+                                                "applicationGatewayBackendAddressPools": [],
+                                                "loadBalancerBackendAddressPools": [],
+                                                "primary": True,
+                                                "publicIPAddressConfiguration": {
+                                                    "name": "{vmss-name}",
+                                                    "properties": {"idleTimeoutInMinutes": 15},
+                                                },
                                                 "subnet": {
                                                     "id": "/subscriptions/{subscription-id}/resourceGroups/myResourceGroup/providers/Microsoft.Network/virtualNetworks/{existing-virtual-network-name}/subnets/{existing-subnet-name}"
-                                                }
+                                                },
                                             },
                                         }
                                     ],
                                     "primary": True,
                                 },
                             }
-                        ]
+                        ],
                     },
                     "osProfile": {
                         "adminPassword": "{your-password}",
@@ -72,9 +78,9 @@ def main():
                     "priority": "Spot",
                     "storageProfile": {
                         "imageReference": {
-                            "offer": "WindowsServer",
-                            "publisher": "MicrosoftWindowsServer",
-                            "sku": "2016-Datacenter",
+                            "offer": "0001-com-ubuntu-server-focal",
+                            "publisher": "Canonical",
+                            "sku": "20_04-lts-gen2",
                             "version": "latest",
                         },
                         "osDisk": {
@@ -85,12 +91,12 @@ def main():
                     },
                 },
             },
-            "sku": {"capacity": 10, "name": "Standard_A8m_v2", "tier": "Standard"},
+            "sku": {"capacity": 2, "name": "Standard_A8m_v2", "tier": "Standard"},
         },
     ).result()
     print(response)
 
 
-# x-ms-original-file: specification/compute/resource-manager/Microsoft.Compute/ComputeRP/stable/2023-09-01/examples/virtualMachineScaleSetExamples/VirtualMachineScaleSet_Create_WithPriorityMixPolicy.json
+# x-ms-original-file: specification/compute/resource-manager/Microsoft.Compute/ComputeRP/stable/2024-07-01/examples/virtualMachineScaleSetExamples/VirtualMachineScaleSet_Create_WithPriorityMixPolicy.json
 if __name__ == "__main__":
     main()

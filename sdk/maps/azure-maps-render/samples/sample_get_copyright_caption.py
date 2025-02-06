@@ -20,7 +20,8 @@ USAGE:
 
 import os
 
-subscription_key = os.getenv("AZURE_SUBSCRIPTION_KEY")
+subscription_key = os.getenv("AZURE_SUBSCRIPTION_KEY", "your subscription key")
+
 
 def get_copyright_caption():
     # [START get_copyright_caption]
@@ -32,8 +33,9 @@ def get_copyright_caption():
     result = maps_render_client.get_copyright_caption()
 
     print("Get copyright caption result:")
-    print(result.copyrights_caption)
+    print(result.get("copyrightsCaption", "no caption"))
     # [END get_copyright_caption]
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     get_copyright_caption()

@@ -6,6 +6,9 @@
 # Changes may cause incorrect behavior and will be lost if the code is regenerated.
 # --------------------------------------------------------------------------
 
+from ._models_py3 import AccessRule
+from ._models_py3 import AccessRuleProperties
+from ._models_py3 import AccessRulePropertiesSubscriptionsItem
 from ._models_py3 import ActivateApplicationPackageParameters
 from ._models_py3 import Application
 from ._models_py3 import ApplicationPackage
@@ -16,8 +19,11 @@ from ._models_py3 import AutoScaleSettings
 from ._models_py3 import AutoStorageBaseProperties
 from ._models_py3 import AutoStorageProperties
 from ._models_py3 import AutoUserSpecification
+from ._models_py3 import AutomaticOSUpgradePolicy
 from ._models_py3 import AzureBlobFileSystemConfiguration
 from ._models_py3 import AzureFileShareConfiguration
+from ._models_py3 import AzureProxyResource
+from ._models_py3 import AzureResource
 from ._models_py3 import BatchAccount
 from ._models_py3 import BatchAccountCreateParameters
 from ._models_py3 import BatchAccountIdentity
@@ -37,9 +43,9 @@ from ._models_py3 import CertificateReference
 from ._models_py3 import CheckNameAvailabilityParameters
 from ._models_py3 import CheckNameAvailabilityResult
 from ._models_py3 import CloudErrorBody
-from ._models_py3 import CloudServiceConfiguration
 from ._models_py3 import ComputeNodeIdentityReference
 from ._models_py3 import ContainerConfiguration
+from ._models_py3 import ContainerHostBatchBindMountEntry
 from ._models_py3 import ContainerRegistry
 from ._models_py3 import DataDisk
 from ._models_py3 import DeleteCertificateError
@@ -53,6 +59,9 @@ from ._models_py3 import EndpointAccessProfile
 from ._models_py3 import EndpointDependency
 from ._models_py3 import EndpointDetail
 from ._models_py3 import EnvironmentSetting
+from ._models_py3 import ErrorAdditionalInfo
+from ._models_py3 import ErrorDetail
+from ._models_py3 import ErrorResponse
 from ._models_py3 import FixedScaleSettings
 from ._models_py3 import IPRule
 from ._models_py3 import ImageReference
@@ -73,6 +82,11 @@ from ._models_py3 import NFSMountConfiguration
 from ._models_py3 import NetworkConfiguration
 from ._models_py3 import NetworkProfile
 from ._models_py3 import NetworkSecurityGroupRule
+from ._models_py3 import NetworkSecurityPerimeter
+from ._models_py3 import NetworkSecurityPerimeterConfiguration
+from ._models_py3 import NetworkSecurityPerimeterConfigurationListResult
+from ._models_py3 import NetworkSecurityPerimeterConfigurationProperties
+from ._models_py3 import NetworkSecurityProfile
 from ._models_py3 import NodePlacementConfiguration
 from ._models_py3 import OSDisk
 from ._models_py3 import Operation
@@ -86,12 +100,16 @@ from ._models_py3 import PrivateEndpoint
 from ._models_py3 import PrivateEndpointConnection
 from ._models_py3 import PrivateLinkResource
 from ._models_py3 import PrivateLinkServiceConnectionState
+from ._models_py3 import ProvisioningIssue
+from ._models_py3 import ProvisioningIssueProperties
 from ._models_py3 import ProxyResource
 from ._models_py3 import PublicIPAddressConfiguration
 from ._models_py3 import ResizeError
 from ._models_py3 import ResizeOperationStatus
 from ._models_py3 import Resource
+from ._models_py3 import ResourceAssociation
 from ._models_py3 import ResourceFile
+from ._models_py3 import RollingUpgradePolicy
 from ._models_py3 import ScaleSettings
 from ._models_py3 import SecurityProfile
 from ._models_py3 import ServiceArtifactReference
@@ -99,18 +117,22 @@ from ._models_py3 import SkuCapability
 from ._models_py3 import StartTask
 from ._models_py3 import SupportedSku
 from ._models_py3 import SupportedSkusResult
+from ._models_py3 import SystemData
 from ._models_py3 import TaskContainerSettings
 from ._models_py3 import TaskSchedulingPolicy
 from ._models_py3 import UefiSettings
+from ._models_py3 import UpgradePolicy
 from ._models_py3 import UserAccount
 from ._models_py3 import UserAssignedIdentities
 from ._models_py3 import UserIdentity
+from ._models_py3 import VMDiskSecurityProfile
 from ._models_py3 import VMExtension
 from ._models_py3 import VirtualMachineConfiguration
 from ._models_py3 import VirtualMachineFamilyCoreQuota
 from ._models_py3 import WindowsConfiguration
 from ._models_py3 import WindowsUserConfiguration
 
+from ._batch_management_client_enums import AccessRuleDirection
 from ._batch_management_client_enums import AccountKeyType
 from ._batch_management_client_enums import AllocationState
 from ._batch_management_client_enums import AuthenticationMode
@@ -123,8 +145,10 @@ from ._batch_management_client_enums import CertificateStoreLocation
 from ._batch_management_client_enums import CertificateVisibility
 from ._batch_management_client_enums import ComputeNodeDeallocationOption
 from ._batch_management_client_enums import ComputeNodeFillType
+from ._batch_management_client_enums import ContainerHostDataPath
 from ._batch_management_client_enums import ContainerType
 from ._batch_management_client_enums import ContainerWorkingDirectory
+from ._batch_management_client_enums import CreatedByType
 from ._batch_management_client_enums import DiskEncryptionTarget
 from ._batch_management_client_enums import DynamicVNetAssignmentScope
 from ._batch_management_client_enums import ElevationLevel
@@ -132,10 +156,12 @@ from ._batch_management_client_enums import EndpointAccessDefaultAction
 from ._batch_management_client_enums import IPAddressProvisioningType
 from ._batch_management_client_enums import InboundEndpointProtocol
 from ._batch_management_client_enums import InterNodeCommunicationState
+from ._batch_management_client_enums import IssueType
 from ._batch_management_client_enums import KeySource
 from ._batch_management_client_enums import LoginMode
 from ._batch_management_client_enums import NameAvailabilityReason
 from ._batch_management_client_enums import NetworkSecurityGroupRuleAccess
+from ._batch_management_client_enums import NetworkSecurityPerimeterConfigurationProvisioningState
 from ._batch_management_client_enums import NodeCommunicationMode
 from ._batch_management_client_enums import NodePlacementPolicyType
 from ._batch_management_client_enums import PackageState
@@ -146,13 +172,21 @@ from ._batch_management_client_enums import PrivateEndpointConnectionProvisionin
 from ._batch_management_client_enums import PrivateLinkServiceConnectionStatus
 from ._batch_management_client_enums import ProvisioningState
 from ._batch_management_client_enums import PublicNetworkAccessType
+from ._batch_management_client_enums import ResourceAssociationAccessMode
 from ._batch_management_client_enums import ResourceIdentityType
+from ._batch_management_client_enums import SecurityEncryptionTypes
+from ._batch_management_client_enums import SecurityTypes
+from ._batch_management_client_enums import Severity
 from ._batch_management_client_enums import StorageAccountType
+from ._batch_management_client_enums import UpgradeMode
 from ._patch import __all__ as _patch_all
 from ._patch import *  # pylint: disable=unused-wildcard-import
 from ._patch import patch_sdk as _patch_sdk
 
 __all__ = [
+    "AccessRule",
+    "AccessRuleProperties",
+    "AccessRulePropertiesSubscriptionsItem",
     "ActivateApplicationPackageParameters",
     "Application",
     "ApplicationPackage",
@@ -163,8 +197,11 @@ __all__ = [
     "AutoStorageBaseProperties",
     "AutoStorageProperties",
     "AutoUserSpecification",
+    "AutomaticOSUpgradePolicy",
     "AzureBlobFileSystemConfiguration",
     "AzureFileShareConfiguration",
+    "AzureProxyResource",
+    "AzureResource",
     "BatchAccount",
     "BatchAccountCreateParameters",
     "BatchAccountIdentity",
@@ -184,9 +221,9 @@ __all__ = [
     "CheckNameAvailabilityParameters",
     "CheckNameAvailabilityResult",
     "CloudErrorBody",
-    "CloudServiceConfiguration",
     "ComputeNodeIdentityReference",
     "ContainerConfiguration",
+    "ContainerHostBatchBindMountEntry",
     "ContainerRegistry",
     "DataDisk",
     "DeleteCertificateError",
@@ -200,6 +237,9 @@ __all__ = [
     "EndpointDependency",
     "EndpointDetail",
     "EnvironmentSetting",
+    "ErrorAdditionalInfo",
+    "ErrorDetail",
+    "ErrorResponse",
     "FixedScaleSettings",
     "IPRule",
     "ImageReference",
@@ -220,6 +260,11 @@ __all__ = [
     "NetworkConfiguration",
     "NetworkProfile",
     "NetworkSecurityGroupRule",
+    "NetworkSecurityPerimeter",
+    "NetworkSecurityPerimeterConfiguration",
+    "NetworkSecurityPerimeterConfigurationListResult",
+    "NetworkSecurityPerimeterConfigurationProperties",
+    "NetworkSecurityProfile",
     "NodePlacementConfiguration",
     "OSDisk",
     "Operation",
@@ -233,12 +278,16 @@ __all__ = [
     "PrivateEndpointConnection",
     "PrivateLinkResource",
     "PrivateLinkServiceConnectionState",
+    "ProvisioningIssue",
+    "ProvisioningIssueProperties",
     "ProxyResource",
     "PublicIPAddressConfiguration",
     "ResizeError",
     "ResizeOperationStatus",
     "Resource",
+    "ResourceAssociation",
     "ResourceFile",
+    "RollingUpgradePolicy",
     "ScaleSettings",
     "SecurityProfile",
     "ServiceArtifactReference",
@@ -246,17 +295,21 @@ __all__ = [
     "StartTask",
     "SupportedSku",
     "SupportedSkusResult",
+    "SystemData",
     "TaskContainerSettings",
     "TaskSchedulingPolicy",
     "UefiSettings",
+    "UpgradePolicy",
     "UserAccount",
     "UserAssignedIdentities",
     "UserIdentity",
+    "VMDiskSecurityProfile",
     "VMExtension",
     "VirtualMachineConfiguration",
     "VirtualMachineFamilyCoreQuota",
     "WindowsConfiguration",
     "WindowsUserConfiguration",
+    "AccessRuleDirection",
     "AccountKeyType",
     "AllocationState",
     "AuthenticationMode",
@@ -269,8 +322,10 @@ __all__ = [
     "CertificateVisibility",
     "ComputeNodeDeallocationOption",
     "ComputeNodeFillType",
+    "ContainerHostDataPath",
     "ContainerType",
     "ContainerWorkingDirectory",
+    "CreatedByType",
     "DiskEncryptionTarget",
     "DynamicVNetAssignmentScope",
     "ElevationLevel",
@@ -278,10 +333,12 @@ __all__ = [
     "IPAddressProvisioningType",
     "InboundEndpointProtocol",
     "InterNodeCommunicationState",
+    "IssueType",
     "KeySource",
     "LoginMode",
     "NameAvailabilityReason",
     "NetworkSecurityGroupRuleAccess",
+    "NetworkSecurityPerimeterConfigurationProvisioningState",
     "NodeCommunicationMode",
     "NodePlacementPolicyType",
     "PackageState",
@@ -292,8 +349,13 @@ __all__ = [
     "PrivateLinkServiceConnectionStatus",
     "ProvisioningState",
     "PublicNetworkAccessType",
+    "ResourceAssociationAccessMode",
     "ResourceIdentityType",
+    "SecurityEncryptionTypes",
+    "SecurityTypes",
+    "Severity",
     "StorageAccountType",
+    "UpgradeMode",
 ]
 __all__.extend([p for p in _patch_all if p not in __all__])
 _patch_sdk()

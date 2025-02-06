@@ -3,20 +3,18 @@
 # Licensed under the MIT License.
 # ------------------------------------
 import os
-
-try:
-    from unittest.mock import Mock, patch
-except ImportError:
-    from mock import Mock, patch  # type: ignore
+from itertools import product
+from unittest.mock import Mock, patch
 
 from azure.core.pipeline.policies import ContentDecodePolicy, SansIOHTTPPolicy
 from azure.identity import OnBehalfOfCredential, UsernamePasswordCredential
 from azure.identity._constants import EnvironmentVariables
+from azure.identity._internal.aad_client_base import JWT_BEARER_ASSERTION
 from azure.identity._internal.user_agent import USER_AGENT
 import pytest
 from urllib.parse import urlparse
 
-from helpers import build_aad_response, FAKE_CLIENT_ID, get_discovery_response, mock_response
+from helpers import build_aad_response, FAKE_CLIENT_ID, get_discovery_response, mock_response, GET_TOKEN_METHODS
 from recorded_test_case import RecordedTestCase
 from test_certificate_credential import PEM_CERT_PATH
 from devtools_testutils import is_live, recorded_by_proxy
@@ -94,7 +92,8 @@ class TestObo(RecordedTestCase):
         credential.get_token(self.obo_settings["scope"])
 
 
-def test_multitenant_authentication():
+@pytest.mark.parametrize("get_token_method", GET_TOKEN_METHODS)
+def test_multitenant_authentication(get_token_method):
     first_tenant = "first-tenant"
     first_token = "***"
     second_tenant = "second-tenant"
@@ -123,22 +122,28 @@ def test_multitenant_authentication():
         transport=transport,
         additionally_allowed_tenants=["*"],
     )
-    token = credential.get_token("scope")
+    token = getattr(credential, get_token_method)("scope")
     assert token.token == first_token
 
-    token = credential.get_token("scope", tenant_id=first_tenant)
+    kwargs = {"tenant_id": first_tenant}
+    if get_token_method == "get_token_info":
+        kwargs = {"options": kwargs}
+    token = getattr(credential, get_token_method)("scope", **kwargs)
     assert token.token == first_token
 
-    token = credential.get_token("scope", tenant_id=second_tenant)
+    kwargs = {"tenant_id": second_tenant}
+    if get_token_method == "get_token_info":
+        kwargs = {"options": kwargs}
+    token = getattr(credential, get_token_method)("scope", **kwargs)
     assert token.token == second_token
 
     # should still default to the first tenant
-    token = credential.get_token("scope")
+    token = getattr(credential, get_token_method)("scope")
     assert token.token == first_token
 
 
-@pytest.mark.parametrize("authority", ("localhost", "https://localhost"))
-def test_authority(authority):
+@pytest.mark.parametrize("authority,get_token_method", product(("localhost", "https://localhost"), GET_TOKEN_METHODS))
+def test_authority(authority, get_token_method):
     """the credential should accept an authority, with or without scheme, as an argument or environment variable"""
 
     tenant_id = "expected-tenant"
@@ -155,7 +160,7 @@ def test_authority(authority):
     )
     with patch("msal.ConfidentialClientApplication", mock_ctor):
         # must call get_token because the credential constructs the MSAL application lazily
-        credential.get_token("scope")
+        getattr(credential, get_token_method)("scope")
 
     assert mock_ctor.call_count == 1
     _, kwargs = mock_ctor.call_args
@@ -166,7 +171,7 @@ def test_authority(authority):
     with patch.dict("os.environ", {EnvironmentVariables.AZURE_AUTHORITY_HOST: authority}, clear=True):
         credential = OnBehalfOfCredential(tenant_id, "client-id", client_secret="secret", user_assertion="assertion")
     with patch("msal.ConfidentialClientApplication", mock_ctor):
-        credential.get_token("scope")
+        getattr(credential, get_token_method)("scope")
 
     assert mock_ctor.call_count == 1
     _, kwargs = mock_ctor.call_args
@@ -184,16 +189,18 @@ def test_tenant_id_validation():
             OnBehalfOfCredential(tenant, "client-id", client_secret="secret", user_assertion="assertion")
 
 
-def test_no_scopes():
+@pytest.mark.parametrize("get_token_method", GET_TOKEN_METHODS)
+def test_no_scopes(get_token_method):
     """The credential should raise ValueError when get_token is called with no scopes"""
     credential = OnBehalfOfCredential(
         "tenant-id", "client-id", client_secret="client-secret", user_assertion="assertion"
     )
     with pytest.raises(ValueError):
-        credential.get_token()
+        getattr(credential, get_token_method)()
 
 
-def test_policies_configurable():
+@pytest.mark.parametrize("get_token_method", GET_TOKEN_METHODS)
+def test_policies_configurable(get_token_method):
     policy = Mock(spec_set=SansIOHTTPPolicy, on_request=Mock(), on_exception=lambda _: False)
 
     def send(request, **kwargs):
@@ -214,7 +221,7 @@ def test_policies_configurable():
         policies=[ContentDecodePolicy(), policy],
         transport=Mock(send=send),
     )
-    credential.get_token("scope")
+    getattr(credential, get_token_method)("scope")
     assert policy.on_request.called
 
 
@@ -228,3 +235,77 @@ def test_no_client_credential():
     """The credential should raise ValueError when ctoring with no client_secret or client_certificate"""
     with pytest.raises(TypeError):
         credential = OnBehalfOfCredential("tenant-id", "client-id", user_assertion="assertion")
+
+
+@pytest.mark.parametrize("get_token_method", GET_TOKEN_METHODS)
+def test_client_assertion_func(get_token_method):
+    """The credential should accept a client_assertion_func"""
+    expected_client_assertion = "client-assertion"
+    expected_user_assertion = "user-assertion"
+    expected_token = "***"
+    func_call_count = 0
+
+    def client_assertion_func():
+        nonlocal func_call_count
+        func_call_count += 1
+        return expected_client_assertion
+
+    def send(request, **kwargs):
+        parsed = urlparse(request.url)
+        tenant = parsed.path.split("/")[1]
+        if "/oauth2/v2.0/token" not in parsed.path:
+            return get_discovery_response("https://{}/{}".format(parsed.netloc, tenant))
+
+        assert request.data.get("client_assertion") == expected_client_assertion
+        assert request.data.get("client_assertion_type") == JWT_BEARER_ASSERTION
+        assert request.data.get("assertion") == expected_user_assertion
+        return mock_response(json_payload=build_aad_response(access_token=expected_token))
+
+    transport = Mock(send=Mock(wraps=send))
+    credential = OnBehalfOfCredential(
+        "tenant-id",
+        "client-id",
+        client_assertion_func=client_assertion_func,
+        user_assertion=expected_user_assertion,
+        transport=transport,
+    )
+
+    access_token = getattr(credential, get_token_method)("scope")
+    assert access_token.token == expected_token
+    assert func_call_count == 1
+
+
+def test_client_assertion_func_with_client_certificate():
+    """The credential should raise ValueError when ctoring with both client_assertion_func and client_certificate"""
+    with pytest.raises(ValueError) as ex:
+        credential = OnBehalfOfCredential(
+            "tenant-id",
+            "client-id",
+            client_assertion_func=lambda: "client-assertion",
+            client_certificate=b"certificate",
+            user_assertion="assertion",
+        )
+    assert "It is invalid to specify more than one of the following" in str(ex.value)
+
+
+def test_client_certificate_with_params():
+    """Ensure keyword arguments are passed to get_client_credential when client_certificate is provided"""
+    expected_send_certificate_chain = True
+
+    cert_path = os.path.join(os.path.dirname(__file__), "certificate-with-password.pem")
+    cert_password = "password"
+    with open(cert_path, "rb") as f:
+        cert_bytes = f.read()
+
+    credential = OnBehalfOfCredential(
+        "tenant-id",
+        "client-id",
+        client_certificate=cert_bytes,
+        password=cert_password,
+        send_certificate_chain=expected_send_certificate_chain,
+        user_assertion="assertion",
+    )
+
+    assert "passphrase" in credential._client_credential
+    assert credential._client_credential["passphrase"] == cert_password.encode("utf-8")
+    assert "public_certificate" in credential._client_credential

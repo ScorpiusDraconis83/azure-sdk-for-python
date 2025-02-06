@@ -1,16 +1,12 @@
 trigger: none
 
-stages:
-  - template: ../../eng/pipelines/templates/stages/archetype-sdk-tests.yml
+extends:
+    template: ../../eng/pipelines/templates/stages/archetype-sdk-tests.yml
     parameters:
       BuildTargetingString: azure-maps*
       ServiceDirectory: maps
       MatrixReplace:
         - TestSamples=.*/true
-      CloudConfig:
-        Public:
-          SubscriptionConfigurations:
-            - $(sub-config-azure-cloud-test-resources)
       Clouds: Public
       EnvVars:
         TEST_MODE: "RunLiveNoRecord"

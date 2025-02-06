@@ -1,4 +1,4 @@
-# pylint: disable=too-many-lines
+# pylint: disable=too-many-lines,too-many-statements
 # coding=utf-8
 # --------------------------------------------------------------------------
 # Copyright (c) Microsoft Corporation. All rights reserved.
@@ -7,7 +7,8 @@
 # Changes may cause incorrect behavior and will be lost if the code is regenerated.
 # --------------------------------------------------------------------------
 from io import IOBase
-from typing import Any, Callable, Dict, IO, Iterable, Optional, TypeVar, Union, overload
+import sys
+from typing import Any, Callable, Dict, IO, Iterable, Optional, Type, TypeVar, Union, overload
 
 from azure.core.exceptions import (
     ClientAuthenticationError,
@@ -19,16 +20,18 @@ from azure.core.exceptions import (
 )
 from azure.core.paging import ItemPaged
 from azure.core.pipeline import PipelineResponse
-from azure.core.pipeline.transport import HttpResponse
-from azure.core.rest import HttpRequest
+from azure.core.rest import HttpRequest, HttpResponse
 from azure.core.tracing.decorator import distributed_trace
 from azure.core.utils import case_insensitive_dict
 from azure.mgmt.core.exceptions import ARMErrorFormat
 
 from .. import models as _models
 from .._serialization import Serializer
-from .._vendor import _convert_request
 
+if sys.version_info >= (3, 9):
+    from collections.abc import MutableMapping
+else:
+    from typing import MutableMapping  # type: ignore  # pylint: disable=ungrouped-imports
 T = TypeVar("T")
 ClsType = Optional[Callable[[PipelineResponse[HttpRequest, HttpResponse], T, Dict[str, Any]], Any]]
 
@@ -147,7 +150,7 @@ def build_list_by_database_request(
     return HttpRequest(method="GET", url=_url, params=_params, headers=_headers, **kwargs)
 
 
-class ManagedDatabaseTransparentDataEncryptionOperations:
+class ManagedDatabaseTransparentDataEncryptionOperations:  # pylint: disable=name-too-long
     """
     .. warning::
         **DO NOT** instantiate this class directly.
@@ -187,12 +190,11 @@ class ManagedDatabaseTransparentDataEncryptionOperations:
         :type database_name: str
         :param tde_name: The name of the transparent data encryption configuration. "current" Required.
         :type tde_name: str or ~azure.mgmt.sql.models.TransparentDataEncryptionName
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: ManagedTransparentDataEncryption or the result of cls(response)
         :rtype: ~azure.mgmt.sql.models.ManagedTransparentDataEncryption
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -206,23 +208,21 @@ class ManagedDatabaseTransparentDataEncryptionOperations:
         api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2020-11-01-preview"))
         cls: ClsType[_models.ManagedTransparentDataEncryption] = kwargs.pop("cls", None)
 
-        request = build_get_request(
+        _request = build_get_request(
             resource_group_name=resource_group_name,
             managed_instance_name=managed_instance_name,
             database_name=database_name,
             tde_name=tde_name,
             subscription_id=self._config.subscription_id,
             api_version=api_version,
-            template_url=self.get.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -231,16 +231,12 @@ class ManagedDatabaseTransparentDataEncryptionOperations:
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        deserialized = self._deserialize("ManagedTransparentDataEncryption", pipeline_response)
+        deserialized = self._deserialize("ManagedTransparentDataEncryption", pipeline_response.http_response)
 
         if cls:
-            return cls(pipeline_response, deserialized, {})
+            return cls(pipeline_response, deserialized, {})  # type: ignore
 
-        return deserialized
-
-    get.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Sql/managedInstances/{managedInstanceName}/databases/{databaseName}/transparentDataEncryption/{tdeName}"
-    }
+        return deserialized  # type: ignore
 
     @overload
     def create_or_update(
@@ -271,7 +267,6 @@ class ManagedDatabaseTransparentDataEncryptionOperations:
         :keyword content_type: Body Parameter content-type. Content type parameter for JSON body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: ManagedTransparentDataEncryption or the result of cls(response)
         :rtype: ~azure.mgmt.sql.models.ManagedTransparentDataEncryption
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -284,7 +279,7 @@ class ManagedDatabaseTransparentDataEncryptionOperations:
         managed_instance_name: str,
         database_name: str,
         tde_name: Union[str, _models.TransparentDataEncryptionName],
-        parameters: IO,
+        parameters: IO[bytes],
         *,
         content_type: str = "application/json",
         **kwargs: Any
@@ -302,11 +297,10 @@ class ManagedDatabaseTransparentDataEncryptionOperations:
         :param tde_name: The name of the transparent data encryption configuration. "current" Required.
         :type tde_name: str or ~azure.mgmt.sql.models.TransparentDataEncryptionName
         :param parameters: The database transparent data encryption. Required.
-        :type parameters: IO
+        :type parameters: IO[bytes]
         :keyword content_type: Body Parameter content-type. Content type parameter for binary body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: ManagedTransparentDataEncryption or the result of cls(response)
         :rtype: ~azure.mgmt.sql.models.ManagedTransparentDataEncryption
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -319,7 +313,7 @@ class ManagedDatabaseTransparentDataEncryptionOperations:
         managed_instance_name: str,
         database_name: str,
         tde_name: Union[str, _models.TransparentDataEncryptionName],
-        parameters: Union[_models.ManagedTransparentDataEncryption, IO],
+        parameters: Union[_models.ManagedTransparentDataEncryption, IO[bytes]],
         **kwargs: Any
     ) -> _models.ManagedTransparentDataEncryption:
         """Updates a database's transparent data encryption configuration.
@@ -335,17 +329,13 @@ class ManagedDatabaseTransparentDataEncryptionOperations:
         :param tde_name: The name of the transparent data encryption configuration. "current" Required.
         :type tde_name: str or ~azure.mgmt.sql.models.TransparentDataEncryptionName
         :param parameters: The database transparent data encryption. Is either a
-         ManagedTransparentDataEncryption type or a IO type. Required.
-        :type parameters: ~azure.mgmt.sql.models.ManagedTransparentDataEncryption or IO
-        :keyword content_type: Body Parameter content-type. Known values are: 'application/json'.
-         Default value is None.
-        :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
+         ManagedTransparentDataEncryption type or a IO[bytes] type. Required.
+        :type parameters: ~azure.mgmt.sql.models.ManagedTransparentDataEncryption or IO[bytes]
         :return: ManagedTransparentDataEncryption or the result of cls(response)
         :rtype: ~azure.mgmt.sql.models.ManagedTransparentDataEncryption
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -368,7 +358,7 @@ class ManagedDatabaseTransparentDataEncryptionOperations:
         else:
             _json = self._serialize.body(parameters, "ManagedTransparentDataEncryption")
 
-        request = build_create_or_update_request(
+        _request = build_create_or_update_request(
             resource_group_name=resource_group_name,
             managed_instance_name=managed_instance_name,
             database_name=database_name,
@@ -378,16 +368,14 @@ class ManagedDatabaseTransparentDataEncryptionOperations:
             content_type=content_type,
             json=_json,
             content=_content,
-            template_url=self.create_or_update.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -396,20 +384,12 @@ class ManagedDatabaseTransparentDataEncryptionOperations:
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        if response.status_code == 200:
-            deserialized = self._deserialize("ManagedTransparentDataEncryption", pipeline_response)
-
-        if response.status_code == 201:
-            deserialized = self._deserialize("ManagedTransparentDataEncryption", pipeline_response)
+        deserialized = self._deserialize("ManagedTransparentDataEncryption", pipeline_response.http_response)
 
         if cls:
             return cls(pipeline_response, deserialized, {})  # type: ignore
 
         return deserialized  # type: ignore
-
-    create_or_update.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Sql/managedInstances/{managedInstanceName}/databases/{databaseName}/transparentDataEncryption/{tdeName}"
-    }
 
     @distributed_trace
     def list_by_database(
@@ -425,7 +405,6 @@ class ManagedDatabaseTransparentDataEncryptionOperations:
         :param database_name: The name of the managed database for which the transparent data
          encryption is defined. Required.
         :type database_name: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: An iterator like instance of either ManagedTransparentDataEncryption or the result of
          cls(response)
         :rtype: ~azure.core.paging.ItemPaged[~azure.mgmt.sql.models.ManagedTransparentDataEncryption]
@@ -437,7 +416,7 @@ class ManagedDatabaseTransparentDataEncryptionOperations:
         api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2020-11-01-preview"))
         cls: ClsType[_models.ManagedTransparentDataEncryptionListResult] = kwargs.pop("cls", None)
 
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -448,25 +427,22 @@ class ManagedDatabaseTransparentDataEncryptionOperations:
         def prepare_request(next_link=None):
             if not next_link:
 
-                request = build_list_by_database_request(
+                _request = build_list_by_database_request(
                     resource_group_name=resource_group_name,
                     managed_instance_name=managed_instance_name,
                     database_name=database_name,
                     subscription_id=self._config.subscription_id,
                     api_version=api_version,
-                    template_url=self.list_by_database.metadata["url"],
                     headers=_headers,
                     params=_params,
                 )
-                request = _convert_request(request)
-                request.url = self._client.format_url(request.url)
+                _request.url = self._client.format_url(_request.url)
 
             else:
-                request = HttpRequest("GET", next_link)
-                request = _convert_request(request)
-                request.url = self._client.format_url(request.url)
-                request.method = "GET"
-            return request
+                _request = HttpRequest("GET", next_link)
+                _request.url = self._client.format_url(_request.url)
+                _request.method = "GET"
+            return _request
 
         def extract_data(pipeline_response):
             deserialized = self._deserialize("ManagedTransparentDataEncryptionListResult", pipeline_response)
@@ -476,11 +452,11 @@ class ManagedDatabaseTransparentDataEncryptionOperations:
             return deserialized.next_link or None, iter(list_of_elem)
 
         def get_next(next_link=None):
-            request = prepare_request(next_link)
+            _request = prepare_request(next_link)
 
             _stream = False
             pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-                request, stream=_stream, **kwargs
+                _request, stream=_stream, **kwargs
             )
             response = pipeline_response.http_response
 
@@ -491,7 +467,3 @@ class ManagedDatabaseTransparentDataEncryptionOperations:
             return pipeline_response
 
         return ItemPaged(get_next, extract_data)
-
-    list_by_database.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Sql/managedInstances/{managedInstanceName}/databases/{databaseName}/transparentDataEncryption"
-    }

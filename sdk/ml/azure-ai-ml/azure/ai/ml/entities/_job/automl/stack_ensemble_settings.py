@@ -2,8 +2,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # ---------------------------------------------------------
 
-# pylint: disable=protected-access,no-member
-
 from typing import Any, Optional
 
 from azure.ai.ml._restclient.v2023_04_01_preview.models import StackEnsembleSettings as RestStackEnsembleSettings
@@ -20,7 +18,7 @@ class StackEnsembleSettings(RestTranslatableMixin):
         stack_meta_learner_k_wargs: Optional[Any] = None,
         stack_meta_learner_train_percentage: float = 0.2,
         stack_meta_learner_type: Optional[StackMetaLearnerType] = None,
-        **kwargs
+        **kwargs: Any
     ):
         """
         :param stack_meta_learner_k_wargs: Optional parameters to pass to the initializer of the

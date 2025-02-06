@@ -7,6 +7,7 @@
 # --------------------------------------------------------------------------
 
 from azure.identity import DefaultAzureCredential
+
 from azure.mgmt.storage import StorageManagementClient
 
 """
@@ -35,16 +36,20 @@ def main():
         username="user1",
         properties={
             "properties": {
+                "allowAclAuthorization": False,
+                "extendedGroups": [1001, 1005, 2005],
+                "groupId": 3000,
                 "hasSharedKey": False,
                 "hasSshKey": False,
                 "hasSshPassword": False,
                 "homeDirectory": "homedirectory2",
+                "isNFSv3Enabled": True,
             }
         },
     )
     print(response)
 
 
-# x-ms-original-file: specification/storage/resource-manager/Microsoft.Storage/stable/2023-01-01/examples/LocalUserUpdate.json
+# x-ms-original-file: specification/storage/resource-manager/Microsoft.Storage/stable/2023-05-01/examples/LocalUserUpdate.json
 if __name__ == "__main__":
     main()

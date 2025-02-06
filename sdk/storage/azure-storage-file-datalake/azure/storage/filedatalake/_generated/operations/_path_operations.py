@@ -8,30 +8,32 @@
 # --------------------------------------------------------------------------
 import datetime
 import sys
-from typing import Any, Callable, Dict, IO, Iterator, Optional, TypeVar, Union
+from typing import Any, Callable, Dict, IO, Iterator, Literal, Optional, TypeVar, Union
 
+from azure.core import PipelineClient
 from azure.core.exceptions import (
     ClientAuthenticationError,
     HttpResponseError,
     ResourceExistsError,
     ResourceNotFoundError,
     ResourceNotModifiedError,
+    StreamClosedError,
+    StreamConsumedError,
     map_error,
 )
 from azure.core.pipeline import PipelineResponse
-from azure.core.pipeline.transport import HttpResponse
-from azure.core.rest import HttpRequest
+from azure.core.rest import HttpRequest, HttpResponse
 from azure.core.tracing.decorator import distributed_trace
 from azure.core.utils import case_insensitive_dict
 
 from .. import models as _models
-from .._serialization import Serializer
-from .._vendor import _convert_request
+from .._configuration import AzureDataLakeStorageRESTAPIConfiguration
+from .._serialization import Deserializer, Serializer
 
-if sys.version_info >= (3, 8):
-    from typing import Literal  # pylint: disable=no-name-in-module, ungrouped-imports
+if sys.version_info >= (3, 9):
+    from collections.abc import MutableMapping
 else:
-    from typing_extensions import Literal  # type: ignore  # pylint: disable=ungrouped-imports
+    from typing import MutableMapping  # type: ignore
 T = TypeVar("T")
 ClsType = Optional[Callable[[PipelineResponse[HttpRequest, HttpResponse], T, Dict[str, Any]], Any]]
 
@@ -82,7 +84,7 @@ def build_create_request(
     _headers = case_insensitive_dict(kwargs.pop("headers", {}) or {})
     _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-    version: Literal["2023-05-03"] = kwargs.pop("version", _headers.pop("x-ms-version", "2023-05-03"))
+    version: Literal["2025-01-05"] = kwargs.pop("version", _headers.pop("x-ms-version", "2025-01-05"))
     accept = _headers.pop("Accept", "application/json")
 
     # Construct URL
@@ -183,7 +185,7 @@ def build_update_request(
     *,
     action: Union[str, _models.PathUpdateAction],
     mode: Union[str, _models.PathSetAccessControlRecursiveMode],
-    content: IO,
+    content: IO[bytes],
     request_id_parameter: Optional[str] = None,
     timeout: Optional[int] = None,
     max_records: Optional[int] = None,
@@ -209,13 +211,15 @@ def build_update_request(
     if_none_match: Optional[str] = None,
     if_modified_since: Optional[datetime.datetime] = None,
     if_unmodified_since: Optional[datetime.datetime] = None,
+    structured_body_type: Optional[str] = None,
+    structured_content_length: Optional[int] = None,
     **kwargs: Any
 ) -> HttpRequest:
     _headers = case_insensitive_dict(kwargs.pop("headers", {}) or {})
     _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
     content_type: Optional[str] = kwargs.pop("content_type", _headers.pop("Content-Type", None))
-    version: Literal["2023-05-03"] = kwargs.pop("version", _headers.pop("x-ms-version", "2023-05-03"))
+    version: Literal["2025-01-05"] = kwargs.pop("version", _headers.pop("x-ms-version", "2025-01-05"))
     accept = _headers.pop("Accept", "application/json")
 
     # Construct URL
@@ -282,6 +286,12 @@ def build_update_request(
         _headers["If-Modified-Since"] = _SERIALIZER.header("if_modified_since", if_modified_since, "rfc-1123")
     if if_unmodified_since is not None:
         _headers["If-Unmodified-Since"] = _SERIALIZER.header("if_unmodified_since", if_unmodified_since, "rfc-1123")
+    if structured_body_type is not None:
+        _headers["x-ms-structured-body"] = _SERIALIZER.header("structured_body_type", structured_body_type, "str")
+    if structured_content_length is not None:
+        _headers["x-ms-structured-content-length"] = _SERIALIZER.header(
+            "structured_content_length", structured_content_length, "int"
+        )
     if content_type is not None:
         _headers["Content-Type"] = _SERIALIZER.header("content_type", content_type, "str")
     _headers["Accept"] = _SERIALIZER.header("accept", accept, "str")
@@ -308,7 +318,7 @@ def build_lease_request(
     _headers = case_insensitive_dict(kwargs.pop("headers", {}) or {})
     _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-    version: Literal["2023-05-03"] = kwargs.pop("version", _headers.pop("x-ms-version", "2023-05-03"))
+    version: Literal["2025-01-05"] = kwargs.pop("version", _headers.pop("x-ms-version", "2025-01-05"))
     accept = _headers.pop("Accept", "application/json")
 
     # Construct URL
@@ -371,7 +381,7 @@ def build_read_request(
     _headers = case_insensitive_dict(kwargs.pop("headers", {}) or {})
     _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-    version: Literal["2023-05-03"] = kwargs.pop("version", _headers.pop("x-ms-version", "2023-05-03"))
+    version: Literal["2025-01-05"] = kwargs.pop("version", _headers.pop("x-ms-version", "2025-01-05"))
     accept = _headers.pop("Accept", "application/json")
 
     # Construct URL
@@ -436,7 +446,7 @@ def build_get_properties_request(
     _headers = case_insensitive_dict(kwargs.pop("headers", {}) or {})
     _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-    version: Literal["2023-05-03"] = kwargs.pop("version", _headers.pop("x-ms-version", "2023-05-03"))
+    version: Literal["2025-01-05"] = kwargs.pop("version", _headers.pop("x-ms-version", "2025-01-05"))
     accept = _headers.pop("Accept", "application/json")
 
     # Construct URL
@@ -492,7 +502,7 @@ def build_delete_request(
     _headers = case_insensitive_dict(kwargs.pop("headers", {}) or {})
     _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-    version: Literal["2023-05-03"] = kwargs.pop("version", _headers.pop("x-ms-version", "2023-05-03"))
+    version: Literal["2025-01-05"] = kwargs.pop("version", _headers.pop("x-ms-version", "2025-01-05"))
     accept = _headers.pop("Accept", "application/json")
 
     # Construct URL
@@ -552,7 +562,7 @@ def build_set_access_control_request(
     _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
     action: Literal["setAccessControl"] = kwargs.pop("action", _params.pop("action", "setAccessControl"))
-    version: Literal["2023-05-03"] = kwargs.pop("version", _headers.pop("x-ms-version", "2023-05-03"))
+    version: Literal["2025-01-05"] = kwargs.pop("version", _headers.pop("x-ms-version", "2025-01-05"))
     accept = _headers.pop("Accept", "application/json")
 
     # Construct URL
@@ -595,7 +605,7 @@ def build_set_access_control_request(
     return HttpRequest(method="PATCH", url=_url, params=_params, headers=_headers, **kwargs)
 
 
-def build_set_access_control_recursive_request(
+def build_set_access_control_recursive_request(  # pylint: disable=name-too-long
     url: str,
     *,
     mode: Union[str, _models.PathSetAccessControlRecursiveMode],
@@ -613,7 +623,7 @@ def build_set_access_control_recursive_request(
     action: Literal["setAccessControlRecursive"] = kwargs.pop(
         "action", _params.pop("action", "setAccessControlRecursive")
     )
-    version: Literal["2023-05-03"] = kwargs.pop("version", _headers.pop("x-ms-version", "2023-05-03"))
+    version: Literal["2025-01-05"] = kwargs.pop("version", _headers.pop("x-ms-version", "2025-01-05"))
     accept = _headers.pop("Accept", "application/json")
 
     # Construct URL
@@ -679,7 +689,7 @@ def build_flush_data_request(
     _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
     action: Literal["flush"] = kwargs.pop("action", _params.pop("action", "flush"))
-    version: Literal["2023-05-03"] = kwargs.pop("version", _headers.pop("x-ms-version", "2023-05-03"))
+    version: Literal["2025-01-05"] = kwargs.pop("version", _headers.pop("x-ms-version", "2025-01-05"))
     accept = _headers.pop("Accept", "application/json")
 
     # Construct URL
@@ -751,7 +761,7 @@ def build_flush_data_request(
 def build_append_data_request(
     url: str,
     *,
-    content: IO,
+    content: IO[bytes],
     position: Optional[int] = None,
     timeout: Optional[int] = None,
     content_length: Optional[int] = None,
@@ -766,6 +776,8 @@ def build_append_data_request(
     encryption_key_sha256: Optional[str] = None,
     encryption_algorithm: Literal["AES256"] = "AES256",
     flush: Optional[bool] = None,
+    structured_body_type: Optional[str] = None,
+    structured_content_length: Optional[int] = None,
     **kwargs: Any
 ) -> HttpRequest:
     _headers = case_insensitive_dict(kwargs.pop("headers", {}) or {})
@@ -773,7 +785,7 @@ def build_append_data_request(
 
     action: Literal["append"] = kwargs.pop("action", _params.pop("action", "append"))
     content_type: Optional[str] = kwargs.pop("content_type", _headers.pop("Content-Type", None))
-    version: Literal["2023-05-03"] = kwargs.pop("version", _headers.pop("x-ms-version", "2023-05-03"))
+    version: Literal["2025-01-05"] = kwargs.pop("version", _headers.pop("x-ms-version", "2025-01-05"))
     accept = _headers.pop("Accept", "application/json")
 
     # Construct URL
@@ -823,6 +835,12 @@ def build_append_data_request(
         )
     if encryption_algorithm is not None:
         _headers["x-ms-encryption-algorithm"] = _SERIALIZER.header("encryption_algorithm", encryption_algorithm, "str")
+    if structured_body_type is not None:
+        _headers["x-ms-structured-body"] = _SERIALIZER.header("structured_body_type", structured_body_type, "str")
+    if structured_content_length is not None:
+        _headers["x-ms-structured-content-length"] = _SERIALIZER.header(
+            "structured_content_length", structured_content_length, "int"
+        )
     if content_type is not None:
         _headers["Content-Type"] = _SERIALIZER.header("content_type", content_type, "str")
     _headers["Accept"] = _SERIALIZER.header("accept", accept, "str")
@@ -843,7 +861,7 @@ def build_set_expiry_request(
     _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
     comp: Literal["expiry"] = kwargs.pop("comp", _params.pop("comp", "expiry"))
-    version: Literal["2023-05-03"] = kwargs.pop("version", _headers.pop("x-ms-version", "2023-05-03"))
+    version: Literal["2025-01-05"] = kwargs.pop("version", _headers.pop("x-ms-version", "2025-01-05"))
     accept = _headers.pop("Accept", "application/json")
 
     # Construct URL
@@ -883,7 +901,7 @@ def build_undelete_request(
     _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
     comp: Literal["undelete"] = kwargs.pop("comp", _params.pop("comp", "undelete"))
-    version: Literal["2023-05-03"] = kwargs.pop("version", _headers.pop("x-ms-version", "2023-05-03"))
+    version: Literal["2025-01-05"] = kwargs.pop("version", _headers.pop("x-ms-version", "2025-01-05"))
     accept = _headers.pop("Accept", "application/json")
 
     # Construct URL
@@ -924,10 +942,12 @@ class PathOperations:
 
     def __init__(self, *args, **kwargs):
         input_args = list(args)
-        self._client = input_args.pop(0) if input_args else kwargs.pop("client")
-        self._config = input_args.pop(0) if input_args else kwargs.pop("config")
-        self._serialize = input_args.pop(0) if input_args else kwargs.pop("serializer")
-        self._deserialize = input_args.pop(0) if input_args else kwargs.pop("deserializer")
+        self._client: PipelineClient = input_args.pop(0) if input_args else kwargs.pop("client")
+        self._config: AzureDataLakeStorageRESTAPIConfiguration = (
+            input_args.pop(0) if input_args else kwargs.pop("config")
+        )
+        self._serialize: Serializer = input_args.pop(0) if input_args else kwargs.pop("serializer")
+        self._deserialize: Deserializer = input_args.pop(0) if input_args else kwargs.pop("deserializer")
 
     @distributed_trace
     def create(  # pylint: disable=inconsistent-return-statements
@@ -957,6 +977,7 @@ class PathOperations:
         cpk_info: Optional[_models.CpkInfo] = None,
         **kwargs: Any
     ) -> None:
+        # pylint: disable=line-too-long
         """Create File | Create Directory | Rename File | Rename Directory.
 
         Create or rename a file or directory.    By default, the destination is overwritten and if the
@@ -1056,12 +1077,11 @@ class PathOperations:
          ~azure.storage.filedatalake.models.SourceModifiedAccessConditions
         :param cpk_info: Parameter group. Default value is None.
         :type cpk_info: ~azure.storage.filedatalake.models.CpkInfo
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: None or the result of cls(response)
         :rtype: None
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -1114,7 +1134,7 @@ class PathOperations:
             _encryption_key = cpk_info.encryption_key
             _encryption_key_sha256 = cpk_info.encryption_key_sha256
 
-        request = build_create_request(
+        _request = build_create_request(
             url=self._config.url,
             request_id_parameter=request_id_parameter,
             timeout=timeout,
@@ -1152,16 +1172,14 @@ class PathOperations:
             expires_on=expires_on,
             encryption_context=encryption_context,
             version=self._config.version,
-            template_url=self.create.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -1187,16 +1205,14 @@ class PathOperations:
         )
 
         if cls:
-            return cls(pipeline_response, None, response_headers)
-
-    create.metadata = {"url": "{url}"}
+            return cls(pipeline_response, None, response_headers)  # type: ignore
 
     @distributed_trace
     def update(
         self,
         action: Union[str, _models.PathUpdateAction],
         mode: Union[str, _models.PathSetAccessControlRecursiveMode],
-        body: IO,
+        body: IO[bytes],
         request_id_parameter: Optional[str] = None,
         timeout: Optional[int] = None,
         max_records: Optional[int] = None,
@@ -1211,11 +1227,14 @@ class PathOperations:
         group: Optional[str] = None,
         permissions: Optional[str] = None,
         acl: Optional[str] = None,
+        structured_body_type: Optional[str] = None,
+        structured_content_length: Optional[int] = None,
         path_http_headers: Optional[_models.PathHTTPHeaders] = None,
         lease_access_conditions: Optional[_models.LeaseAccessConditions] = None,
         modified_access_conditions: Optional[_models.ModifiedAccessConditions] = None,
         **kwargs: Any
     ) -> Optional[_models.SetAccessControlRecursiveResponse]:
+        # pylint: disable=line-too-long
         """Append Data | Flush Data | Set Properties | Set Access Control.
 
         Uploads data to be appended to a file, flushes (writes) previously uploaded data to a file,
@@ -1241,7 +1260,7 @@ class PathOperations:
          and directories. Known values are: "set", "modify", and "remove". Required.
         :type mode: str or ~azure.storage.filedatalake.models.PathSetAccessControlRecursiveMode
         :param body: Initial data. Required.
-        :type body: IO
+        :type body: IO[bytes]
         :param request_id_parameter: Provides a client-generated, opaque value with a 1 KB character
          limit that is recorded in the analytics logs when storage analytics logging is enabled. Default
          value is None.
@@ -1321,18 +1340,24 @@ class PathOperations:
          scope, a type, a user or group identifier, and permissions in the format
          "[scope:][type]:[id]:[permissions]". Default value is None.
         :type acl: str
+        :param structured_body_type: Required if the request body is a structured message. Specifies
+         the message schema version and properties. Default value is None.
+        :type structured_body_type: str
+        :param structured_content_length: Required if the request body is a structured message.
+         Specifies the length of the blob/file content inside the message body. Will always be smaller
+         than Content-Length. Default value is None.
+        :type structured_content_length: int
         :param path_http_headers: Parameter group. Default value is None.
         :type path_http_headers: ~azure.storage.filedatalake.models.PathHTTPHeaders
         :param lease_access_conditions: Parameter group. Default value is None.
         :type lease_access_conditions: ~azure.storage.filedatalake.models.LeaseAccessConditions
         :param modified_access_conditions: Parameter group. Default value is None.
         :type modified_access_conditions: ~azure.storage.filedatalake.models.ModifiedAccessConditions
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: SetAccessControlRecursiveResponse or None or the result of cls(response)
         :rtype: ~azure.storage.filedatalake.models.SetAccessControlRecursiveResponse or None
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -1373,7 +1398,7 @@ class PathOperations:
             _if_unmodified_since = modified_access_conditions.if_unmodified_since
         _content = body
 
-        request = build_update_request(
+        _request = build_update_request(
             url=self._config.url,
             action=action,
             mode=mode,
@@ -1402,19 +1427,19 @@ class PathOperations:
             if_none_match=_if_none_match,
             if_modified_since=_if_modified_since,
             if_unmodified_since=_if_unmodified_since,
+            structured_body_type=structured_body_type,
+            structured_content_length=structured_content_length,
             content_type=content_type,
             version=self._config.version,
             content=_content,
-            template_url=self.update.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -1446,20 +1471,21 @@ class PathOperations:
             response_headers["x-ms-request-id"] = self._deserialize("str", response.headers.get("x-ms-request-id"))
             response_headers["x-ms-version"] = self._deserialize("str", response.headers.get("x-ms-version"))
 
-            deserialized = self._deserialize("SetAccessControlRecursiveResponse", pipeline_response)
+            deserialized = self._deserialize("SetAccessControlRecursiveResponse", pipeline_response.http_response)
 
         if response.status_code == 202:
             response_headers["Content-MD5"] = self._deserialize("str", response.headers.get("Content-MD5"))
             response_headers["Date"] = self._deserialize("rfc-1123", response.headers.get("Date"))
             response_headers["x-ms-request-id"] = self._deserialize("str", response.headers.get("x-ms-request-id"))
             response_headers["x-ms-version"] = self._deserialize("str", response.headers.get("x-ms-version"))
+            response_headers["x-ms-structured-body"] = self._deserialize(
+                "str", response.headers.get("x-ms-structured-body")
+            )
 
         if cls:
-            return cls(pipeline_response, deserialized, response_headers)
+            return cls(pipeline_response, deserialized, response_headers)  # type: ignore
 
-        return deserialized
-
-    update.metadata = {"url": "{url}"}
+        return deserialized  # type: ignore
 
     @distributed_trace
     def lease(  # pylint: disable=inconsistent-return-statements
@@ -1473,6 +1499,7 @@ class PathOperations:
         modified_access_conditions: Optional[_models.ModifiedAccessConditions] = None,
         **kwargs: Any
     ) -> None:
+        # pylint: disable=line-too-long
         """Lease Path.
 
         Create and manage a lease to restrict write and delete access to the path. This operation
@@ -1512,12 +1539,11 @@ class PathOperations:
         :type lease_access_conditions: ~azure.storage.filedatalake.models.LeaseAccessConditions
         :param modified_access_conditions: Parameter group. Default value is None.
         :type modified_access_conditions: ~azure.storage.filedatalake.models.ModifiedAccessConditions
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: None or the result of cls(response)
         :rtype: None
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -1543,7 +1569,7 @@ class PathOperations:
             _if_none_match = modified_access_conditions.if_none_match
             _if_unmodified_since = modified_access_conditions.if_unmodified_since
 
-        request = build_lease_request(
+        _request = build_lease_request(
             url=self._config.url,
             x_ms_lease_action=x_ms_lease_action,
             request_id_parameter=request_id_parameter,
@@ -1557,16 +1583,14 @@ class PathOperations:
             if_unmodified_since=_if_unmodified_since,
             x_ms_lease_duration=self._config.x_ms_lease_duration,
             version=self._config.version,
-            template_url=self.lease.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -1601,9 +1625,7 @@ class PathOperations:
             response_headers["x-ms-lease-time"] = self._deserialize("str", response.headers.get("x-ms-lease-time"))
 
         if cls:
-            return cls(pipeline_response, None, response_headers)
-
-    lease.metadata = {"url": "{url}"}
+            return cls(pipeline_response, None, response_headers)  # type: ignore
 
     @distributed_trace
     def read(
@@ -1617,6 +1639,7 @@ class PathOperations:
         cpk_info: Optional[_models.CpkInfo] = None,
         **kwargs: Any
     ) -> Iterator[bytes]:
+        # pylint: disable=line-too-long
         """Read File.
 
         Read the contents of a file.  For read operations, range requests are supported. This operation
@@ -1649,12 +1672,11 @@ class PathOperations:
         :type modified_access_conditions: ~azure.storage.filedatalake.models.ModifiedAccessConditions
         :param cpk_info: Parameter group. Default value is None.
         :type cpk_info: ~azure.storage.filedatalake.models.CpkInfo
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :return: Iterator of the response bytes or the result of cls(response)
+        :return: Iterator[bytes] or the result of cls(response)
         :rtype: Iterator[bytes]
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -1687,7 +1709,7 @@ class PathOperations:
             _encryption_key = cpk_info.encryption_key
             _encryption_key_sha256 = cpk_info.encryption_key_sha256
 
-        request = build_read_request(
+        _request = build_read_request(
             url=self._config.url,
             request_id_parameter=request_id_parameter,
             timeout=timeout,
@@ -1702,21 +1724,24 @@ class PathOperations:
             encryption_key_sha256=_encryption_key_sha256,
             encryption_algorithm=_encryption_algorithm,  # type: ignore
             version=self._config.version,
-            template_url=self.read.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
+        _decompress = kwargs.pop("decompress", True)
         _stream = True
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
 
         if response.status_code not in [200, 206]:
+            try:
+                response.read()  # Load the body in memory and close the socket
+            except (StreamConsumedError, StreamClosedError):
+                pass
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             error = self._deserialize.failsafe_deserialize(_models.StorageError, pipeline_response)
             raise HttpResponseError(response=response, model=error)
@@ -1754,8 +1779,6 @@ class PathOperations:
             response_headers["x-ms-encryption-key-sha256"] = self._deserialize(
                 "str", response.headers.get("x-ms-encryption-key-sha256")
             )
-
-            deserialized = response.stream_download(self._client._pipeline)
 
         if response.status_code == 206:
             response_headers["Accept-Ranges"] = self._deserialize("str", response.headers.get("Accept-Ranges"))
@@ -1791,14 +1814,12 @@ class PathOperations:
                 "str", response.headers.get("x-ms-encryption-key-sha256")
             )
 
-            deserialized = response.stream_download(self._client._pipeline)
+        deserialized = response.stream_download(self._client._pipeline, decompress=_decompress)
 
         if cls:
             return cls(pipeline_response, deserialized, response_headers)  # type: ignore
 
         return deserialized  # type: ignore
-
-    read.metadata = {"url": "{url}"}
 
     @distributed_trace
     def get_properties(  # pylint: disable=inconsistent-return-statements
@@ -1811,6 +1832,7 @@ class PathOperations:
         modified_access_conditions: Optional[_models.ModifiedAccessConditions] = None,
         **kwargs: Any
     ) -> None:
+        # pylint: disable=line-too-long
         """Get Properties | Get Status | Get Access Control List.
 
         Get Properties returns all system and user defined properties for a path. Get Status returns
@@ -1845,12 +1867,11 @@ class PathOperations:
         :type lease_access_conditions: ~azure.storage.filedatalake.models.LeaseAccessConditions
         :param modified_access_conditions: Parameter group. Default value is None.
         :type modified_access_conditions: ~azure.storage.filedatalake.models.ModifiedAccessConditions
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: None or the result of cls(response)
         :rtype: None
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -1876,7 +1897,7 @@ class PathOperations:
             _if_none_match = modified_access_conditions.if_none_match
             _if_unmodified_since = modified_access_conditions.if_unmodified_since
 
-        request = build_get_properties_request(
+        _request = build_get_properties_request(
             url=self._config.url,
             request_id_parameter=request_id_parameter,
             timeout=timeout,
@@ -1888,16 +1909,14 @@ class PathOperations:
             if_modified_since=_if_modified_since,
             if_unmodified_since=_if_unmodified_since,
             version=self._config.version,
-            template_url=self.get_properties.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -1933,9 +1952,7 @@ class PathOperations:
         response_headers["x-ms-lease-status"] = self._deserialize("str", response.headers.get("x-ms-lease-status"))
 
         if cls:
-            return cls(pipeline_response, None, response_headers)
-
-    get_properties.metadata = {"url": "{url}"}
+            return cls(pipeline_response, None, response_headers)  # type: ignore
 
     @distributed_trace
     def delete(  # pylint: disable=inconsistent-return-statements
@@ -1949,6 +1966,7 @@ class PathOperations:
         modified_access_conditions: Optional[_models.ModifiedAccessConditions] = None,
         **kwargs: Any
     ) -> None:
+        # pylint: disable=line-too-long
         """Delete File | Delete Directory.
 
         Delete the file or directory. This operation supports conditional HTTP requests.  For more
@@ -1982,12 +2000,11 @@ class PathOperations:
         :type lease_access_conditions: ~azure.storage.filedatalake.models.LeaseAccessConditions
         :param modified_access_conditions: Parameter group. Default value is None.
         :type modified_access_conditions: ~azure.storage.filedatalake.models.ModifiedAccessConditions
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: None or the result of cls(response)
         :rtype: None
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -2013,7 +2030,7 @@ class PathOperations:
             _if_none_match = modified_access_conditions.if_none_match
             _if_unmodified_since = modified_access_conditions.if_unmodified_since
 
-        request = build_delete_request(
+        _request = build_delete_request(
             url=self._config.url,
             request_id_parameter=request_id_parameter,
             timeout=timeout,
@@ -2026,16 +2043,14 @@ class PathOperations:
             if_unmodified_since=_if_unmodified_since,
             paginated=paginated,
             version=self._config.version,
-            template_url=self.delete.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -2060,9 +2075,7 @@ class PathOperations:
             response_headers["x-ms-continuation"] = self._deserialize("str", response.headers.get("x-ms-continuation"))
 
         if cls:
-            return cls(pipeline_response, None, response_headers)
-
-    delete.metadata = {"url": "{url}"}
+            return cls(pipeline_response, None, response_headers)  # type: ignore
 
     @distributed_trace
     def set_access_control(  # pylint: disable=inconsistent-return-statements
@@ -2077,6 +2090,7 @@ class PathOperations:
         modified_access_conditions: Optional[_models.ModifiedAccessConditions] = None,
         **kwargs: Any
     ) -> None:
+        # pylint: disable=line-too-long
         """Set the owner, group, permissions, or access control list for a path.
 
         :param timeout: The timeout parameter is expressed in seconds. For more information, see
@@ -2107,15 +2121,11 @@ class PathOperations:
         :type lease_access_conditions: ~azure.storage.filedatalake.models.LeaseAccessConditions
         :param modified_access_conditions: Parameter group. Default value is None.
         :type modified_access_conditions: ~azure.storage.filedatalake.models.ModifiedAccessConditions
-        :keyword action: action. Default value is "setAccessControl". Note that overriding this default
-         value may result in unsupported behavior.
-        :paramtype action: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: None or the result of cls(response)
         :rtype: None
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -2142,7 +2152,7 @@ class PathOperations:
             _if_none_match = modified_access_conditions.if_none_match
             _if_unmodified_since = modified_access_conditions.if_unmodified_since
 
-        request = build_set_access_control_request(
+        _request = build_set_access_control_request(
             url=self._config.url,
             timeout=timeout,
             lease_id=_lease_id,
@@ -2157,16 +2167,14 @@ class PathOperations:
             request_id_parameter=request_id_parameter,
             action=action,
             version=self._config.version,
-            template_url=self.set_access_control.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -2187,9 +2195,7 @@ class PathOperations:
         response_headers["x-ms-version"] = self._deserialize("str", response.headers.get("x-ms-version"))
 
         if cls:
-            return cls(pipeline_response, None, response_headers)
-
-    set_access_control.metadata = {"url": "{url}"}
+            return cls(pipeline_response, None, response_headers)  # type: ignore
 
     @distributed_trace
     def set_access_control_recursive(
@@ -2203,6 +2209,7 @@ class PathOperations:
         request_id_parameter: Optional[str] = None,
         **kwargs: Any
     ) -> _models.SetAccessControlRecursiveResponse:
+        # pylint: disable=line-too-long
         """Set the access control list for a path and sub-paths.
 
         :param mode: Mode "set" sets POSIX access control rights on files and directories, "modify"
@@ -2240,15 +2247,11 @@ class PathOperations:
          limit that is recorded in the analytics logs when storage analytics logging is enabled. Default
          value is None.
         :type request_id_parameter: str
-        :keyword action: action. Default value is "setAccessControlRecursive". Note that overriding
-         this default value may result in unsupported behavior.
-        :paramtype action: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: SetAccessControlRecursiveResponse or the result of cls(response)
         :rtype: ~azure.storage.filedatalake.models.SetAccessControlRecursiveResponse
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -2264,7 +2267,7 @@ class PathOperations:
         )
         cls: ClsType[_models.SetAccessControlRecursiveResponse] = kwargs.pop("cls", None)
 
-        request = build_set_access_control_recursive_request(
+        _request = build_set_access_control_recursive_request(
             url=self._config.url,
             mode=mode,
             timeout=timeout,
@@ -2275,16 +2278,14 @@ class PathOperations:
             request_id_parameter=request_id_parameter,
             action=action,
             version=self._config.version,
-            template_url=self.set_access_control_recursive.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -2303,14 +2304,12 @@ class PathOperations:
         response_headers["x-ms-request-id"] = self._deserialize("str", response.headers.get("x-ms-request-id"))
         response_headers["x-ms-version"] = self._deserialize("str", response.headers.get("x-ms-version"))
 
-        deserialized = self._deserialize("SetAccessControlRecursiveResponse", pipeline_response)
+        deserialized = self._deserialize("SetAccessControlRecursiveResponse", pipeline_response.http_response)
 
         if cls:
-            return cls(pipeline_response, deserialized, response_headers)
+            return cls(pipeline_response, deserialized, response_headers)  # type: ignore
 
-        return deserialized
-
-    set_access_control_recursive.metadata = {"url": "{url}"}
+        return deserialized  # type: ignore
 
     @distributed_trace
     def flush_data(  # pylint: disable=inconsistent-return-statements
@@ -2330,6 +2329,7 @@ class PathOperations:
         cpk_info: Optional[_models.CpkInfo] = None,
         **kwargs: Any
     ) -> None:
+        # pylint: disable=line-too-long
         """Set the owner, group, permissions, or access control list for a path.
 
         :param timeout: The timeout parameter is expressed in seconds. For more information, see
@@ -2392,15 +2392,11 @@ class PathOperations:
         :type modified_access_conditions: ~azure.storage.filedatalake.models.ModifiedAccessConditions
         :param cpk_info: Parameter group. Default value is None.
         :type cpk_info: ~azure.storage.filedatalake.models.CpkInfo
-        :keyword action: action. Default value is "flush". Note that overriding this default value may
-         result in unsupported behavior.
-        :paramtype action: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: None or the result of cls(response)
         :rtype: None
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -2447,7 +2443,7 @@ class PathOperations:
             _encryption_key = cpk_info.encryption_key
             _encryption_key_sha256 = cpk_info.encryption_key_sha256
 
-        request = build_flush_data_request(
+        _request = build_flush_data_request(
             url=self._config.url,
             timeout=timeout,
             position=position,
@@ -2474,16 +2470,14 @@ class PathOperations:
             encryption_algorithm=_encryption_algorithm,  # type: ignore
             action=action,
             version=self._config.version,
-            template_url=self.flush_data.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -2512,14 +2506,12 @@ class PathOperations:
         response_headers["x-ms-lease-renewed"] = self._deserialize("bool", response.headers.get("x-ms-lease-renewed"))
 
         if cls:
-            return cls(pipeline_response, None, response_headers)
-
-    flush_data.metadata = {"url": "{url}"}
+            return cls(pipeline_response, None, response_headers)  # type: ignore
 
     @distributed_trace
     def append_data(  # pylint: disable=inconsistent-return-statements
         self,
-        body: IO,
+        body: IO[bytes],
         position: Optional[int] = None,
         timeout: Optional[int] = None,
         content_length: Optional[int] = None,
@@ -2529,15 +2521,18 @@ class PathOperations:
         proposed_lease_id: Optional[str] = None,
         request_id_parameter: Optional[str] = None,
         flush: Optional[bool] = None,
+        structured_body_type: Optional[str] = None,
+        structured_content_length: Optional[int] = None,
         path_http_headers: Optional[_models.PathHTTPHeaders] = None,
         lease_access_conditions: Optional[_models.LeaseAccessConditions] = None,
         cpk_info: Optional[_models.CpkInfo] = None,
         **kwargs: Any
     ) -> None:
+        # pylint: disable=line-too-long
         """Append data to the file.
 
         :param body: Initial data. Required.
-        :type body: IO
+        :type body: IO[bytes]
         :param position: This parameter allows the caller to upload data in parallel and control the
          order in which it is appended to the file.  It is required when uploading data to be appended
          to the file and when flushing previously uploaded data to the file.  The value must be the
@@ -2578,21 +2573,24 @@ class PathOperations:
         :type request_id_parameter: str
         :param flush: If file should be flushed after the append. Default value is None.
         :type flush: bool
+        :param structured_body_type: Required if the request body is a structured message. Specifies
+         the message schema version and properties. Default value is None.
+        :type structured_body_type: str
+        :param structured_content_length: Required if the request body is a structured message.
+         Specifies the length of the blob/file content inside the message body. Will always be smaller
+         than Content-Length. Default value is None.
+        :type structured_content_length: int
         :param path_http_headers: Parameter group. Default value is None.
         :type path_http_headers: ~azure.storage.filedatalake.models.PathHTTPHeaders
         :param lease_access_conditions: Parameter group. Default value is None.
         :type lease_access_conditions: ~azure.storage.filedatalake.models.LeaseAccessConditions
         :param cpk_info: Parameter group. Default value is None.
         :type cpk_info: ~azure.storage.filedatalake.models.CpkInfo
-        :keyword action: action. Default value is "append". Note that overriding this default value may
-         result in unsupported behavior.
-        :paramtype action: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: None or the result of cls(response)
         :rtype: None
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -2622,7 +2620,7 @@ class PathOperations:
             _encryption_key_sha256 = cpk_info.encryption_key_sha256
         _content = body
 
-        request = build_append_data_request(
+        _request = build_append_data_request(
             url=self._config.url,
             position=position,
             timeout=timeout,
@@ -2638,20 +2636,20 @@ class PathOperations:
             encryption_key_sha256=_encryption_key_sha256,
             encryption_algorithm=_encryption_algorithm,  # type: ignore
             flush=flush,
+            structured_body_type=structured_body_type,
+            structured_content_length=structured_content_length,
             action=action,
             content_type=content_type,
             version=self._config.version,
             content=_content,
-            template_url=self.append_data.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -2680,11 +2678,12 @@ class PathOperations:
             "str", response.headers.get("x-ms-encryption-key-sha256")
         )
         response_headers["x-ms-lease-renewed"] = self._deserialize("bool", response.headers.get("x-ms-lease-renewed"))
+        response_headers["x-ms-structured-body"] = self._deserialize(
+            "str", response.headers.get("x-ms-structured-body")
+        )
 
         if cls:
-            return cls(pipeline_response, None, response_headers)
-
-    append_data.metadata = {"url": "{url}"}
+            return cls(pipeline_response, None, response_headers)  # type: ignore
 
     @distributed_trace
     def set_expiry(  # pylint: disable=inconsistent-return-statements
@@ -2695,6 +2694,7 @@ class PathOperations:
         expires_on: Optional[str] = None,
         **kwargs: Any
     ) -> None:
+        # pylint: disable=line-too-long
         """Sets the time a blob will expire and be deleted.
 
         :param expiry_options: Required. Indicates mode of the expiry time. Known values are:
@@ -2711,15 +2711,11 @@ class PathOperations:
         :type request_id_parameter: str
         :param expires_on: The time to set the blob to expiry. Default value is None.
         :type expires_on: str
-        :keyword comp: comp. Default value is "expiry". Note that overriding this default value may
-         result in unsupported behavior.
-        :paramtype comp: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: None or the result of cls(response)
         :rtype: None
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -2733,7 +2729,7 @@ class PathOperations:
         comp: Literal["expiry"] = kwargs.pop("comp", _params.pop("comp", "expiry"))
         cls: ClsType[None] = kwargs.pop("cls", None)
 
-        request = build_set_expiry_request(
+        _request = build_set_expiry_request(
             url=self._config.url,
             expiry_options=expiry_options,
             timeout=timeout,
@@ -2741,16 +2737,14 @@ class PathOperations:
             expires_on=expires_on,
             comp=comp,
             version=self._config.version,
-            template_url=self.set_expiry.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -2771,9 +2765,7 @@ class PathOperations:
         response_headers["Date"] = self._deserialize("rfc-1123", response.headers.get("Date"))
 
         if cls:
-            return cls(pipeline_response, None, response_headers)
-
-    set_expiry.metadata = {"url": "{url}"}
+            return cls(pipeline_response, None, response_headers)  # type: ignore
 
     @distributed_trace
     def undelete(  # pylint: disable=inconsistent-return-statements
@@ -2783,6 +2775,7 @@ class PathOperations:
         request_id_parameter: Optional[str] = None,
         **kwargs: Any
     ) -> None:
+        # pylint: disable=line-too-long
         """Undelete a path that was previously soft deleted.
 
         :param timeout: The timeout parameter is expressed in seconds. For more information, see
@@ -2797,15 +2790,11 @@ class PathOperations:
          limit that is recorded in the analytics logs when storage analytics logging is enabled. Default
          value is None.
         :type request_id_parameter: str
-        :keyword comp: comp. Default value is "undelete". Note that overriding this default value may
-         result in unsupported behavior.
-        :paramtype comp: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: None or the result of cls(response)
         :rtype: None
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -2819,23 +2808,21 @@ class PathOperations:
         comp: Literal["undelete"] = kwargs.pop("comp", _params.pop("comp", "undelete"))
         cls: ClsType[None] = kwargs.pop("cls", None)
 
-        request = build_undelete_request(
+        _request = build_undelete_request(
             url=self._config.url,
             timeout=timeout,
             undelete_source=undelete_source,
             request_id_parameter=request_id_parameter,
             comp=comp,
             version=self._config.version,
-            template_url=self.undelete.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -2855,6 +2842,4 @@ class PathOperations:
         response_headers["Date"] = self._deserialize("rfc-1123", response.headers.get("Date"))
 
         if cls:
-            return cls(pipeline_response, None, response_headers)
-
-    undelete.metadata = {"url": "{url}"}
+            return cls(pipeline_response, None, response_headers)  # type: ignore

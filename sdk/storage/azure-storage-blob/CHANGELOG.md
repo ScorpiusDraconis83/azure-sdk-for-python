@@ -1,16 +1,100 @@
 # Release History
 
-## 12.20.0b1 (Unreleased)
+## 12.25.0b1 (Unreleased)
+
+### Features Added
+- Added support for service version 2025-05-05.
+
+## 12.24.1 (2025-01-22)
+
+### Bugs Fixed
+- Fixed an issue where custom transports may encounter `AttributeError` on certain requests.
+- Fixed an issue where `StorageStreamDownloader(chars=-1)` may not return all data.
+
+## 12.24.0 (2024-11-13)
+
+### Features Added
+- Stable release of features from 12.24.0b1
+
+## 12.24.0b1 (2024-10-10)
+
+### Features Added
+- Added support for service version 2025-01-05.
+- Added support for passing metadata to `upload_blob_from_url` via the new `metadata` keyword.
+- Added support for `set_immutability_policy`, `delete_immutability_policy` and `set_legal_hold` for Blob snapshots and versions.
+
+## 12.23.1 (2024-09-25)
+
+### Features Added
+- Added support for decryption of Blobs encrypted using client-side encryption version 2.1.
+
+## 12.23.0 (2024-09-17)
+
+### Features Added
+- Stable release of features from 12.23.0b1
+
+### Bugs Fixed
+- Fixed an issue with batch APIs when using Azurite.
+
+## 12.23.0b1 (2024-08-07)
+
+### Features Added
+- Added support for service version 2024-11-04.
+
+### Other Changes
+- Bumped minimum `azure-core` dependency to 1.30.0.
+
+## 12.22.0 (2024-08-06)
+
+### Other Changes
+- Updated type hints across the entire package and enabled MyPy to run during CI. Some public types may have been adjusted if they were previously erroneous or incomplete.
+
+## 12.21.0 (2024-07-18)
+
+### Features Added
+- Stable release of features from 12.21.0b1
+- Added new `chars` keyword to the `StorageStreamDownloader.read` method to support reading an arbitrary number of
+characters from the stream rather than bytes. This can only be used when `encoding` is specified on `download_blob`
+but can help prevent decoding errors in certain scenarios.
+
+## 12.21.0b1 (2024-06-11)
+
+### Features Added
+- Added support for service version 2024-08-04.
+
+## 12.20.0 (2024-05-07)
+
+### Features Added
+- Stable release of features from 12.20.0b1
+
+## 12.20.0b1 (2024-04-16)
 
 This version and all future versions will require Python 3.8+. Python 3.7 is no longer supported.
 
 ### Features Added
+- Added support for service version 2024-05-04.
+- The `services` parameter has been added to the `generate_account_sas` API, which enables the ability to generate SAS
+tokens to be used with multiple services. By default, the SAS token service scope will default to the current service.
 
 ### Bugs Fixed
 - Bumped dependency of `typing-extensions` to `>=4.6.0` to avoid potential `TypeError` with `typing.TypeVar` on
 Python 3.12.
 - Fixed an issue where authentication errors could raise `AttributeError` instead of `ClientAuthenticationError` when
 using async OAuth credentials.
+- Fixed a typing issue which incorrectly typed the `readinto` API. The correct input type is `IO[bytes]`.
+- Fixed a typo in the initialization of `completion_time` for the `CopyProperties` model.
+- Fixed a couple of issues with `upload_blob` when using Iterators/Generators as the data input.
+
+### Other Changes
+- Passing `prefix` to the following `ContainerClient` APIs now raises a `ValueError`:
+`list_blobs`, `list_blobs_names`, and `walk_blobs`. This change was made to avoid confusion for filtering results.
+The `name_starts_with` parameter is the correct parameter to pass for filtering.
+
+## 12.19.1 (2024-03-05)
+
+### Bugs Fixed
+- Fixed an issue where under rare circumstances, full downloads of sparse Page Blobs could result in the
+downloaded content containing up to one "chunk" of extra `\x00` at the end due to an optimization error.
 
 ## 12.19.0 (2023-11-07)
 
@@ -206,7 +290,7 @@ This version and all future versions will require Python 3.6+. Python 2.7 is no 
     - `set_immutability_policy`
 - Encryption Scope is now supported for Sync Blob Copy (`copy_from_url()`).
 - Encryption Scope is now supported as a SAS permission.
-- Added support for blob names containing invalid XML characters. 
+- Added support for blob names containing invalid XML characters.
   Previously \uFFFE and \uFFFF would fail if present in blob name.
 - Added support for listing system containers with get_blob_containers().
 - Added support for `find_blobs_by_tags()` on a container.
@@ -257,7 +341,7 @@ This version and all future versions will require Python 3.6+. Python 2.7 is no 
 
 **Fixes**
 - Blob Client Typing annotation issues have been resolved, specifically `invalid type inference` issues (#19906)
-- Duplicate type signature issue has been resolved (#19739) 
+- Duplicate type signature issue has been resolved (#19739)
 
 ## 12.9.0 (2021-09-15)
 **Stable release of preview features**

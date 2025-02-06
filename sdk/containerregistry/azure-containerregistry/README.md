@@ -57,7 +57,7 @@ client = ContainerRegistryClient(endpoint, DefaultAzureCredential(), audience=au
 
 A **registry** stores Docker images and [OCI Artifacts](https://opencontainers.org/).  An image or artifact consists of a **manifest** and **layers**.  An image's manifest describes the layers that make up the image, and is uniquely identified by its **digest**.  An image can also be "tagged" to give it a human-readable alias.  An image or artifact can have zero or more **tags** associated with it, and each tag uniquely identifies the image.  A collection of images that share the same name but have different tags, is referred to as a **repository**.
 
-For more information please see [Container Registry Concepts](https://docs.microsoft.com/azure/container-registry/container-registry-concepts).
+For more information please see [Container Registry Concepts](https://learn.microsoft.com/azure/container-registry/container-registry-concepts).
 
 
 ## Examples
@@ -65,15 +65,15 @@ For more information please see [Container Registry Concepts](https://docs.micro
 The following sections provide several code snippets covering some of the most common ACR Service tasks, including:
 
 - Registry operations:
-  - [List repositories](#list-repositories)
-  - [List tags with anonymous access](#list-tags-with-anonymous-access)
-  - [Set artifact properties](#set-artifact-properties)
-  - [Delete images](#delete-images)
+  - [List repositories](#list-repositories "List repositories")
+  - [List tags with anonymous access](#list-tags-with-anonymous-access "List tags with anonymous access")
+  - [Set artifact properties](#set-artifact-properties "Set artifact properties")
+  - [Delete images](#delete-images "Delete images")
 - Blob and manifest operations:
-  - [Upload images](#upload-images)
-  - [Download images](#download-images)
-  - [Delete manifest](#delete-manifest)
-  - [Delete blob](#delete-blob)
+  - [Upload images](#upload-images "Upload images")
+  - [Download images](#download-images "Download images")
+  - [Delete manifests](#delete-manifests "Delete manifests")
+  - [Delete blobs](#delete-blobs "Delete blobs")
 
 Please note that each sample assumes there is a `CONTAINERREGISTRY_ENDPOINT` environment variable set to a string containing the `https://` prefix and the name of the login server, for example "https://myregistry.azurecr.io". Anonymous access samples are getting endpoint value from environment variable`CONTAINERREGISTRY_ANONREGISTRY_ENDPOINT`.
 
@@ -238,7 +238,7 @@ with ContainerRegistryClient(self.endpoint, self.credential) as client:
 
 <!-- END SNIPPET -->
 
-### Delete manifest
+### Delete manifests
 
 <!-- SNIPPET:sample_set_get_image.delete_manifest -->
 
@@ -251,7 +251,7 @@ with ContainerRegistryClient(self.endpoint, self.credential) as client:
 
 <!-- END SNIPPET -->
 
-### Delete blob
+### Delete blobs
 
 <!-- SNIPPET:sample_set_get_image.delete_blob -->
 
@@ -296,7 +296,7 @@ describes available configurations for retries, logging, transport protocols, an
 
 - Go further with azure.containerregistry and our [samples][samples].
 - Watch a [demo or deep dive video](https://azure.microsoft.com/resources/videos/index/?service=container-registry).
-- Read more about the [Azure Container Registry service](https://docs.microsoft.com/azure/container-registry/container-registry-intro).
+- Read more about the [Azure Container Registry service](https://learn.microsoft.com/azure/container-registry/container-registry-intro).
 
 ## Contributing
 
@@ -310,21 +310,21 @@ For more information see the [Code of Conduct FAQ][coc_faq]
 or contact [opencode@microsoft.com][coc_contact] with any
 additional questions or comments.
 
-![Impressions](https://azure-sdk-impressions.azurewebsites.net/api/impressions/azure-sdk-for-python%2Fsdk%2Fcontainerregistry%2Fazure-containerregistry%2FREADME.png)
+
 
 <!-- LINKS -->
 [source]: https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/containerregistry/azure-containerregistry
 [package]: https://pypi.org/project/azure-containerregistry/
-[docs]: https://azuresdkdocs.blob.core.windows.net/$web/python/azure-containerregistry/1.0.0b1/index.html
-[rest_docs]: https://docs.microsoft.com/rest/api/containerregistry/
-[product_docs]:  https://docs.microsoft.com/azure/container-registry
+[docs]: https://azuresdkdocs.z19.web.core.windows.net/python/azure-containerregistry/1.0.0b1/index.html
+[rest_docs]: https://learn.microsoft.com/rest/api/containerregistry/
+[product_docs]:  https://learn.microsoft.com/azure/container-registry
 [pip_link]: https://pypi.org
-[container_registry_docs]: https://docs.microsoft.com/azure/container-registry/container-registry-intro
-[container_registry_create_ps]: https://docs.microsoft.com/azure/container-registry/container-registry-get-started-powershell
-[container_registry_create_cli]: https://docs.microsoft.com/azure/container-registry/container-registry-get-started-azure-cli
-[container_registry_create_portal]: https://docs.microsoft.com/azure/container-registry/container-registry-get-started-portal
-[container_registry_concepts]: https://docs.microsoft.com/azure/container-registry/container-registry-concepts
-[azure_cli]: https://docs.microsoft.com/cli/azure
+[container_registry_docs]: https://learn.microsoft.com/azure/container-registry/container-registry-intro
+[container_registry_create_ps]: https://learn.microsoft.com/azure/container-registry/container-registry-get-started-powershell
+[container_registry_create_cli]: https://learn.microsoft.com/azure/container-registry/container-registry-get-started-azure-cli
+[container_registry_create_portal]: https://learn.microsoft.com/azure/container-registry/container-registry-get-started-portal
+[container_registry_concepts]: https://learn.microsoft.com/azure/container-registry/container-registry-concepts
+[azure_cli]: https://learn.microsoft.com/cli/azure
 [azure_sub]: https://azure.microsoft.com/free/
 [identity]: https://github.com/Azure/azure-sdk-for-python/blob/main/sdk/identity/azure-identity/README.md
 [samples]: https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/containerregistry/azure-containerregistry/samples
@@ -335,5 +335,5 @@ additional questions or comments.
 [azure_core_ref_docs]: https://aka.ms/azsdk/python/core/docs
 [azure_core_exceptions]: https://aka.ms/azsdk/python/core/docs#module-azure.core.exceptions
 [python_logging]: https://docs.python.org/3/library/logging.html
-[sdk_logging_docs]: https://docs.microsoft.com/azure/developer/python/azure-sdk-logging
+[sdk_logging_docs]: https://learn.microsoft.com/azure/developer/python/azure-sdk-logging
 [troubleshooting guide]: https://github.com/Azure/azure-sdk-for-python/blob/main/sdk/containerregistry/azure-containerregistry/TROUBLESHOOTING.md

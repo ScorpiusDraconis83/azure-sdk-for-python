@@ -1,5 +1,31 @@
 # Release History
 
+## 14.5.0 (2025-01-20)
+
+### Features Added
+
+  - Model `RedisCommonProperties` added property `zonal_allocation_policy`
+  - Model `RedisCreateParameters` added property `zonal_allocation_policy`
+  - Model `RedisCreateProperties` added property `zonal_allocation_policy`
+  - Model `RedisProperties` added property `zonal_allocation_policy`
+  - Model `RedisResource` added property `zonal_allocation_policy`
+  - Model `RedisUpdateParameters` added property `zonal_allocation_policy`
+  - Model `RedisUpdateProperties` added property `zonal_allocation_policy`
+  - Added enum `ZonalAllocationPolicy`
+
+## 14.4.0 (2024-07-21)
+
+### Features Added
+
+  - Model RedisCommonProperties has a new parameter disable_access_key_authentication
+  - Model RedisCommonPropertiesRedisConfiguration has a new parameter notify_keyspace_events
+  - Model RedisCreateParameters has a new parameter disable_access_key_authentication
+  - Model RedisCreateProperties has a new parameter disable_access_key_authentication
+  - Model RedisProperties has a new parameter disable_access_key_authentication
+  - Model RedisResource has a new parameter disable_access_key_authentication
+  - Model RedisUpdateParameters has a new parameter disable_access_key_authentication
+  - Model RedisUpdateProperties has a new parameter disable_access_key_authentication
+
 ## 14.3.0 (2023-09-19)
 
 ### Features Added

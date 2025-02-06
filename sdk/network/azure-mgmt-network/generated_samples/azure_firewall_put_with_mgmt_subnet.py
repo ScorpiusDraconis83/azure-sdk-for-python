@@ -7,6 +7,7 @@
 # --------------------------------------------------------------------------
 
 from azure.identity import DefaultAzureCredential
+
 from azure.mgmt.network import NetworkManagementClient
 
 """
@@ -37,6 +38,7 @@ def main():
             "properties": {
                 "applicationRuleCollections": [
                     {
+                        "id": "/subscriptions/subid/resourceGroups/rg1/providers/Microsoft.Network/azureFirewalls/azurefirewall/applicationRuleCollections/apprulecoll",
                         "name": "apprulecoll",
                         "properties": {
                             "action": {"type": "Deny"},
@@ -79,6 +81,7 @@ def main():
                 },
                 "natRuleCollections": [
                     {
+                        "id": "/subscriptions/subid/resourceGroups/rg1/providers/Microsoft.Network/azureFirewalls/azurefirewall/natRuleCollections/natrulecoll",
                         "name": "natrulecoll",
                         "properties": {
                             "action": {"type": "Dnat"},
@@ -110,6 +113,7 @@ def main():
                 ],
                 "networkRuleCollections": [
                     {
+                        "id": "/subscriptions/subid/resourceGroups/rg1/providers/Microsoft.Network/azureFirewalls/azurefirewall/networkRuleCollections/netrulecoll",
                         "name": "netrulecoll",
                         "properties": {
                             "action": {"type": "Deny"},
@@ -145,6 +149,6 @@ def main():
     print(response)
 
 
-# x-ms-original-file: specification/network/resource-manager/Microsoft.Network/stable/2023-06-01/examples/AzureFirewallPutWithMgmtSubnet.json
+# x-ms-original-file: specification/network/resource-manager/Microsoft.Network/stable/2024-05-01/examples/AzureFirewallPutWithMgmtSubnet.json
 if __name__ == "__main__":
     main()

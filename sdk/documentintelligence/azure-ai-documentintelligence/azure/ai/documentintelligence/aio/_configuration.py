@@ -14,11 +14,10 @@ from azure.core.pipeline import policies
 from .._version import VERSION
 
 if TYPE_CHECKING:
-    # pylint: disable=unused-import,ungrouped-imports
     from azure.core.credentials_async import AsyncTokenCredential
 
 
-class DocumentIntelligenceClientConfiguration:  # pylint: disable=too-many-instance-attributes,name-too-long
+class DocumentIntelligenceClientConfiguration:  # pylint: disable=too-many-instance-attributes
     """Configuration for DocumentIntelligenceClient.
 
     Note that all parameters used to create this instance are saved as instance
@@ -26,20 +25,19 @@ class DocumentIntelligenceClientConfiguration:  # pylint: disable=too-many-insta
 
     :param endpoint: The Document Intelligence service endpoint. Required.
     :type endpoint: str
-    :param credential: Credential needed for the client to connect to Azure. Is either a
+    :param credential: Credential used to authenticate requests to the service. Is either a
      AzureKeyCredential type or a TokenCredential type. Required.
     :type credential: ~azure.core.credentials.AzureKeyCredential or
      ~azure.core.credentials_async.AsyncTokenCredential
-    :keyword api_version: The API version to use for this operation. Default value is
-     "2023-10-31-preview". Note that overriding this default value may result in unsupported
-     behavior.
+    :keyword api_version: The API version to use for this operation. Default value is "2024-11-30".
+     Note that overriding this default value may result in unsupported behavior.
     :paramtype api_version: str
     """
 
     def __init__(
         self, endpoint: str, credential: Union[AzureKeyCredential, "AsyncTokenCredential"], **kwargs: Any
     ) -> None:
-        api_version: str = kwargs.pop("api_version", "2023-10-31-preview")
+        api_version: str = kwargs.pop("api_version", "2024-11-30")
 
         if endpoint is None:
             raise ValueError("Parameter 'endpoint' must not be None.")
@@ -83,20 +81,19 @@ class DocumentIntelligenceAdministrationClientConfiguration:  # pylint: disable=
 
     :param endpoint: The Document Intelligence service endpoint. Required.
     :type endpoint: str
-    :param credential: Credential needed for the client to connect to Azure. Is either a
+    :param credential: Credential used to authenticate requests to the service. Is either a
      AzureKeyCredential type or a TokenCredential type. Required.
     :type credential: ~azure.core.credentials.AzureKeyCredential or
      ~azure.core.credentials_async.AsyncTokenCredential
-    :keyword api_version: The API version to use for this operation. Default value is
-     "2023-10-31-preview". Note that overriding this default value may result in unsupported
-     behavior.
+    :keyword api_version: The API version to use for this operation. Default value is "2024-11-30".
+     Note that overriding this default value may result in unsupported behavior.
     :paramtype api_version: str
     """
 
     def __init__(
         self, endpoint: str, credential: Union[AzureKeyCredential, "AsyncTokenCredential"], **kwargs: Any
     ) -> None:
-        api_version: str = kwargs.pop("api_version", "2023-10-31-preview")
+        api_version: str = kwargs.pop("api_version", "2024-11-30")
 
         if endpoint is None:
             raise ValueError("Parameter 'endpoint' must not be None.")

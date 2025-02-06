@@ -210,8 +210,10 @@ class TestRemoteRenderingClientAsync(AzureRecordedTestCase):
             await conversion_poller.result()
 
         error_details = excinfo.value
-        assert "invalid input" in error_details.error.message.lower()
-        assert "logs" in error_details.error.message.lower()
+        assert "InputContainerError" == error_details.error.code
+        # Message: "Could not find the asset file in the storage account. Please make sure all paths and names are correct and the file is uploaded to storage."
+        assert error_details.error.message is not None
+        assert "Could not find the asset file in the storage account" in error_details.error.message
 
     @pytest.mark.asyncio
     async def test_simple_session(self, recorded_test, account_info, async_arr_client):
@@ -224,14 +226,12 @@ class TestRemoteRenderingClientAsync(AzureRecordedTestCase):
 
         session = await async_arr_client.get_rendering_session(session_id)
         assert session.id == session_id
-        assert session.size == RenderingSessionSize.STANDARD
 
         assert session.lease_time_minutes == 15
         assert session.status != RenderingSessionStatus.ERROR
 
         ready_session = await session_poller.result()
         assert ready_session.id == session_id
-        assert ready_session.size == RenderingSessionSize.STANDARD
         assert ready_session.lease_time_minutes == 15
         assert ready_session.status == RenderingSessionStatus.READY
 
@@ -241,7 +241,6 @@ class TestRemoteRenderingClientAsync(AzureRecordedTestCase):
 
         extended_session = await async_arr_client.update_rendering_session(session_id=session_id, lease_time_minutes=20)
         assert extended_session.id == session_id
-        assert extended_session.size == RenderingSessionSize.STANDARD
         assert extended_session.lease_time_minutes == 15 or extended_session.lease_time_minutes == 20
         assert extended_session.status == RenderingSessionStatus.READY
 

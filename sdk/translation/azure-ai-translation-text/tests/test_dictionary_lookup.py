@@ -4,7 +4,6 @@
 # ------------------------------------
 
 from devtools_testutils import recorded_by_proxy
-from azure.ai.translation.text.models import InputTextItem
 from preparer import TextTranslationPreparer
 from testcase import TextTranslationTest
 
@@ -18,12 +17,12 @@ class TestDictionaryLookup(TextTranslationTest):
         region = kwargs.get("text_translation_region")
         client = self.create_client(endpoint, apikey, region)
 
-        source_language = "en"
-        target_language = "es"
-        input_text_elements = [InputTextItem(text="fly")]
+        from_language = "en"
+        to_language = "es"
+        input_text_elements = ["fly"]
 
         response = client.lookup_dictionary_entries(
-            request_body=input_text_elements, from_parameter=source_language, to=target_language
+            body=input_text_elements, from_language=from_language, to_language=to_language
         )
         assert response is not None
         assert response[0].normalized_source == "fly"
@@ -37,12 +36,12 @@ class TestDictionaryLookup(TextTranslationTest):
         region = kwargs.get("text_translation_region")
         client = self.create_client(endpoint, apikey, region)
 
-        source_language = "en"
-        target_language = "es"
-        input_text_elements = [InputTextItem(text="fly"), InputTextItem(text="fox")]
+        from_language = "en"
+        to_language = "es"
+        input_text_elements = ["fly", "fox"]
 
         response = client.lookup_dictionary_entries(
-            request_body=input_text_elements, from_parameter=source_language, to=target_language
+            body=input_text_elements, from_language=from_language, to_language=to_language
         )
         assert response is not None
         assert len(response) == 2

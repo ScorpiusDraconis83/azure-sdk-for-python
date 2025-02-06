@@ -63,6 +63,7 @@ class ErrorTarget:
     DATA_TRANSFER_JOB = "DataTransferJob"
     LOCAL_JOB = "LocalJob"
     MODEL = "Model"
+    INDEX = "Index"
     ONLINE_DEPLOYMENT = "OnlineDeployment"
     ONLINE_ENDPOINT = "OnlineEndpoint"
     ASSET = "Asset"
@@ -72,10 +73,12 @@ class ErrorTarget:
     GEN1_DATASTORE = "Gen1Datastore"
     GEN2_DATASTORE = "Gen2Datastore"
     WORKSPACE = "Workspace"
+    CAPABILITY_HOST = "CapabilityHost"
     COMPUTE = "Compute"
     DEPLOYMENT = "Deployment"
     ENDPOINT = "Endpoint"
     AUTOML = "AutoML"
+    FINETUNING = "FineTuning"
     PIPELINE = "Pipeline"
     SWEEP_JOB = "SweepJob"
     GENERAL = "General"
@@ -89,6 +92,7 @@ class ErrorTarget:
     FEATURE_SET = "FeatureSet"
     FEATURE_STORE_ENTITY = "FeatureStoreEntity"
     MODEL_MONITORING = "ModelMonitoring"
+    SERVERLESS_ENDPOINT = "ServerlessEndpoint"  ## EXPERIMENTAL/IN PREVIEW
 
 
 class MlException(AzureError):
@@ -400,7 +404,8 @@ class ValidationException(MlException):
         if error_type in list(ValidationErrorType):
             self._error_type = error_type
         else:
-            raise Exception(f"Error type {error_type} is not a member of the ValidationErrorType enum class.")
+            msg = f"Error type {error_type} is not a member of the ValidationErrorType enum class."
+            raise MlException(message=msg, no_personal_data_message=msg)
 
     @property
     def error_type(self):

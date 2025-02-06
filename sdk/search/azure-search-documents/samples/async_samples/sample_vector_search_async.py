@@ -95,7 +95,7 @@ def get_hotel_documents():
         {
             "hotelId": "2",
             "hotelName": "Roach Motel",
-            "descrdescriptioniption": "Cheapest hotel in town. Infact, a motel.",
+            "description": "Cheapest hotel in town. Infact, a motel.",
             "descriptionVector": get_embeddings("Cheapest hotel in town. Infact, a motel."),
             "category": "Budget",
         },
@@ -179,7 +179,7 @@ async def simple_hybrid_search():
             vector_queries=[vector_query],
             select=["hotelId", "hotelName"],
         )
-        print(await results.get_answers())
+
         async for result in results:
             print(result)
     # [END simple_hybrid_search]

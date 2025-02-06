@@ -3,6 +3,9 @@
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
 # --------------------------------------------------------------------------
+# pylint: disable=docstring-keyword-should-match-keyword-only
+
+import functools
 from typing import (
     Any, Dict, Optional, Union,
     TYPE_CHECKING
@@ -11,17 +14,21 @@ from urllib.parse import quote, unquote
 
 from typing_extensions import Self
 
+from azure.core.paging import ItemPaged
 from azure.core.pipeline import Pipeline
 from azure.core.tracing.decorator import distributed_trace
-from ._deserialize import deserialize_dir_properties
-from ._shared.base_client import TransportWrapper, parse_connection_str
+
 from ._data_lake_file_client import DataLakeFileClient
+from ._deserialize import deserialize_dir_properties
+from ._list_paths_helper import PathPropertiesPaged
 from ._models import DirectoryProperties, FileProperties
 from ._path_client import PathClient
+from ._shared.base_client import TransportWrapper, parse_connection_str
 
 if TYPE_CHECKING:
     from azure.core.credentials import AzureNamedKeyCredential, AzureSasCredential, TokenCredential
     from datetime import datetime
+    from ._models import PathProperties
 
 
 class DataLakeDirectoryClient(PathClient):
@@ -53,6 +60,11 @@ class DataLakeDirectoryClient(PathClient):
         - except in the case of AzureSasCredential, where the conflicting SAS tokens will raise a ValueError.
         If using an instance of AzureNamedKeyCredential, "name" should be the storage account name, and "key"
         should be the storage account key.
+    :type credential:
+        ~azure.core.credentials.AzureNamedKeyCredential or
+        ~azure.core.credentials.AzureSasCredential or
+        ~azure.core.credentials.TokenCredential or
+        str or dict[str, str] or None
     :keyword str api_version:
         The Storage API version to use for requests. Default value is the most recent service version that is
         compatible with the current SDK. Setting to an older version may result in reduced feature compatibility.
@@ -104,14 +116,18 @@ class DataLakeDirectoryClient(PathClient):
             - except in the case of AzureSasCredential, where the conflicting SAS tokens will raise a ValueError.
             If using an instance of AzureNamedKeyCredential, "name" should be the storage account name, and "key"
             should be the storage account key.
-        :paramtype credential: Optional[Union[str, Dict[str, str], "AzureNamedKeyCredential", "AzureSasCredential", "TokenCredential"]] = None,  # pylint: disable=line-too-long
+        :type credential:
+            ~azure.core.credentials.AzureNamedKeyCredential or
+            ~azure.core.credentials.AzureSasCredential or
+            ~azure.core.credentials.TokenCredential or
+            str or dict[str, str] or None
         :param directory_name:
             The name of directory to interact with. The directory is under file system.
         :type directory_name: str
         :keyword str audience: The audience to use when requesting tokens for Azure Active Directory
             authentication. Only has an effect when credential is of type TokenCredential. The value could be
             https://storage.azure.com/ (default) or https://<account>.blob.core.windows.net.
-        :return: a DataLakeDirectoryClient
+        :return: A DataLakeDirectoryClient.
         :rtype: ~azure.storage.filedatalake.DataLakeDirectoryClient
         """
         account_url, _, credential = parse_connection_str(conn_str, credential, 'dfs')
@@ -194,7 +210,7 @@ class DataLakeDirectoryClient(PathClient):
             see `here <https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/storage/azure-storage-file-datalake
             #other-client--per-operation-configuration>`_.
         :return: A dictionary of response headers.
-        :rtype: Dict[str, Union[str, datetime]]
+        :rtype: dict[str, Union[str, datetime]]
 
         .. admonition:: Example:
 
@@ -240,7 +256,8 @@ class DataLakeDirectoryClient(PathClient):
             This value is not tracked or validated on the client. To configure client-side network timesouts
             see `here <https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/storage/azure-storage-file-datalake
             #other-client--per-operation-configuration>`_.
-        :return: None
+        :returns: None.
+        :rtype: None
 
         .. admonition:: Example:
 
@@ -284,13 +301,23 @@ class DataLakeDirectoryClient(PathClient):
             Decrypts the data on the service-side with the given key.
             Use of customer-provided keys must be done over HTTPS.
             Required if the directory was created with a customer-provided key.
+        :keyword bool upn:
+            If True, the user identity values returned in the x-ms-owner, x-ms-group,
+            and x-ms-acl response headers will be transformed from Azure Active Directory Object IDs to User
+            Principal Names in the owner, group, and acl fields of
+            :class:`~azure.storage.filedatalake.DirectoryProperties`. If False, the values will be returned
+            as Azure Active Directory Object IDs. The default value is False. Note that group and application
+            Object IDs are not translate because they do not have unique friendly names.
         :keyword int timeout:
             Sets the server-side timeout for the operation in seconds. For more details see
             https://learn.microsoft.com/rest/api/storageservices/setting-timeouts-for-blob-service-operations.
             This value is not tracked or validated on the client. To configure client-side network timesouts
             see `here <https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/storage/azure-storage-file-datalake
             #other-client--per-operation-configuration>`_.
-        :rtype: DirectoryProperties
+        :returns:
+            DirectoryProperties with all user-defined metadata, standard HTTP properties,
+            and system properties for the directory. It does not return the content of the directory.
+        :rtype: ~azure.storage.filedatalake.DirectoryProperties
 
         .. admonition:: Example:
 
@@ -301,7 +328,12 @@ class DataLakeDirectoryClient(PathClient):
                 :dedent: 4
                 :caption: Getting the properties for a file/directory.
         """
-        return self._get_path_properties(cls=deserialize_dir_properties, **kwargs)  # pylint: disable=protected-access
+        upn = kwargs.pop('upn', None)
+        if upn:
+            headers = kwargs.pop('headers', {})
+            headers['x-ms-upn'] = str(upn)
+            kwargs['headers'] = headers
+        return self._get_path_properties(cls=deserialize_dir_properties, **kwargs)
 
     @distributed_trace
     def exists(self, **kwargs):
@@ -378,7 +410,8 @@ class DataLakeDirectoryClient(PathClient):
             This value is not tracked or validated on the client. To configure client-side network timesouts
             see `here <https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/storage/azure-storage-file-datalake
             #other-client--per-operation-configuration>`_.
-        :return: DataLakeDirectoryClient
+        :returns: A DataLakeDirectoryClient with the renamed directory.
+        :rtype: ~azure.storage.filedatalake.DataLakeDirectoryClient
 
         .. admonition:: Example:
 
@@ -478,7 +511,8 @@ class DataLakeDirectoryClient(PathClient):
             This value is not tracked or validated on the client. To configure client-side network timesouts
             see `here <https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/storage/azure-storage-file-datalake
             #other-client--per-operation-configuration>`_.
-        :return: DataLakeDirectoryClient for the subdirectory.
+        :returns: DataLakeDirectoryClient for the subdirectory.
+        :rtype: ~azure.storage.filedatalake.DataLakeDirectoryClient
         """
         subdir = self.get_sub_directory_client(sub_directory)
         subdir.create_directory(metadata=metadata, **kwargs)
@@ -522,7 +556,8 @@ class DataLakeDirectoryClient(PathClient):
             This value is not tracked or validated on the client. To configure client-side network timesouts
             see `here <https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/storage/azure-storage-file-datalake
             #other-client--per-operation-configuration>`_.
-        :return: DataLakeDirectoryClient for the subdirectory
+        :returns: DataLakeDirectoryClient for the subdirectory.
+        :rtype: ~azure.storage.filedatalake.DataLakeDirectoryClient
         """
         subdir = self.get_sub_directory_client(sub_directory)
         subdir.delete_directory(**kwargs)
@@ -614,11 +649,58 @@ class DataLakeDirectoryClient(PathClient):
             This value is not tracked or validated on the client. To configure client-side network timesouts
             see `here <https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/storage/azure-storage-file-datalake
             #other-client--per-operation-configuration>`_.
-        :return: DataLakeFileClient
+        :returns: A DataLakeFileClient with newly created file.
+        :rtype: ~azure.storage.filedatalake.DataLakeFileClient
         """
         file_client = self.get_file_client(file)
         file_client.create_file(**kwargs)
         return file_client
+
+    @distributed_trace
+    def get_paths(
+        self, *,
+        recursive: bool = True,
+        max_results: Optional[int] = None,
+        upn: Optional[bool] = None,
+        timeout: Optional[int] = None,
+        **kwargs: Any
+    ) -> ItemPaged["PathProperties"]:
+        """Returns a generator to list the paths under specified file system and directory.
+        The generator will lazily follow the continuation tokens returned by the service.
+
+        :keyword bool recursive: Set True for recursive, False for iterative. The default value is True.
+        :keyword Optional[int] max_results: An optional value that specifies the maximum
+            number of items to return per page. If omitted or greater than 5,000, the
+            response will include up to 5,000 items per page.
+        :keyword Optional[bool] upn:
+            If True, the user identity values returned in the x-ms-owner, x-ms-group,
+            and x-ms-acl response headers will be transformed from Azure Active Directory Object IDs to User
+            Principal Names in the owner, group, and acl fields of
+            :class:`~azure.storage.filedatalake.PathProperties`. If False, the values will be returned
+            as Azure Active Directory Object IDs. The default value is None. Note that group and application
+            Object IDs are not translate because they do not have unique friendly names.
+        :keyword Optional[int] timeout:
+            Sets the server-side timeout for the operation in seconds. For more details see
+            https://learn.microsoft.com/rest/api/storageservices/setting-timeouts-for-blob-service-operations.
+            This value is not tracked or validated on the client. To configure client-side network timesouts
+            see `here <https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/storage/azure-storage-file-datalake
+            #other-client--per-operation-configuration>`_. The default value is None.
+        :returns: An iterable (auto-paging) response of PathProperties.
+        :rtype: ~azure.core.paging.ItemPaged[~azure.storage.filedatalake.PathProperties]
+        """
+        timeout = kwargs.pop('timeout', None)
+        hostname = self._hosts[self._location_mode]
+        url = f"{self.scheme}://{hostname}/{quote(self.file_system_name)}"
+        client = self._build_generated_client(url)
+        command = functools.partial(
+            client.file_system.list_paths,
+            path=self.path_name,
+            timeout=timeout,
+            **kwargs
+        )
+        return ItemPaged(
+            command, recursive, path=self.path_name, max_results=max_results,
+            upn=upn, page_iterator_class=PathPropertiesPaged, **kwargs)
 
     def get_file_client(self, file  # type: Union[FileProperties, str]
                         ):

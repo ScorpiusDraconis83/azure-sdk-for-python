@@ -25,6 +25,8 @@ parameters:
   - name: BuildTargetingString
     type: string
     default: 'azure-*'
+  - name: OSName
+    type: string
 
 # The variable $(DependentService) is set from the matrix configuration.
 
@@ -53,7 +55,8 @@ jobs:
 
     pool:
       name: $(Pool)
-      vmImage: $(OSVmImage)
+      image: $(OSVmImage)
+      os: ${{ parameters.OSName }}
 
     ${{ if eq(parameters.UsePlatformContainer, 'true') }}:
       # Add a default so the job doesn't fail when the matrix is empty
@@ -68,7 +71,7 @@ jobs:
 
     # Please use `$(TargetingString)` to refer to the python packages glob string. This was previously `${{ parameters.BuildTargetingString }}`.
     steps:
-      - template: /eng/pipelines/templates/steps/targeting-string-resolve.yml
+      - template: /eng/pipelines/templates/steps/resolve-package-targeting.yml
         parameters:
           BuildTargetingString: ${{ parameters.BuildTargetingString }}
 
@@ -77,10 +80,9 @@ jobs:
         inputs:
           versionSpec: '3.9'
 
-      - task: DownloadPipelineArtifact@2
-        inputs:
-          artifactName: 'packages'
-          targetPath: $(Build.ArtifactStagingDirectory)
+      - template: /eng/pipelines/templates/steps/use-venv.yml
+
+      - template: /eng/pipelines/templates/steps/download-package-artifacts.yml
 
       - pwsh: |
           mkdir -p $(TEST_PROXY_FOLDER)

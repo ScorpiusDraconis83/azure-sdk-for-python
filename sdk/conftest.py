@@ -26,9 +26,12 @@
 import os
 import pytest
 
-from devtools_testutils import environment_variables, recorded_test, test_proxy, variable_recorder
-from devtools_testutils.preparers import AbstractPreparer
-
+# In instances where packages do not require azure-sdk-tools we need to make sure that the following imports do not fail.
+# This is because this conftest is always activated, and we don't want to fail the pytest run if azure-sdk-tools is not installed.
+try:
+    from devtools_testutils import environment_variables, recorded_test, test_proxy, variable_recorder
+except ImportError:
+    print("Failed to import test-proxy fixtures from azure-sdk-tools. If these are necessary, install tools/azure-sdk-tools.")
 
 def pytest_configure(config):
     # register an additional marker
@@ -55,7 +58,12 @@ def pytest_runtest_setup(item):
 @pytest.fixture(scope="session", autouse=True)
 def clean_cached_resources():
     yield
-    AbstractPreparer._perform_pending_deletes()
+    try:
+        from devtools_testutils.preparers import AbstractPreparer
+        AbstractPreparer._perform_pending_deletes()
+    except ImportError:
+        print("Failed to clean up due to missing azure-sdk-tools dependency. \
+              For proper cleanup, install the azure-sdk-tools package from this repo.")
 
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)
@@ -77,3 +85,35 @@ def reduce_logging_volume(caplog, pytestconfig):
     if not (pytestconfig.getoption("log_level") or pytestconfig.getoption("log_cli_level")):
         caplog.set_level(30)
     yield
+
+
+@pytest.fixture(scope="session")
+def patch_async_sleep():
+    from unittest import mock
+    from devtools_testutils import is_live
+
+    async def immediate_return(_):
+        return
+
+    if not is_live():
+        with mock.patch("asyncio.sleep", immediate_return):
+            yield
+
+    else:
+        yield
+
+
+@pytest.fixture(scope="session")
+def patch_sleep():
+    from unittest import mock
+    from devtools_testutils import is_live
+
+    def immediate_return(_):
+        return
+
+    if not is_live():
+        with mock.patch("time.sleep", immediate_return):
+            yield
+
+    else:
+        yield

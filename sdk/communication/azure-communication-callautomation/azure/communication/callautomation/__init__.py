@@ -19,12 +19,14 @@ from ._models import (
     AddParticipantResult,
     RemoveParticipantResult,
     TransferCallResult,
-    MediaStreamingConfiguration,
-    TranscriptionConfiguration,
+    MediaStreamingOptions,
+    TranscriptionOptions,
     ChannelAffinity,
     MuteParticipantResult,
     SendDtmfTonesResult,
     CancelAddParticipantOperationResult,
+    AzureBlobContainerRecordingStorage,
+    AzureCommunicationsRecordingStorage,
 )
 from ._shared.models import (
     CommunicationIdentifier,
@@ -41,7 +43,7 @@ from ._generated.models._enums import (
     RecordingContent,
     RecordingChannel,
     RecordingFormat,
-    RecordingStorage,
+    RecordingStorageKind,
     RecognizeInputType,
     MediaStreamingAudioChannelType,
     MediaStreamingContentType,
@@ -50,8 +52,10 @@ from ._generated.models._enums import (
     DtmfTone,
     CallConnectionState,
     RecordingState,
-    VoiceKind
+    VoiceKind,
+    AudioFormat
 )
+
 __all__ = [
     # clients
     "CallAutomationClient",
@@ -63,8 +67,10 @@ __all__ = [
     "SsmlSource",
     "RecognitionChoice",
     "ChannelAffinity",
-    "MediaStreamingConfiguration",
-    "TranscriptionConfiguration",
+    "MediaStreamingOptions",
+    "TranscriptionOptions",
+    "AzureBlobContainerRecordingStorage",
+    "AzureCommunicationsRecordingStorage",
 
     # models for output
     "CallConnectionProperties",
@@ -76,7 +82,6 @@ __all__ = [
     "MuteParticipantResult",
     "SendDtmfTonesResult",
     "CancelAddParticipantOperationResult",
-
     # common ACS communication identifier
     "CommunicationIdentifier",
     "PhoneNumberIdentifier",
@@ -92,7 +97,7 @@ __all__ = [
     "RecordingContent",
     "RecordingChannel",
     "RecordingFormat",
-    "RecordingStorage",
+    "RecordingStorageKind",
     "RecognizeInputType",
     "MediaStreamingAudioChannelType",
     "MediaStreamingContentType",
@@ -101,36 +106,43 @@ __all__ = [
     "DtmfTone",
     "CallConnectionState",
     "RecordingState",
-    "VoiceKind"
+    "VoiceKind",
+    "AudioFormat"
 ]
 __version__ = VERSION
 
 
 def __getattr__(name):
-    if name == 'CallInvite':
+    if name == "CallInvite":
         warnings.warn(
             "CallInvite is deprecated and should not be used. Please pass in keyword arguments directly.",
-            DeprecationWarning
+            DeprecationWarning,
         )
         from ._models import CallInvite
+
         return CallInvite
-    if name == 'GroupCallLocator':
+    if name == "GroupCallLocator":
         warnings.warn(
             "GroupCallLocator is deprecated and should not be used. Please pass in 'group_call_id' directly.",
-            DeprecationWarning
+            DeprecationWarning,
         )
         from ._models import GroupCallLocator
+
         return GroupCallLocator
-    if name == 'ServerCallLocator':
+    if name == "ServerCallLocator":
         warnings.warn(
             "ServerCallLocator is deprecated and should not be used. Please pass in 'server_call_id' directly.",
-            DeprecationWarning
+            DeprecationWarning,
         )
         from ._models import ServerCallLocator
+
         return ServerCallLocator
-    if name == 'MicrosoftBotIdentifier':
-        warnings.warn(f"{name} is deprecated and should not be used. Please use 'MicrosoftTeamsAppIdentifier' instead.",
-                       DeprecationWarning)
+    if name == "MicrosoftBotIdentifier":
+        warnings.warn(
+            f"{name} is deprecated and should not be used. Please use 'MicrosoftTeamsAppIdentifier' instead.",
+            DeprecationWarning,
+        )
         from ._shared.models import _MicrosoftBotIdentifier
+
         return _MicrosoftBotIdentifier
     raise AttributeError(f"module 'azure.communication.callautomation' has no attribute {name}")

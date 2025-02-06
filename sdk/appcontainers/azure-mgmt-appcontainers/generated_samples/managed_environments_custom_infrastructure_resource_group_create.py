@@ -7,6 +7,7 @@
 # --------------------------------------------------------------------------
 
 from azure.identity import DefaultAzureCredential
+
 from azure.mgmt.appcontainers import ContainerAppsAPIClient
 
 """
@@ -48,6 +49,7 @@ def main():
                 },
                 "workloadProfiles": [
                     {
+                        "enableFips": True,
                         "maximumCount": 12,
                         "minimumCount": 3,
                         "name": "My-GP-01",
@@ -74,6 +76,6 @@ def main():
     print(response)
 
 
-# x-ms-original-file: specification/app/resource-manager/Microsoft.App/stable/2023-05-01/examples/ManagedEnvironments_CustomInfrastructureResourceGroup_Create.json
+# x-ms-original-file: specification/app/resource-manager/Microsoft.App/preview/2024-08-02-preview/examples/ManagedEnvironments_CustomInfrastructureResourceGroup_Create.json
 if __name__ == "__main__":
     main()

@@ -7,6 +7,7 @@
 # --------------------------------------------------------------------------
 
 from azure.identity import DefaultAzureCredential
+
 from azure.mgmt.appplatform import AppPlatformManagementClient
 
 """
@@ -35,6 +36,7 @@ def main():
         certificate_name="mycertificate",
         certificate_resource={
             "properties": {
+                "autoSync": "Enabled",
                 "certVersion": "08a219d06d874795a96db47e06fbb01e",
                 "keyVaultCertName": "mycert",
                 "type": "KeyVaultCertificate",
@@ -45,6 +47,6 @@ def main():
     print(response)
 
 
-# x-ms-original-file: specification/appplatform/resource-manager/Microsoft.AppPlatform/stable/2022-12-01/examples/Certificates_CreateOrUpdate.json
+# x-ms-original-file: specification/appplatform/resource-manager/Microsoft.AppPlatform/stable/2023-12-01/examples/Certificates_CreateOrUpdate.json
 if __name__ == "__main__":
     main()

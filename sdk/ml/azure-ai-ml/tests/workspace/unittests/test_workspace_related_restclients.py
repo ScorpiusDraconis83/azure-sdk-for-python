@@ -1,39 +1,47 @@
 from typing import Optional
 
 import pytest
-from azure.ai.ml.entities import (
-    Workspace,
-    FqdnDestination,
-    ServiceTagDestination,
-    PrivateEndpointDestination,
-    FeatureStore,
-    WorkspaceHub,
-)
 
-from azure.ai.ml._restclient.v2023_08_01_preview.models import (
-    Workspace as RestWorkspace,
-    ManagedNetworkSettings as RestManagedNetwork,
-    FqdnOutboundRule as RestFqdnOutboundRule,
-    PrivateEndpointOutboundRule as RestPrivateEndpointOutboundRule,
-    PrivateEndpointDestination as RestPrivateEndpointOutboundRuleDestination,
-    ServiceTagOutboundRule as RestServiceTagOutboundRule,
-    ServiceTagDestination as RestServiceTagOutboundRuleDestination,
+from azure.ai.ml import MLClient
+from azure.ai.ml._restclient.v2024_10_01_preview.models import FeatureStoreSettings as RestFeatureStoreSettings
+from azure.ai.ml._restclient.v2024_10_01_preview.models import FqdnOutboundRule as RestFqdnOutboundRule
+from azure.ai.ml._restclient.v2024_10_01_preview.models import (
     ManagedNetworkProvisionStatus as RestManagedNetworkProvisionStatus,
-    FeatureStoreSettings as RestFeatureStoreSettings,
-    ManagedServiceIdentity as RestManagedServiceIdentity,
-    ServerlessComputeSettings as RestServerlessComputeSettings,
-    UserAssignedIdentity,
-    # this one only for workspace hubs
-    WorkspaceHubConfig as RestWorkspaceHubConfig,
 )
-from azure.ai.ml._restclient.v2023_08_01_preview.operations import (
-    WorkspacesOperations as RestClientWorkspacesOperations,
+from azure.ai.ml._restclient.v2024_10_01_preview.models import ManagedNetworkSettings as RestManagedNetwork
+from azure.ai.ml._restclient.v2024_10_01_preview.models import ManagedServiceIdentity as RestManagedServiceIdentity
+from azure.ai.ml._restclient.v2024_10_01_preview.models import (
+    PrivateEndpointDestination as RestPrivateEndpointOutboundRuleDestination,
+)
+from azure.ai.ml._restclient.v2024_10_01_preview.models import (
+    PrivateEndpointOutboundRule as RestPrivateEndpointOutboundRule,
+)
+from azure.ai.ml._restclient.v2024_10_01_preview.models import (
+    ServerlessComputeSettings as RestServerlessComputeSettings,
+)
+from azure.ai.ml._restclient.v2024_10_01_preview.models import (
+    ServiceTagDestination as RestServiceTagOutboundRuleDestination,
+)
+from azure.ai.ml._restclient.v2024_10_01_preview.models import ServiceTagOutboundRule as RestServiceTagOutboundRule
+from azure.ai.ml._restclient.v2024_10_01_preview.models import UserAssignedIdentity
+from azure.ai.ml._restclient.v2024_10_01_preview.models import (
+    Workspace as RestWorkspace,  # this one only for workspace hubs
+)
+from azure.ai.ml._restclient.v2024_10_01_preview.models import WorkspaceHubConfig as RestWorkspaceHubConfig
+from azure.ai.ml._restclient.v2024_10_01_preview.operations import (
     ManagedNetworkSettingsRuleOperations as RestClientManagedNetworkSettingsRuleOperations,
 )
-
+from azure.ai.ml._restclient.v2024_10_01_preview.operations import (
+    WorkspacesOperations as RestClientWorkspacesOperations,
+)
 from azure.ai.ml.constants._workspace import IsolationMode
-from azure.ai.ml import (
-    MLClient,
+from azure.ai.ml.entities import (
+    FeatureStore,
+    FqdnDestination,
+    Hub,
+    PrivateEndpointDestination,
+    ServiceTagDestination,
+    Workspace,
 )
 from azure.identity import DefaultAzureCredential
 
@@ -44,21 +52,23 @@ def get_test_rest_workspace_with_all_details() -> RestWorkspace:
         outbound_rules={
             "fqdn-rule": RestFqdnOutboundRule(destination="google.com"),
             "pe-rule": RestPrivateEndpointOutboundRule(
+                fqdns=["contoso.com", "contoso2.com"],
                 destination=RestPrivateEndpointOutboundRuleDestination(
                     service_resource_id="/somestorageid", spark_enabled=False, subresource_target="blob"
-                )
+                ),
             ),
             "servicetag-rule": RestServiceTagOutboundRule(
                 destination=RestServiceTagOutboundRuleDestination(
-                    service_tag="sometag", protocol="*", port_ranges="1,2"
+                    service_tag="sometag",
+                    protocol="*",
+                    port_ranges="1,2",
+                    address_prefixes=["168.63.129.16", "10.0.0.0/24"],
                 )
             ),
         },
         status=RestManagedNetworkProvisionStatus(status="Active", spark_ready=False),
     )
-    rest_hub_config = RestWorkspaceHubConfig(
-        additional_workspace_storage_accounts=["sa1", "sa2"], default_workspace_resource_group="somerg"
-    )
+    rest_hub_config = RestWorkspaceHubConfig(default_workspace_resource_group="somerg")
     rest_feature_store_settings = RestFeatureStoreSettings(
         offline_store_connection_name="somevalue1", online_store_connection_name="somevalue2"
     )
@@ -87,8 +97,8 @@ class TestWorkspaceEntity:
     marshalling and unmarshalling between REST and SDK client objects.
 
     if you will update the restclient version for anything that is using workspace object
-    and related operations (currently: workspace entities, workspacehub entities, network entities,
-    WorkspaceOperations, WorkspaceOutboundRuleOperations, FeatureStoreOperations, WorkspaceHubOperations)
+    and related operations (currently: workspace entities, hub entities, network entities,
+    WorkspaceOperations, WorkspaceOutboundRuleOperations, FeatureStoreOperations)
     then you will also need to update the restclient version to match in all these locations to avoid
     issues when unmarshalling.
     """
@@ -107,7 +117,6 @@ class TestWorkspaceEntity:
             client._workspace_outbound_rules._rule_operation, RestClientManagedNetworkSettingsRuleOperations
         )
         assert isinstance(client.workspaces._operation, RestClientWorkspacesOperations)
-        assert isinstance(client.workspace_hubs._operation, RestClientWorkspacesOperations)
         assert isinstance(client.feature_stores._operation, RestClientWorkspacesOperations)
 
     def test_workspace_entity_from_rest_object_managednetwork_restclient_versions_match(self):
@@ -124,11 +133,15 @@ class TestWorkspaceEntity:
         assert rules[1].service_resource_id == "/somestorageid"
         assert rules[1].spark_enabled == False
         assert rules[1].subresource_target == "blob"
+        assert "contoso.com" in rules[1].fqdns
+        assert "contoso2.com" in rules[1].fqdns
 
         assert isinstance(rules[2], ServiceTagDestination)
         assert rules[2].service_tag == "sometag"
         assert rules[2].protocol == "*"
         assert rules[2].port_ranges == "1,2"
+        assert "168.63.129.16" in rules[2].address_prefixes
+        assert "10.0.0.0/24" in rules[2].address_prefixes
 
         assert sdk_ws.identity.user_assigned_identities[0] is not None
         assert sdk_ws.identity.type == "system_assigned"
@@ -143,7 +156,7 @@ class TestWorkspaceEntity:
     def test_workspace_hub_entity_from_rest_to_ensure_restclient_versions_match(self):
         rest_ws = get_test_rest_workspace_with_all_details()
 
-        sdk_hub = WorkspaceHub._from_rest_object(rest_ws)
+        sdk_hub = Hub._from_rest_object(rest_ws)
         assert sdk_hub.managed_network is not None
         assert sdk_hub.managed_network.isolation_mode == IsolationMode.ALLOW_ONLY_APPROVED_OUTBOUND
         rules = sdk_hub.managed_network.outbound_rules
@@ -154,24 +167,26 @@ class TestWorkspaceEntity:
         assert rules[1].service_resource_id == "/somestorageid"
         assert rules[1].spark_enabled == False
         assert rules[1].subresource_target == "blob"
+        assert "contoso.com" in rules[1].fqdns
+        assert "contoso2.com" in rules[1].fqdns
 
         assert isinstance(rules[2], ServiceTagDestination)
         assert rules[2].service_tag == "sometag"
         assert rules[2].protocol == "*"
         assert rules[2].port_ranges == "1,2"
+        assert "168.63.129.16" in rules[2].address_prefixes
+        assert "10.0.0.0/24" in rules[2].address_prefixes
 
         assert sdk_hub.identity.user_assigned_identities[0] is not None
         assert sdk_hub.identity.type == "system_assigned"
 
         # specific to hub
-        assert "sa1" in sdk_hub.workspace_hub_config.additional_workspace_storage_accounts
-        assert "sa2" in sdk_hub.workspace_hub_config.additional_workspace_storage_accounts
-        assert sdk_hub.workspace_hub_config.default_workspace_resource_group == "somerg"
+        assert sdk_hub.default_resource_group == "somerg"
 
     def test_feature_store_entity_from_rest_to_ensure_restclient_versions_match(self):
         rest_ws = get_test_rest_workspace_with_all_details()
-
         sdk_featurestore = FeatureStore._from_rest_object(rest_ws)
+
         assert sdk_featurestore.managed_network is not None
         assert sdk_featurestore.managed_network.isolation_mode == IsolationMode.ALLOW_ONLY_APPROVED_OUTBOUND
         rules = sdk_featurestore.managed_network.outbound_rules
@@ -182,11 +197,15 @@ class TestWorkspaceEntity:
         assert rules[1].service_resource_id == "/somestorageid"
         assert rules[1].spark_enabled == False
         assert rules[1].subresource_target == "blob"
+        assert "contoso.com" in rules[1].fqdns
+        assert "contoso2.com" in rules[1].fqdns
 
         assert isinstance(rules[2], ServiceTagDestination)
         assert rules[2].service_tag == "sometag"
         assert rules[2].protocol == "*"
         assert rules[2].port_ranges == "1,2"
+        assert "168.63.129.16" in rules[2].address_prefixes
+        assert "10.0.0.0/24" in rules[2].address_prefixes
 
         assert sdk_featurestore.identity.user_assigned_identities[0] is not None
         assert sdk_featurestore.identity.type == "system_assigned"

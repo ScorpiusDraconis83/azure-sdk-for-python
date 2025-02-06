@@ -1,32 +1,29 @@
-import pytest
-
-from azure.ai.ml._utils._storage_utils import get_ds_name_and_path_prefix
 from pathlib import Path
 from unittest.mock import Mock, patch
 
+import pytest
+
 from azure.ai.ml._scope_dependent_operations import OperationConfig, OperationScope
+from azure.ai.ml._utils._storage_utils import get_ds_name_and_path_prefix
 from azure.ai.ml.entities._assets import Code, Data, Environment, Model
 from azure.ai.ml.entities._assets._artifacts.artifact import ArtifactStorageInfo
-from azure.ai.ml.operations import (
-    DataOperations,
-    DatastoreOperations,
-    EnvironmentOperations,
-    ModelOperations,
-)
-from azure.ai.ml.operations._code_operations import CodeOperations
 from azure.ai.ml.exceptions import ErrorTarget
+from azure.ai.ml.operations import DataOperations, DatastoreOperations, EnvironmentOperations, ModelOperations
+from azure.ai.ml.operations._code_operations import CodeOperations
 
 
 @pytest.fixture
 def mock_datastore_operations(
     mock_workspace_scope: OperationScope,
     mock_operation_config_no_progress: OperationConfig,
-    mock_aml_services_2023_04_01_preview: Mock,
+    mock_aml_services_2024_01_01_preview: Mock,
+    mock_aml_services_2024_07_01_preview: Mock,
 ) -> DatastoreOperations:
     yield DatastoreOperations(
         operation_scope=mock_workspace_scope,
         operation_config=mock_operation_config_no_progress,
-        serviceclient_2023_04_01_preview=mock_aml_services_2023_04_01_preview,
+        serviceclient_2024_01_01_preview=mock_aml_services_2024_01_01_preview,
+        serviceclient_2024_07_01_preview=mock_aml_services_2024_07_01_preview,
     )
 
 
@@ -65,6 +62,7 @@ def mock_data_operation(
     mock_workspace_scope: OperationScope,
     mock_operation_config_no_progress: OperationConfig,
     mock_aml_services_2022_10_01: Mock,
+    mock_aml_services_2024_01_01_preview: Mock,
     mock_datastore_operations: Mock,
     mock_machinelearning_client: Mock,
 ) -> DataOperations:
@@ -72,6 +70,7 @@ def mock_data_operation(
         operation_scope=mock_workspace_scope,
         operation_config=mock_operation_config_no_progress,
         service_client=mock_aml_services_2022_10_01,
+        service_client_012024_preview=mock_aml_services_2024_01_01_preview,
         datastore_operations=mock_datastore_operations,
         requests_pipeline=mock_machinelearning_client._requests_pipeline,
         all_operations=mock_machinelearning_client._operation_container,
@@ -102,6 +101,7 @@ class TestStorageUtils:
         reg_uri_1 = "https://ccccccccddddd345.blob.core.windows.net/demoregist-16d33653-20bf-549b-a3c1-17d975359581/ExperimentRun/dcid.5823bbb4-bb28-497c-b9f2-1ff3a0778b10/model"
         reg_uri_2 = "https://ccccccccccc1978ccc.blob.core.windows.net/demoregist-b46fb119-d3f8-5994-a971-a9c730227846/LocalUpload/0c225a0230907e61c00ea33eac35a54d/model.pkl"
         reg_uri_3 = "https://ccccccccddr546ddd.blob.core.windows.net/some-reg-9717e928-33c2-50c2-90f5-f410b12b8727/sklearn_regression_model.pkl"
+        reg_uri_4 = "https://ccccccccddr546ddd.blob.core.windows.net/some-reg-c42e6002-ea61-510a-9414-bc4504b74f9f"
         workspace_uri_1 = "azureml://subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/000000000000000/workspaces/some_test_3/datastores/workspaceblobstore/paths/LocalUpload/26960525964086056a7301dd061fb9be/lightgbm_mlflow_model"
 
         assert get_ds_name_and_path_prefix(reg_uri_1, "registry_name") == (
@@ -113,6 +113,7 @@ class TestStorageUtils:
             "LocalUpload/0c225a0230907e61c00ea33eac35a54d/model.pkl",
         )
         assert get_ds_name_and_path_prefix(reg_uri_3, "registry_name") == (None, "sklearn_regression_model.pkl")
+        assert get_ds_name_and_path_prefix(reg_uri_4, "registry_name") == (None, "")
         assert get_ds_name_and_path_prefix(workspace_uri_1) == (
             "workspaceblobstore",
             "LocalUpload/26960525964086056a7301dd061fb9be/lightgbm_mlflow_model",
@@ -121,7 +122,7 @@ class TestStorageUtils:
     def test_storage_uri_to_prefix_malformed(
         self,
     ) -> None:
-        reg_uri_bad = "https://ccccccccddd4512d.blob.core.windows.net/5823bbb4-bb28-497c-b9f2-1ff3a0778b10"
+        reg_uri_bad = "https://ccccccccddd4512d.blob.core.windows.net"
         workspace_uri_bad = "azureml://subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/000000000000000/workspaces/some_test_3/datastores/workspaceblobstore/path/LocalUpload/26960525964086056a7301dd061fb9be/lightgbm_mlflow_model"
 
         with pytest.raises(Exception) as e:

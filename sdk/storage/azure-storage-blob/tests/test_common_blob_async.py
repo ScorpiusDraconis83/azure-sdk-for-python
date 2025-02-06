@@ -7,10 +7,10 @@
 import asyncio
 import os
 import tempfile
-import time
 import uuid
 from datetime import datetime, timedelta
 from enum import Enum
+from io import BytesIO
 
 import aiohttp
 import pytest
@@ -43,16 +43,17 @@ from azure.storage.blob import (
     RehydratePriority,
     ResourceTypes,
     RetentionPolicy,
+    Services,
     StandardBlobTier,
     StorageErrorCode,
     generate_account_sas,
     generate_container_sas,
     generate_blob_sas)
-
+from devtools_testutils.fake_credentials_async import AsyncFakeCredential
 from devtools_testutils.aio import recorded_by_proxy_async
 from devtools_testutils.storage.aio import AsyncStorageRecordedTestCase
 from settings.testcase import BlobPreparer
-from test_helpers_async import AsyncStream
+from test_helpers_async import AsyncStream, MockStorageTransport
 
 # ------------------------------------------------------------------------------
 TEST_CONTAINER_PREFIX = 'container'
@@ -169,7 +170,7 @@ class TestStorageCommonBlobAsync(AsyncStorageRecordedTestCase):
         source_blob_client = await self._create_source_blob(data=source_blob_data)
         # Create destination blob
         destination_blob_client = await self._create_blob()
-        access_token = await self.generate_oauth_token().get_token("https://storage.azure.com/.default")
+        access_token = await self.get_credential(BlobServiceClient, is_async=True).get_token("https://storage.azure.com/.default")
         token = "Bearer {}".format(access_token.token)
 
         with pytest.raises(HttpResponseError):
@@ -1757,7 +1758,7 @@ class TestStorageCommonBlobAsync(AsyncStorageRecordedTestCase):
 
         container_name = self.get_resource_name('vlwcontainer')
         if self.is_live:
-            token_credential = self.generate_oauth_token()
+            token_credential = self.get_credential(BlobServiceClient, is_async=True)
             subscription_id = self.get_settings_value("SUBSCRIPTION_ID")
             mgmt_client = StorageManagementClient(token_credential, subscription_id, '2021-04-01')
             property = mgmt_client.models().BlobContainer(
@@ -2108,74 +2109,6 @@ class TestStorageCommonBlobAsync(AsyncStorageRecordedTestCase):
 
     @pytest.mark.live_test_only
     @BlobPreparer()
-    async def test_no_sas_private_blob(self, **kwargs):
-        # Test Proxy playback does not currently work with requests outside SDK clients
-        storage_account_name = kwargs.pop("storage_account_name")
-        storage_account_key = kwargs.pop("storage_account_key")
-
-        # Arrange
-        await self._setup(storage_account_name, storage_account_key)
-        blob_name = await self._create_block_blob()
-        blob = self.bsc.get_blob_client(self.container_name, blob_name)
-
-        # Act
-        response = requests.get(blob.url)
-
-        # Assert
-        assert not response.ok
-        assert -1 != response.text.find('ResourceNotFound')
-
-    @pytest.mark.live_test_only
-    @BlobPreparer()
-    async def test_no_sas_public_blob(self, **kwargs):
-        # Test Proxy playback does not currently work with requests outside SDK clients
-        storage_account_name = kwargs.pop("storage_account_name")
-        storage_account_key = kwargs.pop("storage_account_key")
-
-        # Arrange
-        await self._setup(storage_account_name, storage_account_key)
-        data = b'a public blob can be read without a shared access signature'
-        blob_name = 'blob1.txt'
-        container_name = self._get_container_reference()
-        try:
-            container = await self.bsc.create_container(container_name, public_access='blob')
-        except ResourceExistsError:
-            container = self.bsc.get_container_client(container_name)
-        blob = await container.upload_blob(blob_name, data)
-
-        # Act
-        response = requests.get(blob.url)
-
-        # Assert
-        assert response.ok
-        assert data == response.content
-
-    @BlobPreparer()
-    @recorded_by_proxy_async
-    async def test_public_access_blob(self, **kwargs):
-        storage_account_name = kwargs.pop("storage_account_name")
-        storage_account_key = kwargs.pop("storage_account_key")
-
-        # Arrange
-        await self._setup(storage_account_name, storage_account_key)
-        data = b'public access blob'
-        blob_name = 'blob1.txt'
-        container_name = self._get_container_reference()
-        try:
-            container = await self.bsc.create_container(container_name, public_access='blob')
-        except ResourceExistsError:
-            container = self.bsc.get_container_client(container_name)
-        blob = await container.upload_blob(blob_name, data)
-
-        # Act
-        service = BlobClient.from_blob_url(blob.url)
-        content = await (await service.download_blob()).readall()
-
-        # Assert
-        assert data == content
-
-    @pytest.mark.live_test_only
-    @BlobPreparer()
     async def test_sas_access_blob(self, **kwargs):
         storage_account_name = kwargs.pop("storage_account_name")
         storage_account_key = kwargs.pop("storage_account_key")
@@ -2316,6 +2249,25 @@ class TestStorageCommonBlobAsync(AsyncStorageRecordedTestCase):
         assert self.container_name == container_properties.name
 
     @BlobPreparer()
+    async def test_multiple_services_sas(self, **kwargs):
+        storage_account_name = kwargs.pop("storage_account_name")
+        storage_account_key = kwargs.pop("storage_account_key")
+
+        # Act
+        token = self.generate_sas(
+            generate_account_sas,
+            storage_account_name,
+            storage_account_key,
+            ResourceTypes(container=True, object=True, service=True),
+            AccountSasPermissions(read=True, list=True),
+            datetime.utcnow() + timedelta(hours=1),
+            services=Services(blob=True, fileshare=True)
+        )
+
+        # Assert
+        assert 'ss=bf' in token
+
+    @BlobPreparer()
     @recorded_by_proxy_async
     async def test_azure_named_key_credential_access(self, **kwargs):
         storage_account_name = kwargs.pop("storage_account_name")
@@ -2339,7 +2291,7 @@ class TestStorageCommonBlobAsync(AsyncStorageRecordedTestCase):
         storage_account_key = kwargs.pop("storage_account_key")
 
         await self._setup(storage_account_name, storage_account_key)
-        token_credential = self.generate_oauth_token()
+        token_credential = self.get_credential(BlobServiceClient, is_async=True)
 
         # Action 1: make sure token works
         service = BlobServiceClient(self.account_url(storage_account_name, "blob"), credential=token_credential)
@@ -2347,7 +2299,7 @@ class TestStorageCommonBlobAsync(AsyncStorageRecordedTestCase):
         assert result is not None
 
         # Action 2: change token value to make request fail
-        fake_credential = self.generate_fake_token()
+        fake_credential = AsyncFakeCredential()
         service = BlobServiceClient(self.account_url(storage_account_name, "blob"), credential=fake_credential)
         with pytest.raises(ClientAuthenticationError):
             await service.get_service_properties()
@@ -2366,7 +2318,7 @@ class TestStorageCommonBlobAsync(AsyncStorageRecordedTestCase):
         container_name = self._get_container_reference()
         blob_name = self._get_blob_reference()
         blob_data = b'Helloworld'
-        token_credential = self.generate_oauth_token()
+        token_credential = self.get_credential(BlobServiceClient, is_async=True)
 
         service = BlobServiceClient(self.account_url(storage_account_name, "blob"), credential=token_credential)
         container = service.get_container_client(container_name)
@@ -2391,7 +2343,7 @@ class TestStorageCommonBlobAsync(AsyncStorageRecordedTestCase):
         # Setup
         container_name = self._get_container_reference()
         blob_name = self._get_blob_reference()
-        token_credential = self.generate_oauth_token()
+        token_credential = self.get_credential(BlobServiceClient, is_async=True)
         async with BlobServiceClient(self.account_url(storage_account_name, "blob"), credential=token_credential) as service:
             container = service.get_container_client(container_name)
             try:
@@ -2554,11 +2506,85 @@ class TestStorageCommonBlobAsync(AsyncStorageRecordedTestCase):
 
         # Act
         await self._setup(storage_account_name, storage_account_key)
-        info = await self.bsc.get_account_information()
+        bsc_info = await self.bsc.get_account_information()
+        container_client = self.bsc.get_container_client(self.container_name)
+        cc_info = await container_client.get_account_information()
+        blob_client = await self._create_blob()
+        bc_info = await blob_client.get_account_information()
 
         # Assert
-        assert info.get('sku_name') is not None
-        assert info.get('account_kind') is not None
+        assert bsc_info.get('sku_name') is not None
+        assert bsc_info.get('account_kind') is not None
+        assert not bsc_info.get('is_hns_enabled')
+        assert cc_info.get('sku_name') is not None
+        assert cc_info.get('account_kind') is not None
+        assert not cc_info.get('is_hns_enabled')
+        assert bc_info.get('sku_name') is not None
+        assert bc_info.get('account_kind') is not None
+        assert not bc_info.get('is_hns_enabled')
+
+    @BlobPreparer()
+    @recorded_by_proxy_async
+    async def test_get_account_information_sas(self, **kwargs):
+        storage_account_name = kwargs.pop("storage_account_name")
+        storage_account_key = kwargs.pop("storage_account_key")
+        await self._setup(storage_account_name, storage_account_key)
+
+        account_token = self.generate_sas(
+            generate_account_sas,
+            account_name=storage_account_name,
+            account_key=storage_account_key,
+            resource_types=ResourceTypes(service=True),
+            permission=AccountSasPermissions(read=True),
+            expiry=datetime.utcnow() + timedelta(hours=1),
+        )
+
+        container_token = self.generate_sas(
+            generate_container_sas,
+            account_name=storage_account_name,
+            container_name=self.container_name,
+            account_key=storage_account_key,
+            permission=ContainerSasPermissions(read=True),
+            expiry=datetime.utcnow() + timedelta(hours=1),
+        )
+
+        blob_token = self.generate_sas(
+            generate_blob_sas,
+            account_name=storage_account_name,
+            container_name=self.container_name,
+            blob_name=self._get_blob_reference(),
+            account_key=storage_account_key,
+            permission=BlobSasPermissions(read=True),
+            expiry=datetime.utcnow() + timedelta(hours=1),
+        )
+
+        # Act
+        bsc = BlobServiceClient(
+            self.account_url(storage_account_name, "blob"),
+            credential=account_token)
+        bsc_info = await bsc.get_account_information()
+        container_client = ContainerClient(
+            self.account_url(storage_account_name, "blob"),
+            self.container_name,
+            credential=container_token)
+        cc_info = await container_client.get_account_information()
+        blob_client = BlobClient(
+            self.account_url(storage_account_name, "blob"),
+            self.container_name,
+            self._get_blob_reference(),
+            credential=blob_token)
+        bc_info = await blob_client.get_account_information()
+
+        # Assert
+        assert bsc_info.get('sku_name') is not None
+        assert bsc_info.get('account_kind') is not None
+        assert not bsc_info.get('is_hns_enabled')
+        assert cc_info.get('sku_name') is not None
+        assert cc_info.get('account_kind') is not None
+        assert not cc_info.get('is_hns_enabled')
+        assert bc_info.get('sku_name') is not None
+        assert bc_info.get('account_kind') is not None
+        assert not bc_info.get('is_hns_enabled')
 
     @BlobPreparer()
     @recorded_by_proxy_async
@@ -2944,7 +2970,7 @@ class TestStorageCommonBlobAsync(AsyncStorageRecordedTestCase):
 
         container_name = self.get_resource_name('vlwcontainer')
         if self.is_live:
-            token_credential = self.generate_oauth_token()
+            token_credential = self.get_credential(BlobServiceClient, is_async=True)
             subscription_id = self.get_settings_value("SUBSCRIPTION_ID")
             mgmt_client = StorageManagementClient(token_credential, subscription_id, '2021-04-01')
             property = mgmt_client.models().BlobContainer(
@@ -2996,7 +3022,7 @@ class TestStorageCommonBlobAsync(AsyncStorageRecordedTestCase):
 
         container_name = self.get_resource_name('vlwcontainer')
         if self.is_live:
-            token_credential = self.generate_oauth_token()
+            token_credential = self.get_credential(BlobServiceClient, is_async=True)
             subscription_id = self.get_settings_value("SUBSCRIPTION_ID")
             mgmt_client = StorageManagementClient(token_credential, subscription_id, '2021-04-01')
             property = mgmt_client.models().BlobContainer(
@@ -3039,7 +3065,7 @@ class TestStorageCommonBlobAsync(AsyncStorageRecordedTestCase):
         await self._setup(versioned_storage_account_name, versioned_storage_account_key)
         container_name = self.get_resource_name('vlwcontainer')
         if self.is_live:
-            token_credential = self.generate_oauth_token()
+            token_credential = self.get_credential(BlobServiceClient, is_async=True)
             subscription_id = self.get_settings_value("SUBSCRIPTION_ID")
             mgmt_client = StorageManagementClient(token_credential, subscription_id, '2021-04-01')
             property = mgmt_client.models().BlobContainer(
@@ -3091,7 +3117,7 @@ class TestStorageCommonBlobAsync(AsyncStorageRecordedTestCase):
         await self._setup(versioned_storage_account_name, versioned_storage_account_key)
         container_name = self.get_resource_name('vlwcontainer')
         if self.is_live:
-            token_credential = self.generate_oauth_token()
+            token_credential = self.get_credential(BlobServiceClient, is_async=True)
             subscription_id = self.get_settings_value("SUBSCRIPTION_ID")
             mgmt_client = StorageManagementClient(token_credential, subscription_id, '2021-04-01')
             property = mgmt_client.models().BlobContainer(
@@ -3112,7 +3138,7 @@ class TestStorageCommonBlobAsync(AsyncStorageRecordedTestCase):
                                legal_hold=True,
                                overwrite=True)
 
-        blob_list = list()
+        blob_list = []
         async for blob_prop in container_client.list_blobs(include=['immutabilitypolicy', 'legalhold']):
             blob_list.append(blob_prop)
 
@@ -3125,6 +3151,111 @@ class TestStorageCommonBlobAsync(AsyncStorageRecordedTestCase):
             await blob.set_legal_hold(False)
             await blob.delete_blob()
             await mgmt_client.blob_containers.delete(storage_resource_group_name, versioned_storage_account_name, container_name)
+
+        return variables
+
+    @BlobPreparer()
+    @recorded_by_proxy_async
+    async def test_snapshot_immutability_policy_and_legal_hold(self, **kwargs):
+        versioned_storage_account_name = kwargs.pop("versioned_storage_account_name")
+        versioned_storage_account_key = kwargs.pop("versioned_storage_account_key")
+        storage_resource_group_name = kwargs.pop("storage_resource_group_name")
+        variables = kwargs.pop("variables", {})
+
+        await self._setup(versioned_storage_account_name, versioned_storage_account_key)
+        container_name = self.get_resource_name('container')
+        if self.is_live:
+            token_credential = self.get_credential(BlobServiceClient, is_async=True)
+            subscription_id = self.get_settings_value("SUBSCRIPTION_ID")
+            mgmt_client = StorageManagementClient(token_credential, subscription_id, '2021-04-01')
+            property = mgmt_client.models().BlobContainer(
+                immutable_storage_with_versioning=mgmt_client.models().ImmutableStorageWithVersioning(enabled=True))
+            await mgmt_client.blob_containers.create(storage_resource_group_name, versioned_storage_account_name,
+                                               container_name, blob_container=property)
+
+        blob_name = self._get_blob_reference()
+        blob = self.bsc.get_blob_client(container_name, blob_name)
+        await blob.upload_blob(self.byte_data, length=len(self.byte_data), overwrite=True)
+        snapshot = await blob.create_snapshot()
+        snapshot_blob = self.bsc.get_blob_client(container_name, blob_name, snapshot=snapshot)
+
+        try:
+            expiry_time = self.get_datetime_variable(variables, 'expiry_time', datetime.utcnow() + timedelta(seconds=5))
+            immutability_policy = ImmutabilityPolicy(
+                expiry_time=expiry_time,
+                policy_mode=BlobImmutabilityPolicyMode.Unlocked
+            )
+
+            await snapshot_blob.set_immutability_policy(immutability_policy=immutability_policy)
+            props = await snapshot_blob.get_blob_properties()
+            assert props['immutability_policy']['expiry_time'] is not None
+            assert props['immutability_policy']['policy_mode'] == "unlocked"
+
+            await snapshot_blob.delete_immutability_policy()
+            props = await snapshot_blob.get_blob_properties()
+            assert props['immutability_policy']['expiry_time'] is None
+            assert props['immutability_policy']['policy_mode'] is None
+
+            await snapshot_blob.set_legal_hold(True)
+            props = await snapshot_blob.get_blob_properties()
+            assert props['has_legal_hold']
+        finally:
+            await snapshot_blob.set_legal_hold(False)
+            await blob.delete_blob(delete_snapshots="include")
+
+        return variables
+
+    @BlobPreparer()
+    @recorded_by_proxy_async
+    async def test_versioning_immutability_policy_and_legal_hold(self, **kwargs):
+        versioned_storage_account_name = kwargs.pop("versioned_storage_account_name")
+        versioned_storage_account_key = kwargs.pop("versioned_storage_account_key")
+        storage_resource_group_name = kwargs.pop("storage_resource_group_name")
+        variables = kwargs.pop("variables", {})
+
+        await self._setup(versioned_storage_account_name, versioned_storage_account_key)
+        container_name = self.get_resource_name('container')
+        if self.is_live:
+            token_credential = self.get_credential(BlobServiceClient, is_async=True)
+            subscription_id = self.get_settings_value("SUBSCRIPTION_ID")
+            mgmt_client = StorageManagementClient(token_credential, subscription_id, '2021-04-01')
+            property = mgmt_client.models().BlobContainer(
+                immutable_storage_with_versioning=mgmt_client.models().ImmutableStorageWithVersioning(enabled=True))
+            await mgmt_client.blob_containers.create(storage_resource_group_name, versioned_storage_account_name,
+                                                     container_name, blob_container=property)
+
+        blob_name = self.get_resource_name('blob')
+        root_blob = self.bsc.get_blob_client(container_name, blob_name)
+        old_version_dict = await root_blob.upload_blob(b"abc", overwrite=True)
+        await root_blob.upload_blob(b"abcdef", overwrite=True)
+
+        try:
+            expiry_time = self.get_datetime_variable(variables, 'expiry_time', datetime.utcnow() + timedelta(seconds=5))
+            immutability_policy = ImmutabilityPolicy(
+                expiry_time=expiry_time,
+                policy_mode=BlobImmutabilityPolicyMode.Unlocked
+            )
+            old_version_blob = self.bsc.get_blob_client(
+                container_name, blob_name,
+                version_id=old_version_dict['version_id']
+            )
+
+            await old_version_blob.set_immutability_policy(immutability_policy=immutability_policy)
+            props = await old_version_blob.get_blob_properties()
+            assert props['immutability_policy']['expiry_time'] is not None
+            assert props['immutability_policy']['policy_mode'] == "unlocked"
+
+            await old_version_blob.delete_immutability_policy()
+            props = await old_version_blob.get_blob_properties()
+            assert props['immutability_policy']['expiry_time'] is None
+            assert props['immutability_policy']['policy_mode'] is None
+
+            await old_version_blob.set_legal_hold(True)
+            props = await old_version_blob.get_blob_properties()
+            assert props['has_legal_hold']
+        finally:
+            await old_version_blob.set_legal_hold(False)
+            await root_blob.delete_blob(delete_snapshots="include")
 
         return variables
 
@@ -3227,7 +3358,7 @@ class TestStorageCommonBlobAsync(AsyncStorageRecordedTestCase):
         self.bsc.list_containers()
 
         # Act
-        token_credential = self.generate_oauth_token()
+        token_credential = self.get_credential(BlobServiceClient, is_async=True)
         bsc = BlobServiceClient(
             self.account_url(storage_account_name, "blob"), credential=token_credential,
             audience=f'https://{storage_account_name}.blob.core.windows.net'
@@ -3250,7 +3381,7 @@ class TestStorageCommonBlobAsync(AsyncStorageRecordedTestCase):
         await blob.exists()
 
         # Act
-        token_credential = self.generate_oauth_token()
+        token_credential = self.get_credential(BlobClient, is_async=True)
         blob = BlobClient(
             self.bsc.url, container_name=self.container_name, blob_name=blob_name,
             credential=token_credential, audience=f'https://{storage_account_name}.blob.core.windows.net'
@@ -3270,9 +3401,9 @@ class TestStorageCommonBlobAsync(AsyncStorageRecordedTestCase):
 
         # Generate an invalid credential
         creds = ClientSecretCredential(
-            self.get_settings_value("TENANT_ID"),
-            self.get_settings_value("CLIENT_ID"),
-            self.get_settings_value("CLIENT_SECRET") + 'a'
+            "00000000-0000-0000-0000-000000000000",
+            "00000000-0000-0000-0000-000000000000",
+            "00000000-0000-0000-0000-000000000000" + 'a'
         )
 
         bsc = BlobServiceClient(self.account_url(storage_account_name, "blob"), credential=creds, retry_total=0)
@@ -3281,4 +3412,102 @@ class TestStorageCommonBlobAsync(AsyncStorageRecordedTestCase):
         # Act
         with pytest.raises(ClientAuthenticationError):
             await container.exists()
+
+    @BlobPreparer()
+    @recorded_by_proxy_async
+    async def test_upload_blob_partial_stream(self, **kwargs):
+        storage_account_name = kwargs.pop("storage_account_name")
+        storage_account_key = kwargs.pop("storage_account_key")
+
+        # Arrange
+        await self._setup(storage_account_name, storage_account_key)
+        blob = self.bsc.get_container_client(self.container_name).get_blob_client(self._get_blob_reference())
+        data = b'abcde' * 100
+        stream = BytesIO(data)
+        length = 207
+
+        # Act
+        await blob.upload_blob(stream, length=length, overwrite=True)
+
+        # Assert
+        result = await (await blob.download_blob()).readall()
+        assert result == data[:length]
+
+    @BlobPreparer()
+    @recorded_by_proxy_async
+    async def test_upload_blob_partial_stream_chunked(self, **kwargs):
+        storage_account_name = kwargs.pop("storage_account_name")
+        storage_account_key = kwargs.pop("storage_account_key")
+
+        # Arrange
+        await self._setup(storage_account_name, storage_account_key)
+        self.bsc._config.max_single_put_size = 1024
+        self.bsc._config.max_block_size = 1024
+
+        blob = self.bsc.get_container_client(self.container_name).get_blob_client(self._get_blob_reference())
+        data = b'abcde' * 1024
+        stream = BytesIO(data)
+        length = 3000
+
+        # Act
+        await blob.upload_blob(stream, length=length, overwrite=True)
+
+        # Assert
+        result = await (await blob.download_blob()).readall()
+        assert result == data[:length]
+
+    @BlobPreparer()
+    async def test_mock_transport_no_content_validation(self, **kwargs):
+        storage_account_name = kwargs.pop("storage_account_name")
+        storage_account_key = kwargs.pop("storage_account_key")
+
+        transport = MockStorageTransport()
+        blob_client = BlobClient(
+            self.account_url(storage_account_name, "blob"),
+            container_name='test_cont',
+            blob_name='test_blob',
+            credential=storage_account_key,
+            transport=transport,
+            retry_total=0
+        )
+
+        content = await blob_client.download_blob()
+        assert content is not None
+
+        props = await blob_client.get_blob_properties()
+        assert props is not None
+
+        data = b"Hello Async World!"
+        stream = AsyncStream(data)
+        resp = await blob_client.upload_blob(stream, overwrite=True)
+        assert resp is not None
+
+        blob_data = await (await blob_client.download_blob()).read()
+        assert blob_data == b"Hello Async World!"  # data is fixed by mock transport
+
+        resp = await blob_client.delete_blob()
+        assert resp is None
+
+    @BlobPreparer()
+    async def test_mock_transport_with_content_validation(self, **kwargs):
+        storage_account_name = kwargs.pop("storage_account_name")
+        storage_account_key = kwargs.pop("storage_account_key")
+
+        transport = MockStorageTransport()
+        blob_client = BlobClient(
+            self.account_url(storage_account_name, "blob"),
+            container_name='test_cont',
+            blob_name='test_blob',
+            credential=storage_account_key,
+            transport=transport,
+            retry_total=0
+        )
+
+        data = b"Hello Async World!"
+        stream = AsyncStream(data)
+        resp = await blob_client.upload_blob(stream, overwrite=True, validate_content=True)
+        assert resp is not None
+
+        blob_data = await (await blob_client.download_blob(validate_content=True)).read()
+        assert blob_data == b"Hello Async World!"  # data is fixed by mock transport
 # ------------------------------------------------------------------------------

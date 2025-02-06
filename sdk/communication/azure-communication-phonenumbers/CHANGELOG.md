@@ -1,14 +1,17 @@
 # Release History
 
-## 1.1.1 (Unreleased)
+## 1.2.0b2 (2024-03-01)
 
 ### Features Added
+- Add support for number lookup
+  - Format only can be returned for no cost
+  - Additional number details can be returned for a cost
 
-### Breaking Changes
+## 1.2.0b1 (2023-08-04)
 
-### Bugs Fixed
-
-### Other Changes
+### Features Added
+- Number Lookup API public preview
+- API version `2023-05-01-preview` is the default
 
 ## 1.1.0 (2023-03-28)
 
@@ -89,4 +92,4 @@
 <!-- LINKS -->
 
 [read_me]: https://github.com/Azure/azure-sdk-for-python/blob/main/sdk/communication/azure-communication-phonenumbers/README.md
-[documentation]: https://docs.microsoft.com/azure/communication-services/quickstarts/access-tokens?pivots=programming-language-python
+[documentation]: https://learn.microsoft.com/azure/communication-services/quickstarts/access-tokens?pivots=programming-language-python

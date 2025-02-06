@@ -1,5 +1,28 @@
 # Release History
 
+## 11.2.0 (2025-01-20)
+
+### Features Added
+
+  - Added operation NamespacesOperations.begin_failover
+  - Model EHNamespace has a new parameter geo_data_replication
+  - Model Eventhub has a new parameter identifier
+  - Model Eventhub has a new parameter message_timestamp_description
+  - Model RetentionDescription has a new parameter min_compaction_lag_in_mins
+
+## 11.1.0 (2024-09-02)
+
+### Features Added
+
+  - Model Cluster has a new parameter provisioning_state
+  - Model Destination has a new parameter identity
+  - Model Eventhub has a new parameter user_metadata
+  - Model NetworkSecurityPerimeterConfiguration has a new parameter applicable_features
+  - Model NetworkSecurityPerimeterConfiguration has a new parameter is_backing_resource
+  - Model NetworkSecurityPerimeterConfiguration has a new parameter location
+  - Model NetworkSecurityPerimeterConfiguration has a new parameter parent_association_name
+  - Model NetworkSecurityPerimeterConfiguration has a new parameter source_resource_id
+
 ## 11.0.0 (2023-04-14)
 
 ### Features Added

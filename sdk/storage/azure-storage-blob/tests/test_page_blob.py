@@ -143,7 +143,7 @@ class TestStoragePageBlob(StorageRecordedTestCase):
 
         container_name = self.get_resource_name('vlwcontainer')
         if self.is_live:
-            token_credential = self.generate_oauth_token()
+            token_credential = self.get_credential(BlobServiceClient)
             subscription_id = self.get_settings_value("SUBSCRIPTION_ID")
             mgmt_client = StorageManagementClient(token_credential, subscription_id, '2021-04-01')
             property = mgmt_client.models().BlobContainer(
@@ -585,7 +585,7 @@ class TestStoragePageBlob(StorageRecordedTestCase):
 
         bsc = BlobServiceClient(self.account_url(storage_account_name, "blob"), credential=storage_account_key, max_page_size=4 * 1024)
         self._setup(bsc)
-        token = "Bearer {}".format(self.generate_oauth_token().get_token("https://storage.azure.com/.default").token)
+        token = "Bearer {}".format(self.get_credential(BlobServiceClient).get_token("https://storage.azure.com/.default").token)
         source_blob_data = self.get_random_bytes(SOURCE_BLOB_SIZE)
         source_blob_client = self._create_source_blob(bsc, source_blob_data, 0, SOURCE_BLOB_SIZE)
         destination_blob_client = self._create_blob(bsc, length=SOURCE_BLOB_SIZE)
@@ -2268,6 +2268,45 @@ class TestStoragePageBlob(StorageRecordedTestCase):
         end = page_ranges[0]['end']
 
         content = blob_client.download_blob(max_concurrency=3).readall()
+
+    @BlobPreparer()
+    @recorded_by_proxy
+    def test_download_sparse_page_blob_uneven_chunks(self, **kwargs):
+        storage_account_name = kwargs.pop("storage_account_name")
+        storage_account_key = kwargs.pop("storage_account_key")
+
+        # Arrange
+        bsc = BlobServiceClient(self.account_url(storage_account_name, "blob"), credential=storage_account_key)
+        self._setup(bsc)
+
+        # Choose an initial size, chunk size, and blob size, so the last chunk spills over end of blob
+        self.config.max_single_get_size = 4 * 1024
+        self.config.max_chunk_get_size = 4 * 1024
+        sparse_page_blob_size = 10 * 1024
+
+        blob_client = self._get_blob_reference(bsc)
+        blob_client.create_page_blob(sparse_page_blob_size)
+
+        data = b'12345678' * 128  # 1024 bytes
+        range_start = 2 * 1024 + 512
+        blob_client.upload_page(data, offset=range_start, length=len(data))
+
+        # Act
+        content = blob_client.download_blob().readall()
+
+        # Assert
+        assert sparse_page_blob_size == len(content)
+        start = end = 0
+        for r in blob_client.list_page_ranges():
+            if not r.cleared:
+                start = r.start
+                end = r.end
+
+        assert data == content[start: end + 1]
+        for byte in content[:start - 1]:
+            assert byte == 0
+        for byte in content[end + 1:]:
+            assert byte == 0
 
     @BlobPreparer()
     @recorded_by_proxy

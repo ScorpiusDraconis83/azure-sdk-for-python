@@ -3,13 +3,14 @@
 # Licensed under the MIT License.
 # ------------------------------------
 import asyncio
+import logging
 import os
 import shutil
 import sys
 from typing import Any, List, Optional
 
 from azure.core.exceptions import ClientAuthenticationError
-from azure.core.credentials import AccessToken
+from azure.core.credentials import AccessToken, AccessTokenInfo, TokenRequestOptions
 from .._internal import AsyncContextManager
 from .._internal.decorators import log_get_token_async
 from ... import CredentialUnavailableError
@@ -26,13 +27,16 @@ from ..._credentials.azd_cli import (
 from ..._internal import resolve_tenant, within_dac, validate_tenant_id, validate_scope
 
 
+_LOGGER = logging.getLogger(__name__)
+
+
 class AzureDeveloperCliCredential(AsyncContextManager):
     """Authenticates by requesting a token from the Azure Developer CLI.
 
     Azure Developer CLI is a command-line interface tool that allows developers to create, manage, and deploy
     resources in Azure. It's built on top of the Azure CLI and provides additional functionality specific
     to Azure developers. It allows users to authenticate as a user and/or a service principal against
-    `Microsoft Entra ID <"https://learn.microsoft.com/azure/active-directory/fundamentals/">`__.
+    `Microsoft Entra ID <"https://learn.microsoft.com/entra/fundamentals/">`__.
     The AzureDeveloperCliCredential authenticates in a development environment and acquires a token on behalf of
     the logged-in user or service principal in Azure Developer CLI. It acts as the Azure Developer CLI logged-in user
     or service principal and executes an Azure CLI command underneath to authenticate the application against
@@ -94,7 +98,7 @@ class AzureDeveloperCliCredential(AsyncContextManager):
 
         :param str scopes: desired scope for the access token. This credential allows only one scope per request.
             For more information about scopes, see
-            https://learn.microsoft.com/azure/active-directory/develop/scopes-oidc.
+            https://learn.microsoft.com/entra/identity-platform/scopes-oidc.
         :keyword str claims: not used by this credential; any value provided will be ignored.
         :keyword str tenant_id: optional tenant to include in the token request.
 
@@ -108,16 +112,54 @@ class AzureDeveloperCliCredential(AsyncContextManager):
         if sys.platform.startswith("win") and not isinstance(asyncio.get_event_loop(), asyncio.ProactorEventLoop):
             return _SyncAzureDeveloperCliCredential().get_token(*scopes, tenant_id=tenant_id, **kwargs)
 
+        options: TokenRequestOptions = {}
+        if tenant_id:
+            options["tenant_id"] = tenant_id
+
+        token_info = await self._get_token_base(*scopes, options=options, **kwargs)
+        return AccessToken(token_info.token, token_info.expires_on)
+
+    @log_get_token_async
+    async def get_token_info(self, *scopes: str, options: Optional[TokenRequestOptions] = None) -> AccessTokenInfo:
+        """Request an access token for `scopes`.
+
+        This is an alternative to `get_token` to enable certain scenarios that require additional properties
+        on the token. This method is called automatically by Azure SDK clients. Applications calling this method
+        directly must also handle token caching because this credential doesn't cache the tokens it acquires.
+
+        :param str scopes: desired scopes for the access token. This method requires at least one scope.
+            For more information about scopes, see https://learn.microsoft.com/entra/identity-platform/scopes-oidc.
+        :keyword options: A dictionary of options for the token request. Unknown options will be ignored. Optional.
+        :paramtype options: ~azure.core.credentials.TokenRequestOptions
+
+        :rtype: AccessTokenInfo
+        :return: An AccessTokenInfo instance containing information about the token.
+
+        :raises ~azure.identity.CredentialUnavailableError: the credential was unable to invoke
+          the Azure Developer CLI.
+        :raises ~azure.core.exceptions.ClientAuthenticationError: the credential invoked
+          the Azure Developer CLI but didn't receive an access token.
+        """
+        # only ProactorEventLoop supports subprocesses on Windows (and it isn't the default loop on Python < 3.8)
+        if sys.platform.startswith("win") and not isinstance(asyncio.get_event_loop(), asyncio.ProactorEventLoop):
+            return _SyncAzureDeveloperCliCredential().get_token_info(*scopes, options=options)
+        return await self._get_token_base(*scopes, options=options)
+
+    async def _get_token_base(
+        self, *scopes: str, options: Optional[TokenRequestOptions] = None, **kwargs: Any
+    ) -> AccessTokenInfo:
         if not scopes:
             raise ValueError("Missing scope in request. \n")
 
+        tenant_id = options.get("tenant_id") if options else None
         if tenant_id:
             validate_tenant_id(tenant_id)
         for scope in scopes:
             validate_scope(scope)
 
-        commandString = " --scope ".join(scopes)
-        command = COMMAND_LINE.format(commandString)
+        command_args = COMMAND_LINE.copy()
+        for scope in scopes:
+            command_args += ["--scope", scope]
         tenant = resolve_tenant(
             default_tenant=self.tenant_id,
             tenant_id=tenant_id,
@@ -126,8 +168,8 @@ class AzureDeveloperCliCredential(AsyncContextManager):
         )
 
         if tenant:
-            command += " --tenant-id " + tenant
-        output = await _run_command(command, self._process_timeout)
+            command_args += ["--tenant-id", tenant]
+        output = await _run_command(command_args, self._process_timeout)
 
         token = parse_token(output)
         if not token:
@@ -147,19 +189,17 @@ class AzureDeveloperCliCredential(AsyncContextManager):
         """Calling this method is unnecessary"""
 
 
-async def _run_command(command: str, timeout: int) -> str:
+async def _run_command(command_args: List[str], timeout: int) -> str:
     # Ensure executable exists in PATH first. This avoids a subprocess call that would fail anyway.
-    if shutil.which(EXECUTABLE_NAME) is None:
+    azd_path = shutil.which(EXECUTABLE_NAME)
+    if not azd_path:
         raise CredentialUnavailableError(message=CLI_NOT_FOUND)
 
-    if sys.platform.startswith("win"):
-        args = ("cmd", "/c " + command)
-    else:
-        args = ("/bin/sh", "-c", command)
-
+    args = [azd_path] + command_args
     working_directory = get_safe_working_dir()
 
     try:
+        _LOGGER.debug("Executing subprocess with the following arguments %s", args)
         proc = await asyncio.create_subprocess_exec(
             *args,
             stdout=asyncio.subprocess.PIPE,
@@ -171,13 +211,13 @@ async def _run_command(command: str, timeout: int) -> str:
         stdout_b, stderr_b = await asyncio.wait_for(proc.communicate(), timeout)
         output = stdout_b.decode()
         stderr = stderr_b.decode()
+    except asyncio.TimeoutError as ex:
+        proc.kill()
+        raise CredentialUnavailableError(message="Timed out waiting for Azure Developer CLI") from ex
     except OSError as ex:
         # failed to execute 'cmd' or '/bin/sh'
         error = CredentialUnavailableError(message="Failed to execute '{}'".format(args[0]))
         raise error from ex
-    except asyncio.TimeoutError as ex:
-        proc.kill()
-        raise CredentialUnavailableError(message="Timed out waiting for Azure Developer CLI") from ex
 
     if proc.returncode == 0:
         return output

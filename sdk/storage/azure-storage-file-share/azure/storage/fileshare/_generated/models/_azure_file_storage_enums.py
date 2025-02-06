@@ -41,6 +41,13 @@ class FileLastWrittenMode(str, Enum, metaclass=CaseInsensitiveEnumMeta):
     PRESERVE = "Preserve"
 
 
+class FilePermissionFormat(str, Enum, metaclass=CaseInsensitiveEnumMeta):
+    """FilePermissionFormat."""
+
+    SDDL = "Sddl"
+    BINARY = "Binary"
+
+
 class FileRangeWriteType(str, Enum, metaclass=CaseInsensitiveEnumMeta):
     """FileRangeWriteType."""
 
@@ -89,6 +96,28 @@ class ListSharesIncludeType(str, Enum, metaclass=CaseInsensitiveEnumMeta):
     DELETED = "deleted"
 
 
+class ModeCopyMode(str, Enum, metaclass=CaseInsensitiveEnumMeta):
+    """ModeCopyMode."""
+
+    SOURCE = "source"
+    OVERRIDE = "override"
+
+
+class NfsFileType(str, Enum, metaclass=CaseInsensitiveEnumMeta):
+    """NfsFileType."""
+
+    REGULAR = "Regular"
+    DIRECTORY = "Directory"
+    SYM_LINK = "SymLink"
+
+
+class OwnerCopyMode(str, Enum, metaclass=CaseInsensitiveEnumMeta):
+    """OwnerCopyMode."""
+
+    SOURCE = "source"
+    OVERRIDE = "override"
+
+
 class PermissionCopyModeType(str, Enum, metaclass=CaseInsensitiveEnumMeta):
     """PermissionCopyModeType."""
 
@@ -102,6 +131,7 @@ class ShareAccessTier(str, Enum, metaclass=CaseInsensitiveEnumMeta):
     TRANSACTION_OPTIMIZED = "TransactionOptimized"
     HOT = "Hot"
     COOL = "Cool"
+    PREMIUM = "Premium"
 
 
 class ShareRootSquash(str, Enum, metaclass=CaseInsensitiveEnumMeta):
@@ -129,6 +159,8 @@ class StorageErrorCode(str, Enum, metaclass=CaseInsensitiveEnumMeta):
     CONDITION_HEADERS_NOT_SUPPORTED = "ConditionHeadersNotSupported"
     CONDITION_NOT_MET = "ConditionNotMet"
     EMPTY_METADATA_KEY = "EmptyMetadataKey"
+    FILE_SHARE_PROVISIONED_BANDWIDTH_DOWNGRADE_NOT_ALLOWED = "FileShareProvisionedBandwidthDowngradeNotAllowed"
+    FILE_SHARE_PROVISIONED_IOPS_DOWNGRADE_NOT_ALLOWED = "FileShareProvisionedIopsDowngradeNotAllowed"
     INSUFFICIENT_ACCOUNT_PERMISSIONS = "InsufficientAccountPermissions"
     INTERNAL_ERROR = "InternalError"
     INVALID_AUTHENTICATION_INFO = "InvalidAuthenticationInfo"
@@ -180,6 +212,7 @@ class StorageErrorCode(str, Enum, metaclass=CaseInsensitiveEnumMeta):
     SHARE_SNAPSHOT_COUNT_EXCEEDED = "ShareSnapshotCountExceeded"
     SHARE_SNAPSHOT_OPERATION_NOT_SUPPORTED = "ShareSnapshotOperationNotSupported"
     SHARE_HAS_SNAPSHOTS = "ShareHasSnapshots"
+    PREVIOUS_SNAPSHOT_NOT_FOUND = "PreviousSnapshotNotFound"
     CONTAINER_QUOTA_DOWNGRADE_NOT_ALLOWED = "ContainerQuotaDowngradeNotAllowed"
     AUTHORIZATION_SOURCE_IP_MISMATCH = "AuthorizationSourceIPMismatch"
     AUTHORIZATION_PROTOCOL_MISMATCH = "AuthorizationProtocolMismatch"

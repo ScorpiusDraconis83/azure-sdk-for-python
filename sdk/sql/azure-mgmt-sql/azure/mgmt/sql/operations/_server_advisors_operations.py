@@ -1,4 +1,4 @@
-# pylint: disable=too-many-lines
+# pylint: disable=too-many-lines,too-many-statements
 # coding=utf-8
 # --------------------------------------------------------------------------
 # Copyright (c) Microsoft Corporation. All rights reserved.
@@ -7,7 +7,8 @@
 # Changes may cause incorrect behavior and will be lost if the code is regenerated.
 # --------------------------------------------------------------------------
 from io import IOBase
-from typing import Any, Callable, Dict, IO, List, Optional, TypeVar, Union, overload
+import sys
+from typing import Any, Callable, Dict, IO, List, Optional, Type, TypeVar, Union, overload
 
 from azure.core.exceptions import (
     ClientAuthenticationError,
@@ -18,16 +19,18 @@ from azure.core.exceptions import (
     map_error,
 )
 from azure.core.pipeline import PipelineResponse
-from azure.core.pipeline.transport import HttpResponse
-from azure.core.rest import HttpRequest
+from azure.core.rest import HttpRequest, HttpResponse
 from azure.core.tracing.decorator import distributed_trace
 from azure.core.utils import case_insensitive_dict
 from azure.mgmt.core.exceptions import ARMErrorFormat
 
 from .. import models as _models
 from .._serialization import Serializer
-from .._vendor import _convert_request
 
+if sys.version_info >= (3, 9):
+    from collections.abc import MutableMapping
+else:
+    from typing import MutableMapping  # type: ignore  # pylint: disable=ungrouped-imports
 T = TypeVar("T")
 ClsType = Optional[Callable[[PipelineResponse[HttpRequest, HttpResponse], T, Dict[str, Any]], Any]]
 
@@ -167,12 +170,11 @@ class ServerAdvisorsOperations:
         :type server_name: str
         :param expand: The child resources to include in the response. Default value is None.
         :type expand: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: list of Advisor or the result of cls(response)
         :rtype: list[~azure.mgmt.sql.models.Advisor]
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -186,22 +188,20 @@ class ServerAdvisorsOperations:
         api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2020-11-01-preview"))
         cls: ClsType[List[_models.Advisor]] = kwargs.pop("cls", None)
 
-        request = build_list_by_server_request(
+        _request = build_list_by_server_request(
             resource_group_name=resource_group_name,
             server_name=server_name,
             subscription_id=self._config.subscription_id,
             expand=expand,
             api_version=api_version,
-            template_url=self.list_by_server.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -210,16 +210,12 @@ class ServerAdvisorsOperations:
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        deserialized = self._deserialize("[Advisor]", pipeline_response)
+        deserialized = self._deserialize("[Advisor]", pipeline_response.http_response)
 
         if cls:
-            return cls(pipeline_response, deserialized, {})
+            return cls(pipeline_response, deserialized, {})  # type: ignore
 
-        return deserialized
-
-    list_by_server.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Sql/servers/{serverName}/advisors"
-    }
+        return deserialized  # type: ignore
 
     @distributed_trace
     def get(self, resource_group_name: str, server_name: str, advisor_name: str, **kwargs: Any) -> _models.Advisor:
@@ -232,12 +228,11 @@ class ServerAdvisorsOperations:
         :type server_name: str
         :param advisor_name: The name of the Server Advisor. Required.
         :type advisor_name: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: Advisor or the result of cls(response)
         :rtype: ~azure.mgmt.sql.models.Advisor
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -251,22 +246,20 @@ class ServerAdvisorsOperations:
         api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2020-11-01-preview"))
         cls: ClsType[_models.Advisor] = kwargs.pop("cls", None)
 
-        request = build_get_request(
+        _request = build_get_request(
             resource_group_name=resource_group_name,
             server_name=server_name,
             advisor_name=advisor_name,
             subscription_id=self._config.subscription_id,
             api_version=api_version,
-            template_url=self.get.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -275,16 +268,12 @@ class ServerAdvisorsOperations:
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        deserialized = self._deserialize("Advisor", pipeline_response)
+        deserialized = self._deserialize("Advisor", pipeline_response.http_response)
 
         if cls:
-            return cls(pipeline_response, deserialized, {})
+            return cls(pipeline_response, deserialized, {})  # type: ignore
 
-        return deserialized
-
-    get.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Sql/servers/{serverName}/advisors/{advisorName}"
-    }
+        return deserialized  # type: ignore
 
     @overload
     def update(
@@ -311,7 +300,6 @@ class ServerAdvisorsOperations:
         :keyword content_type: Body Parameter content-type. Content type parameter for JSON body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: Advisor or the result of cls(response)
         :rtype: ~azure.mgmt.sql.models.Advisor
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -323,7 +311,7 @@ class ServerAdvisorsOperations:
         resource_group_name: str,
         server_name: str,
         advisor_name: str,
-        parameters: IO,
+        parameters: IO[bytes],
         *,
         content_type: str = "application/json",
         **kwargs: Any
@@ -338,11 +326,10 @@ class ServerAdvisorsOperations:
         :param advisor_name: The name of the Server Advisor. Required.
         :type advisor_name: str
         :param parameters: The requested advisor resource state. Required.
-        :type parameters: IO
+        :type parameters: IO[bytes]
         :keyword content_type: Body Parameter content-type. Content type parameter for binary body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: Advisor or the result of cls(response)
         :rtype: ~azure.mgmt.sql.models.Advisor
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -354,7 +341,7 @@ class ServerAdvisorsOperations:
         resource_group_name: str,
         server_name: str,
         advisor_name: str,
-        parameters: Union[_models.Advisor, IO],
+        parameters: Union[_models.Advisor, IO[bytes]],
         **kwargs: Any
     ) -> _models.Advisor:
         """Updates a server advisor.
@@ -366,18 +353,14 @@ class ServerAdvisorsOperations:
         :type server_name: str
         :param advisor_name: The name of the Server Advisor. Required.
         :type advisor_name: str
-        :param parameters: The requested advisor resource state. Is either a Advisor type or a IO type.
-         Required.
-        :type parameters: ~azure.mgmt.sql.models.Advisor or IO
-        :keyword content_type: Body Parameter content-type. Known values are: 'application/json'.
-         Default value is None.
-        :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
+        :param parameters: The requested advisor resource state. Is either a Advisor type or a
+         IO[bytes] type. Required.
+        :type parameters: ~azure.mgmt.sql.models.Advisor or IO[bytes]
         :return: Advisor or the result of cls(response)
         :rtype: ~azure.mgmt.sql.models.Advisor
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -400,7 +383,7 @@ class ServerAdvisorsOperations:
         else:
             _json = self._serialize.body(parameters, "Advisor")
 
-        request = build_update_request(
+        _request = build_update_request(
             resource_group_name=resource_group_name,
             server_name=server_name,
             advisor_name=advisor_name,
@@ -409,16 +392,14 @@ class ServerAdvisorsOperations:
             content_type=content_type,
             json=_json,
             content=_content,
-            template_url=self.update.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -427,13 +408,9 @@ class ServerAdvisorsOperations:
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        deserialized = self._deserialize("Advisor", pipeline_response)
+        deserialized = self._deserialize("Advisor", pipeline_response.http_response)
 
         if cls:
-            return cls(pipeline_response, deserialized, {})
+            return cls(pipeline_response, deserialized, {})  # type: ignore
 
-        return deserialized
-
-    update.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Sql/servers/{serverName}/advisors/{advisorName}"
-    }
+        return deserialized  # type: ignore

@@ -14,7 +14,7 @@ import config
 # Prerequisites -
 #
 # 1. An Azure Cosmos account -
-#    https://azure.microsoft.com/en-us/documentation/articles/documentdb-create-account/
+#    https://azure.microsoft.com/documentation/articles/documentdb-create-account/
 #
 # 2. Microsoft Azure Cosmos PyPi package -
 #    https://pypi.python.org/pypi/azure-cosmos/
@@ -184,7 +184,7 @@ def create_container(db, id):
     except exceptions.CosmosResourceExistsError:
         print('A container with id \'_container_analytical_store\' already exists')
 
-    print("\n2.8 Create Container - With auto scale settings")
+    print("\n2.8 Create Container - With autoscale settings")
 
     try:
         container = db.create_container(

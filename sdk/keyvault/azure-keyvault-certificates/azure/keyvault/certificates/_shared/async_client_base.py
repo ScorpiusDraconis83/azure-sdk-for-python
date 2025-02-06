@@ -2,7 +2,8 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 # ------------------------------------
-from typing import Any, Awaitable
+import sys
+from typing import Any
 
 from azure.core.credentials_async import AsyncTokenCredential
 from azure.core.pipeline.policies import HttpLoggingPolicy
@@ -14,6 +15,11 @@ from .client_base import ApiVersion, DEFAULT_VERSION, _format_api_version, _SERI
 from .._sdk_moniker import SDK_MONIKER
 from .._generated.aio import KeyVaultClient as _KeyVaultClient
 from .._generated import models as _models
+
+if sys.version_info < (3, 9):
+    from typing import Awaitable
+else:
+    from collections.abc import Awaitable
 
 
 class AsyncKeyVaultClientBase(object):
@@ -57,9 +63,11 @@ class AsyncKeyVaultClientBase(object):
             )
             self._models = _models
         except ValueError as exc:
+            # Ignore pyright error that comes from not identifying ApiVersion as an iterable enum
             raise NotImplementedError(
                 f"This package doesn't support API version '{self.api_version}'. "
-                + f"Supported versions: {', '.join(v.value for v in ApiVersion)}"
+                + "Supported versions: "
+                + f"{', '.join(v.value for v in ApiVersion)}"  # pyright: ignore[reportGeneralTypeIssues]
             ) from exc
 
     @property

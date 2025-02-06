@@ -30,7 +30,7 @@ class TestCopyModelAsync(DocumentIntelligenceTest):
     def test_copy_model_none_model_id(self, **kwargs):
         client = kwargs.pop("client")
         with pytest.raises(ValueError) as e:
-            client.begin_copy_model_to(model_id=None, copy_to_request={})
+            client.begin_copy_model_to(model_id=None, body={})
         assert "No value for given attribute" in str(e.value)
 
     @DocumentIntelligencePreparer()
@@ -39,7 +39,7 @@ class TestCopyModelAsync(DocumentIntelligenceTest):
     def test_copy_model_empty_model_id(self, **kwargs):
         client = kwargs.pop("client")
         with pytest.raises(ResourceNotFoundError):
-            client.begin_copy_model_to(model_id="", copy_to_request={})
+            client.begin_copy_model_to(model_id="", body={})
 
     @skip_flaky_test
     @DocumentIntelligencePreparer()
@@ -62,18 +62,17 @@ class TestCopyModelAsync(DocumentIntelligenceTest):
         copy_auth = client.authorize_model_copy(
             AuthorizeCopyRequest(model_id=recorded_variables.get("model_id_copy"), tags={"testkey": "testvalue"})
         )
-        poller = client.begin_copy_model_to(model.model_id, copy_to_request=copy_auth)
+        poller = client.begin_copy_model_to(model.model_id, body=copy_auth)
         copy = poller.result()
 
         assert copy.api_version == model.api_version
         assert copy.model_id != model.model_id
+        assert copy.model_id == copy_auth["targetModelId"]
         assert copy.description == model.description
-        assert copy.created_date_time == model.created_date_time
-        assert copy.expiration_date_time == model.expiration_date_time
         assert copy.tags == {"testkey": "testvalue"}
         assert model.tags is None
         for name, doc_type in copy.doc_types.items():
-            assert name
+            assert name == copy_auth["targetModelId"]
             for key, field in doc_type.field_schema.items():
                 assert key
                 assert field["type"]

@@ -19,7 +19,8 @@ USAGE:
 
 import os
 
-subscription_key = os.getenv("AZURE_SUBSCRIPTION_KEY")
+subscription_key = os.getenv("AZURE_SUBSCRIPTION_KEY", "your subscription key")
+
 
 def get_country_code():
     # [START get_country_code]
@@ -36,5 +37,5 @@ def get_country_code():
     # [END get_country_code]
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     get_country_code()

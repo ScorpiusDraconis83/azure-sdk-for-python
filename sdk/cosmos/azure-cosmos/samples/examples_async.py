@@ -4,13 +4,10 @@
 # license information.
 # -------------------------------------------------------------------------
 import asyncio
-from azure.cosmos import exceptions, CosmosClient, PartitionKey
+from azure.cosmos import exceptions, PartitionKey
 from azure.cosmos.aio import CosmosClient
 
 import os
-
-url = os.environ["ACCOUNT_URI"]
-key = os.environ["ACCOUNT_KEY"]
 
 
 async def examples_async():
@@ -23,6 +20,8 @@ async def examples_async():
     # create a context manager that automatically warms up, initializes, and cleans up the client, so you don't have to.
 
     # [START create_client]
+    url = os.environ["ACCOUNT_URI"]
+    key = os.environ["ACCOUNT_KEY"]
     async with CosmosClient(url, key) as client:
         # [END create_client]
 
@@ -68,13 +67,13 @@ async def examples_async():
         # if no container with the specified ID was found in the database.
         # [START get_container]
         database = client.get_database_client(database_name)
-        container = database.get_container_client(container_name)
+        container_client = database.get_container_client(container_name)
         # [END get_container]
 
         # [START list_containers]
         database = client.get_database_client(database_name)
-        async for container in database.list_containers():
-            print("Container ID: {}".format(container['id']))
+        async for container_c in database.list_containers():
+            print("Container ID: {}".format(container_c['id']))
         # [END list_containers]
 
         # Insert new items by defining a dict and calling Container.upsert_item
@@ -100,10 +99,10 @@ async def examples_async():
         # [START query_items]
         import json
 
-        async for item in container.query_items(
+        async for queried_item in container.query_items(
                 query='SELECT * FROM products p WHERE p.productModel <> "DISCONTINUED"'
         ):
-            print(json.dumps(item, indent=True))
+            print(json.dumps(queried_item, indent=True))
         # [END query_items]
 
         # Parameterized queries are also supported. This example
@@ -113,8 +112,8 @@ async def examples_async():
             query='SELECT * FROM products p WHERE p.productModel = @model AND p.productName="Widget"',
             parameters=[dict(name="@model", value="DISCONTINUED")],
         )
-        async for item in discontinued_items:
-            print(json.dumps(item, indent=True))
+        async for discontinued_item in discontinued_items:
+            print(json.dumps(discontinued_item, indent=True))
         # [END query_items_param]
 
         # [START priority_level option]
@@ -122,12 +121,12 @@ async def examples_async():
         # for the request sent to Azure Cosmos DB. Based on the priority specified by the user,
         # if there are more requests than the configured RU/s in a second,
         # then Azure Cosmos DB will throttle low priority requests to allow high priority requests to execute.
-        # Can be used for Read, Write, and Query operations. This is specified with the priority_level keyword.
+        # Can be used for Read, Write, and Query operations. This is specified with the `priority` keyword.
         # the value can either be low or high.
-        async for item in container.query_items(
-                query='SELECT * FROM products p WHERE p.productModel <> "DISCONTINUED"', priority_level="High"
+        async for queried_item in container.query_items(
+                query='SELECT * FROM products p WHERE p.productModel <> "DISCONTINUED"', priority="High"
         ):
-            print(json.dumps(item, indent=True))
+            print(json.dumps(queried_item, indent=True))
         # [END priority_level option]
 
         # Delete items from the container.
@@ -135,10 +134,10 @@ async def examples_async():
         # so deletes must be done with the delete_item method
         # on the container.
         # [START delete_items]
-        async for item in container.query_items(
+        async for queried_item in container.query_items(
                 query='SELECT * FROM products p WHERE p.productModel = "DISCONTINUED" AND p.productName="Widget"'
         ):
-            await container.delete_item(item, partition_key="Widget")
+            await container.delete_item(queried_item, partition_key="Widget")
         # [END delete_items]
 
         # Retrieve the properties of a database
@@ -146,6 +145,35 @@ async def examples_async():
         properties = await database.read()
         print(json.dumps(properties, indent=True))
         # [END get_database_properties]
+
+        # Retrieve the properties of a container
+        # [START get_container_properties]
+        # Get properties will return a cache of two container properties: RID and the Partition Key Definition (This will not consume RUs)
+        properties = await container._get_properties()
+
+        # Print _rid and partitionKey
+        print("Resource ID: ", properties.get('_rid'))
+        print("Partition Key: ", properties.get('partitionKey'))
+
+        # Read the container to get the latests of all the Container Properties. (This will make a backend requests and will consume RUs)
+        container_properties = await container.read()
+
+        # Print each property one by one if they are currently in the container properties
+        print("indexingPolicy: ", container_properties.get("indexingPolicy"))
+        print("etag: ", container_properties.get('_etag'))
+        print("lastModified: ", container_properties.get('lastModified'))
+        print("defaultTtl: ", container_properties.get('defaultTtl'))
+        print("uniqueKeyPolicy: ", container_properties.get('uniqueKeyPolicy'))
+        print("conflictResolutionPolicy: ", container_properties.get('conflictResolutionPolicy'))
+        print("changeFeedPolicy: ", container_properties.get('changeFeedPolicy'))
+        print("geospatialConfig: ", container_properties.get('geospatialConfig'))
+
+        # Print remaining properties if they are in the current container properties
+        for key, value in container_properties.items():
+            if key not in ['_rid', 'partitionKey', 'indexingPolicy', '_etag', 'lastModified', 'defaultTtl', 'uniqueKeyPolicy',
+                           'conflictResolutionPolicy', 'changeFeedPolicy', 'geospatialConfig']:
+                print(f"{key}: {value}")
+        # [END get_container_properties]
 
         # Modify the properties of an existing container
         # This example sets the default time to live (TTL) for items in the
@@ -180,13 +208,13 @@ async def examples_async():
                 dict(id="item{}".format(i), productName="Gadget", productModel="Model {}".format(i))
             )
         items = container.read_all_items()
-        async for item in items:
-            print(json.dumps(item, indent=True))
+        async for item_dict in items:
+            print(json.dumps(item_dict, indent=True))
         await container.delete_all_items_by_partition_key("Gadget")
         print("All items in partition {} deleted.".format("Gadget"))
         items = container.read_all_items()
-        async for item in items:
-            print(json.dumps(item, indent=True))
+        async for item_dict in items:
+            print(json.dumps(item_dict, indent=True))
         # [END delete_all_items_by_partition_key]
 
         # insert items in a subpartitioned container
@@ -221,18 +249,55 @@ async def examples_async():
         # [START query_items]
         import json
 
-        async for item in container.query_items(
+        async for queried_item in container.query_items(
                 query='SELECT * FROM location l WHERE l.state = "WA"'
         ):
-            print(json.dumps(item, indent=True))
+            print(json.dumps(queried_item, indent=True))
         # [END query_items]
 
          # [START delete_items]
-        async for item in container.query_items(
+        async for item_dict in container.query_items(
                 query='SELECT * FROM location p WHERE p.state = "GA"'
         ):
-            await container.delete_item(item, partition_key=["GA", "Atlanta", 30363])
+            await container.delete_item(item_dict, partition_key=["GA", "Atlanta", 30363])
         # [END delete_items]
+
+        # Get the feed ranges list from container.
+        # [START read_feed_ranges]
+        feed_ranges = [feed_range async for feed_range in container.read_feed_ranges()]
+        # [END read_feed_ranges]
+
+        # Get a feed range from a partition key.
+        # [START feed_range_from_partition_key ]
+        feed_range_from_pk = await container.feed_range_from_partition_key(["GA", "Atlanta", 30363])
+        # [END feed_range_from_partition_key]
+
+        # Figure out if a feed range is a subset of another feed range.
+        # This example sees in which feed range from the container a feed range from a partition key is part of.
+        # [START is_feed_range_subset]
+        parent_feed_range = {}
+        for feed_range in feed_ranges:
+            if await container.is_feed_range_subset(feed_range, feed_range_from_pk):
+                parent_feed_range = feed_range
+                break
+        # [END is_feed_range_subset]
+
+
+        # Query a sorted list of items that were changed for one feed range.
+        # The asynchronous client returns asynchronous iterators for its query methods;
+        # as such, we iterate over it by using an async for loop
+        # [START query_items_change_feed]
+        async for queried_item in container.query_items_change_feed(feed_range=feed_ranges[0]):
+            print(json.dumps(queried_item, indent=True))
+        # [END query_items_change_feed]
+
+        # Query a sorted list of items that were changed for one feed range from beginning.
+        # The asynchronous client returns asynchronous iterators for its query methods;
+        # as such, we iterate over it by using an async for loop
+        # [START query_items_change_feed_from_beginning]
+        async for queried_item in container.query_items_change_feed(feed_range=feed_ranges[0], start_time="Beginning"):
+            print(json.dumps(queried_item, indent=True))
+        # [END query_items_change_feed_from_beginning]
 
         await client.delete_database(database_name)
         print("Sample done running!")

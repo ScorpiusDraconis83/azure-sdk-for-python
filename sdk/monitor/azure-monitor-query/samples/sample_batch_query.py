@@ -15,6 +15,7 @@ For more information on DefaultAzureCredential, see https://learn.microsoft.com/
 **Note** - Although this example uses pandas to print the response, it's optional and
 isn't a required package for querying. Alternatively, native Python can be used as well.
 """
+
 # [START send_query_batch]
 from datetime import datetime, timedelta, timezone
 import os
@@ -49,20 +50,20 @@ try:
     results = client.query_batch(requests)
 
     for res in results:
-        if res.status == LogsQueryStatus.FAILURE:
-            # This will be a LogsQueryError
-            print(res)
+        if res.status == LogsQueryStatus.SUCCESS:
+            # This will be a LogsQueryResult
+            table = res.tables[0]
+            df = pd.DataFrame(table.rows, columns=table.columns)
+            print(df)
         elif res.status == LogsQueryStatus.PARTIAL:
             # This will be a LogsQueryPartialResult
             print(res.partial_error)
             for table in res.partial_data:
                 df = pd.DataFrame(table.rows, columns=table.columns)
                 print(df)
-        elif res.status == LogsQueryStatus.SUCCESS:
-            # This will be a LogsQueryResult
-            table = res.tables[0]
-            df = pd.DataFrame(table.rows, columns=table.columns)
-            print(df)
+        else:
+            # This will be a LogsQueryError
+            print(res)
 except HttpResponseError as err:
     print("something fatal happened")
     print(err)

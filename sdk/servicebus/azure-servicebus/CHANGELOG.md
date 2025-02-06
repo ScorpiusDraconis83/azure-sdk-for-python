@@ -1,16 +1,79 @@
 # Release History
 
-## 7.11.5 (Unreleased)
+## 7.14.0 (2025-02-11)
 
 ### Features Added
 
-### Breaking Changes
+- Added in emulator support, ServiceBusAdministrationClient is currently not supported by the emulator. ([#38655](https://github.com/Azure/azure-sdk-for-python/pull/38655))
 
 ### Bugs Fixed
+
+- Fixed a bug where async websocket disconnects were not being retried properly. ([#36280](https://github.com/Azure/azure-sdk-for-python/issues/36280))
+- Fixed a bug where sending large messages with synchronous client caused a frame buffer offset error ([#37916](https://github.com/Azure/azure-sdk-for-python/issues/37916))
+- Fix to handle websocket disconnect/close on aiohttp, as aiohttp raises a `TypeError` while asserting bytes. ([#32061](https://github.com/Azure/azure-sdk-for-python/pull/32061))
+- Fixed a bug where pyAMQP was doubly retrying, causing latency on reconnect. ([#39037](https://github.com/Azure/azure-sdk-for-python/pull/39037))
+- Fix to handle large messages being sent twice due to incoming flow frames triggering a resend. ([#38067](https://github.com/Azure/azure-sdk-for-python/pull/38067))
+- Missing await in sender async on pyAMQP. ([#39182](https://github.com/Azure/azure-sdk-for-python/pull/39182))
+
+### Other Changes
+
+- Fixed mypy/pylint
+- Removed python 2.7 code ([#38735](https://github.com/Azure/azure-sdk-for-python/pull/38735))
+
+## 7.13.0 (2024-11-12)
+
+### Features Added
+
+- Added `ssl_context` parameter to the clients to allow users to pass in the SSL context, in which case, `connection_verify` will be ignored if specified.([#37246](https://github.com/Azure/azure-sdk-for-python/issues/37246))
+
+### Bugs Fixed
+
+- Fixed a broken f-string present in a `ValueError` when using the async client. ([37695](https://github.com/Azure/azure-sdk-for-python/issues/37695))
+- Fixed a bug with the incorrect error being raised for larger than allowed batch size. ([38260](https://github.com/Azure/azure-sdk-for-python/issues/38260))
+- Fixed a bug with an error being raised when the fully-qualified namespace included a port, rather than ignoring the port. ([37547](https://github.com/Azure/azure-sdk-for-python/issues/37547))
+
+### Other Changes
+
+- Added debug logging to track received messages.
+
+## 7.12.3 (2024-09-19)
+
+### Bugs Fixed
+
+ - Fixed a bug where token refreshes were not happening on long running operations ([35717](https://github.com/Azure/azure-sdk-for-python/issues/35717))
+ - Fixed a bug where using TokenCredential to create a subscription with forwarding caused a `ResourceNotFoundError` ([36545](https://github.com/Azure/azure-sdk-for-python/pull/36545))
+ - Fixed a bug where messages received on one receiver could not be settled on another receiver over mgmt link ([35304](https://github.com/Azure/azure-sdk-for-python/issues/35304))
+ - Addressed a bug where excess Link Credits were being allocated when large messages were being received ([34270](https://github.com/Azure/azure-sdk-for-python/issues/34270))
+
+## 7.12.2 (2024-05-08)
+
+### Bugs Fixed
+
+- Fixed a bug where WebsocketConnectionClosedException was not being caught when receiving with AmqpOverWebsocket ([34859](https://github.com/Azure/azure-sdk-for-python/pull/34859))
+- Fixed incorrect dependency on typing-extensions ([34869](https://github.com/Azure/azure-sdk-for-python/issues/34869), thanks @YaroBear).
+
+## 7.12.1 (2024-03-20)
+
+### Bugs Fixed
+
+- Fixed a bug where the client was not retrying when a connection drop happened ([34786](https://github.com/Azure/azure-sdk-for-python/pull/34786))
+- Fixed a bug where the client would not handle a role instance swap on the service correctly ([34820](https://github.com/Azure/azure-sdk-for-python/pull/34820))
+
+### Other Changes
+
+- Updated the logging to more accurately represent when frames are being sent to prevent a client-side idle timeout ([#34793](https://github.com/Azure/azure-sdk-for-python/pull/34793)).
+
+## 7.12.0 (2024-03-06)
+
+### Features Added
+
+- Updated `max_wait_time` on the ServiceBusReceiver constructor allowing users to change the default server timeout of 65 seconds when accepting a session on a Session-Enabled/Queues/Topics if NEXT_AVAILABLE_SESSION is used.
 
 ### Other Changes
 
 - Updated minimum `azure-core` version to 1.28.0.
+- Updated Pure Python AMQP network trace logging to replace `None` values in AMQP connection info with empty strings as per the OpenTelemetry specification ([#32190](https://github.com/Azure/azure-sdk-for-python/issues/32190)).
+- Updated Pure Python AMQP network trace logging error log on connection close to warning (PR #34504, thanks @RichardOberdieck).
 
 ## 7.11.4 (2023-11-13)
 
@@ -731,7 +794,7 @@ Version 7.0.0b1 is a preview of our efforts to create a client library that is u
 
 * Introduces new AMQP-based API.
 * Original HTTP-based API still available under new namespace: azure.servicebus.control_client
-* For full API changes, please see updated [reference documentation](https://docs.microsoft.com/python/api/azure-servicebus/azure.servicebus?view=azure-python).
+* For full API changes, please see updated [reference documentation](https://learn.microsoft.com/python/api/azure-servicebus/azure.servicebus?view=azure-python).
 
 Within the new namespace, the original HTTP-based API from version 0.21.1 remains unchanged (i.e. no additional features or bugfixes)
 so for those intending to only use HTTP operations - there is no additional benefit in updating at this time.

@@ -88,7 +88,7 @@ class CryptographyClient(AsyncKeyVaultClientBase):
             try:
                 self._local_provider = get_local_cryptography_provider(cast(JsonWebKey, self._key))
                 self._initialized = True
-            except Exception as ex:  # pylint:disable=broad-except
+            except Exception as ex:
                 raise ValueError("The provided jwk is not valid for local cryptography") from ex
         else:
             self._local_provider = NoLocalCryptography()
@@ -166,7 +166,15 @@ class CryptographyClient(AsyncKeyVaultClientBase):
             self._initialized = self._keys_get_forbidden
 
     @distributed_trace_async
-    async def encrypt(self, algorithm: EncryptionAlgorithm, plaintext: bytes, **kwargs: Any) -> EncryptResult:
+    async def encrypt(
+        self,
+        algorithm: EncryptionAlgorithm,
+        plaintext: bytes,
+        *,
+        iv: Optional[bytes] = None,
+        additional_authenticated_data: Optional[bytes] = None,
+        **kwargs: Any,
+    ) -> EncryptResult:
         """Encrypt bytes using the client's key.
 
         Requires the keys/encrypt permission. This method encrypts only a single block of data, whose size depends on
@@ -198,9 +206,9 @@ class CryptographyClient(AsyncKeyVaultClientBase):
             :language: python
             :dedent: 8
         """
-        iv = kwargs.pop("iv", None)
-        aad = kwargs.pop("additional_authenticated_data", None)
-        _validate_arguments(operation=KeyOperation.encrypt, algorithm=algorithm, iv=iv, aad=aad)
+        _validate_arguments(
+            operation=KeyOperation.encrypt, algorithm=algorithm, iv=iv, aad=additional_authenticated_data
+        )
         await self._initialize(**kwargs)
 
         if self._local_provider.supports(KeyOperation.encrypt, algorithm):
@@ -220,7 +228,9 @@ class CryptographyClient(AsyncKeyVaultClientBase):
             vault_base_url=self._key_id.vault_url if self._key_id else None,
             key_name=self._key_id.name if self._key_id else None,
             key_version=self._key_id.version if self._key_id else None,
-            parameters=self._models.KeyOperationsParameters(algorithm=algorithm, value=plaintext, iv=iv, aad=aad),
+            parameters=self._models.KeyOperationsParameters(
+                algorithm=algorithm, value=plaintext, iv=iv, aad=additional_authenticated_data
+            ),
             **kwargs
         )
 
@@ -242,7 +252,16 @@ class CryptographyClient(AsyncKeyVaultClientBase):
         )
 
     @distributed_trace_async
-    async def decrypt(self, algorithm: EncryptionAlgorithm, ciphertext: bytes, **kwargs: Any) -> DecryptResult:
+    async def decrypt(
+        self,
+        algorithm: EncryptionAlgorithm,
+        ciphertext: bytes,
+        *,
+        iv: Optional[bytes] = None,
+        authentication_tag: Optional[bytes] = None,
+        additional_authenticated_data: Optional[bytes] = None,
+        **kwargs: Any,
+    ) -> DecryptResult:
         """Decrypt a single block of encrypted data using the client's key.
 
         Requires the keys/decrypt permission. This method decrypts only a single block of data, whose size depends on
@@ -252,7 +271,7 @@ class CryptographyClient(AsyncKeyVaultClientBase):
         :type algorithm: ~azure.keyvault.keys.crypto.EncryptionAlgorithm
         :param bytes ciphertext: Encrypted bytes to decrypt. Microsoft recommends you not use CBC without first ensuring
             the integrity of the ciphertext using, for example, an HMAC. See
-            https://docs.microsoft.com/dotnet/standard/security/vulnerabilities-cbc-mode for more information.
+            https://learn.microsoft.com/dotnet/standard/security/vulnerabilities-cbc-mode for more information.
 
         :keyword iv: The initialization vector used during encryption. Required for AES decryption.
         :paramtype iv: bytes or None
@@ -275,10 +294,13 @@ class CryptographyClient(AsyncKeyVaultClientBase):
             :language: python
             :dedent: 8
         """
-        iv = kwargs.pop("iv", None)
-        tag = kwargs.pop("authentication_tag", None)
-        aad = kwargs.pop("additional_authenticated_data", None)
-        _validate_arguments(operation=KeyOperation.decrypt, algorithm=algorithm, iv=iv, tag=tag, aad=aad)
+        _validate_arguments(
+            operation=KeyOperation.decrypt,
+            algorithm=algorithm,
+            iv=iv,
+            tag=authentication_tag,
+            aad=additional_authenticated_data,
+        )
         await self._initialize(**kwargs)
 
         if self._local_provider.supports(KeyOperation.decrypt, algorithm):
@@ -298,7 +320,7 @@ class CryptographyClient(AsyncKeyVaultClientBase):
             key_name=self._key_id.name if self._key_id else None,
             key_version=self._key_id.version if self._key_id else None,
             parameters=self._models.KeyOperationsParameters(
-                algorithm=algorithm, value=ciphertext, iv=iv, tag=tag, aad=aad
+                algorithm=algorithm, value=ciphertext, iv=iv, tag=authentication_tag, aad=additional_authenticated_data
             ),
             **kwargs
         )
@@ -482,3 +504,7 @@ class CryptographyClient(AsyncKeyVaultClientBase):
         )
 
         return VerifyResult(key_id=self.key_id, algorithm=algorithm, is_valid=operation_result.value)
+
+    async def __aenter__(self) -> "CryptographyClient":
+        await self._client.__aenter__()
+        return self

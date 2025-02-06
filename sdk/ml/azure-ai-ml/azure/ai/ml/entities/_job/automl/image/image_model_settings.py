@@ -2,7 +2,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # ---------------------------------------------------------
 
-from typing import Optional
+from typing import Any, Optional
 
 # pylint: disable=R0902,too-many-locals
 from azure.ai.ml._restclient.v2023_04_01_preview.models import (
@@ -13,11 +13,11 @@ from azure.ai.ml._restclient.v2023_04_01_preview.models import (
 )
 from azure.ai.ml._restclient.v2023_04_01_preview.models import (
     LearningRateScheduler,
+    LogTrainingMetrics,
+    LogValidationLoss,
     ModelSize,
     StochasticOptimizer,
     ValidationMetricType,
-    LogTrainingMetrics,
-    LogValidationLoss,
 )
 from azure.ai.ml.entities._mixins import RestTranslatableMixin
 
@@ -67,7 +67,7 @@ class ImageModelDistributionSettings(RestTranslatableMixin):
      For instance, passing 2 as value for 'seresnext' means
      freezing layer0 and layer1. For a full list of models supported and details on layer freeze,
      please
-     see: https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-models.
+     see: https://learn.microsoft.com/azure/machine-learning/how-to-auto-train-image-models.
     :type layers_to_freeze: int
     :param learning_rate: Initial learning rate. Must be a float in the range [0, 1].
     :type learning_rate: float
@@ -77,7 +77,7 @@ class ImageModelDistributionSettings(RestTranslatableMixin):
      ~azure.mgmt.machinelearningservices.models.LearningRateScheduler
     :param model_name: Name of the model to use for training.
      For more information on the available models please visit the official documentation:
-     https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-models.
+     https://learn.microsoft.com/azure/machine-learning/how-to-auto-train-image-models.
     :type model_name: str
     :param momentum: Value of momentum when optimizer is 'sgd'. Must be a float in the range [0, 1].
     :type momentum: float
@@ -259,7 +259,7 @@ class ImageModelSettingsClassification(ImageModelDistributionSettings):
      For instance, passing 2 as value for 'seresnext' means
      freezing layer0 and layer1. For a full list of models supported and details on layer freeze,
      please
-     see: https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-models.
+     see: https://learn.microsoft.com/azure/machine-learning/how-to-auto-train-image-models.
     :type layers_to_freeze: int
     :param learning_rate: Initial learning rate. Must be a float in the range [0, 1].
     :type learning_rate: float
@@ -269,7 +269,7 @@ class ImageModelSettingsClassification(ImageModelDistributionSettings):
      ~azure.mgmt.machinelearningservices.models.LearningRateScheduler
     :param model_name: Name of the model to use for training.
      For more information on the available models please visit the official documentation:
-     https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-models.
+     https://learn.microsoft.com/azure/machine-learning/how-to-auto-train-image-models.
     :type model_name: str
     :param momentum: Value of momentum when optimizer is 'sgd'. Must be a float in the range [0, 1].
     :type momentum: float
@@ -363,7 +363,7 @@ class ImageModelSettingsClassification(ImageModelDistributionSettings):
         validation_crop_size: Optional[int] = None,
         validation_resize_size: Optional[int] = None,
         weighted_loss: Optional[int] = None,
-        **kwargs,
+        **kwargs: Any,
     ):
         super(ImageModelSettingsClassification, self).__init__(
             advanced_settings=advanced_settings,
@@ -540,7 +540,7 @@ class ImageModelSettingsObjectDetection(ImageModelDistributionSettings):
      For instance, passing 2 as value for 'seresnext' means
      freezing layer0 and layer1. For a full list of models supported and details on layer freeze,
      please
-     see: https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-models.
+     see: https://learn.microsoft.com/azure/machine-learning/how-to-auto-train-image-models.
     :type layers_to_freeze: int
     :param learning_rate: Initial learning rate. Must be a float in the range [0, 1].
     :type learning_rate: float
@@ -550,7 +550,7 @@ class ImageModelSettingsObjectDetection(ImageModelDistributionSettings):
      ~azure.mgmt.machinelearningservices.models.LearningRateScheduler
     :param model_name: Name of the model to use for training.
      For more information on the available models please visit the official documentation:
-     https://docs.microsoft.com/en-us/azure/machine-learning/how-to-auto-train-image-models.
+     https://learn.microsoft.com/azure/machine-learning/how-to-auto-train-image-models.
     :type model_name: str
     :param momentum: Value of momentum when optimizer is 'sgd'. Must be a float in the range [0, 1].
     :type momentum: float
@@ -699,7 +699,7 @@ class ImageModelSettingsObjectDetection(ImageModelDistributionSettings):
         validation_metric_type: Optional[ValidationMetricType] = None,
         log_training_metrics: Optional[LogTrainingMetrics] = None,
         log_validation_loss: Optional[LogValidationLoss] = None,
-        **kwargs,
+        **kwargs: Any,
     ):
         super(ImageModelSettingsObjectDetection, self).__init__(
             advanced_settings=advanced_settings,

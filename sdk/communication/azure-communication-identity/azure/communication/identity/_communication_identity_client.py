@@ -36,7 +36,6 @@ class CommunicationIdentityClient(object):
 
         .. literalinclude:: ../samples/identity_samples.py
             :language: python
-            :dedent: 8
     """
 
     def __init__(
@@ -75,15 +74,6 @@ class CommunicationIdentityClient(object):
         :param str conn_str: A connection string to an Azure Communication Service resource.
         :returns: Instance of CommunicationIdentityClient.
         :rtype: ~azure.communication.identity.CommunicationIdentityClient
-
-        .. admonition:: Example:
-
-            .. literalinclude:: ../samples/identity_samples.py
-                :start-after: [START auth_from_connection_string]
-                :end-before: [END auth_from_connection_string]
-                :language: python
-                :dedent: 8
-                :caption: Creating the CommunicationIdentityClient from a connection string.
         """
         endpoint, access_key = parse_connection_str(conn_str)
 
@@ -99,13 +89,9 @@ class CommunicationIdentityClient(object):
         :return: CommunicationUserIdentifier
         :rtype: ~azure.communication.identity.CommunicationUserIdentifier
         """
-        identity_access_token = (
-            self._identity_service_client.communication_identity.create(**kwargs)
-        )
+        identity_access_token = self._identity_service_client.communication_identity.create(**kwargs)
 
-        return CommunicationUserIdentifier(
-            identity_access_token.identity.id, raw_id=identity_access_token.identity.id
-        )
+        return CommunicationUserIdentifier(identity_access_token.identity.id, raw_id=identity_access_token.identity.id)
 
     @distributed_trace
     def create_user_and_token(
@@ -158,9 +144,7 @@ class CommunicationIdentityClient(object):
         :return: None
         :rtype: None
         """
-        self._identity_service_client.communication_identity.delete(
-            user.properties["id"], **kwargs
-        )
+        self._identity_service_client.communication_identity.delete(user.properties["id"], **kwargs)
 
     @distributed_trace
     def get_token(

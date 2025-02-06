@@ -7,6 +7,7 @@
 # --------------------------------------------------------------------------
 
 from azure.identity import DefaultAzureCredential
+
 from azure.mgmt.sql import SqlManagementClient
 
 """
@@ -29,7 +30,7 @@ def main():
         subscription_id="00000000-1111-2222-3333-444444444444",
     )
 
-    response = client.backup_short_term_retention_policies.begin_create_or_update(
+    response = client.backup_short_term_retention_policies.begin_update(
         resource_group_name="resourceGroup",
         server_name="testsvr",
         database_name="testdb",

@@ -1,17 +1,16 @@
-#-------------------------------------------------------------------------  # pylint: disable=client-suffix-needed
+# -------------------------------------------------------------------------
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
-#--------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 # TODO: Check types of kwargs (issue exists for this)
 import asyncio
 import logging
 import time
 import queue
 from functools import partial
-from typing import Any, Dict, Optional, Tuple, Union, overload, cast
+from typing import Any, Callable, Coroutine, List, Dict, Optional, Tuple, Union, overload, cast
 from typing_extensions import Literal
-import certifi
 
 from ..outcomes import Accepted, Modified, Received, Rejected, Released
 from ._connection_async import Connection
@@ -21,9 +20,9 @@ from ..client import (
     AMQPClient as AMQPClientSync,
     ReceiveClient as ReceiveClientSync,
     SendClient as SendClientSync,
-    Outcomes
+    Outcomes,
 )
-from ..message import _MessageDelivery
+from ..message import _MessageDelivery, Message
 from ..constants import (
     MessageDeliveryState,
     SEND_DISPOSITION_ACCEPT,
@@ -32,13 +31,7 @@ from ..constants import (
     MESSAGE_DELIVERY_DONE_STATES,
     AUTH_TYPE_CBS,
 )
-from ..error import (
-    AMQPError,
-    ErrorCondition,
-    AMQPException,
-    MessageException
-)
-from ..constants import LinkState
+from ..error import AMQPError, ErrorCondition, AMQPException, MessageException
 
 _logger = logging.getLogger(__name__)
 
@@ -128,12 +121,15 @@ class AMQPClientAsync(AMQPClientSync):
     :keyword custom_endpoint_address: The custom endpoint address to use for establishing a connection to
      the Event Hubs service, allowing network requests to be routed through any application gateways or
      other paths needed for the host environment. Default is None.
+     Unless specified otherwise, default transport type is TransportType.AmqpOverWebsockets.
      If port is not specified in the `custom_endpoint_address`, by default port 443 will be used.
     :paramtype custom_endpoint_address: str
     :keyword connection_verify: Path to the custom CA_BUNDLE file of the SSL certificate which is used to
-     authenticate the identity of the connection endpoint.
-     Default is None in which case `certifi.where()` will be used.
+     authenticate the identity of the connection endpoint. Ignored if ssl_context passed in. Default is None
+     in which case `certifi.where()` will be used.
     :paramtype connection_verify: str
+    :keyword ssl_context: An instance of ssl.SSLContext to be used. If this is specified, connection_verify is ignored.
+    :paramtype ssl_context: ssl.SSLContext or None
     :keyword float socket_timeout: The maximum time in seconds that the underlying socket in the transport should
      wait when reading or writing data before timing out. The default value is 0.2 (for transport type Amqp),
      and 1 for transport type AmqpOverWebsocket.
@@ -141,8 +137,7 @@ class AMQPClientAsync(AMQPClientSync):
 
     def __init__(self, hostname, **kwargs):
         self._mgmt_link_lock_async = asyncio.Lock()
-        super().__init__(hostname,**kwargs)
-
+        super().__init__(hostname, **kwargs)
 
     async def _keep_alive_async(self):
         start_time = time.time()
@@ -151,21 +146,14 @@ class AMQPClientAsync(AMQPClientSync):
                 current_time = time.time()
                 elapsed_time = current_time - start_time
                 if elapsed_time >= self._keep_alive_interval:
-                    _logger.debug(
-                        "Keeping %r connection alive.",
-                        self.__class__.__name__,
-                        extra=self._network_trace_params
+                    await asyncio.shield(
+                        self._connection.listen(wait=self._socket_timeout, batch=self._link.total_link_credit)
                     )
-                    await asyncio.shield(self._connection.listen(wait=self._socket_timeout,
-                        batch=self._link.current_link_credit))
                     start_time = current_time
                 await asyncio.sleep(1)
         except Exception as e:  # pylint: disable=broad-except
             _logger.info(
-                "Connection keep-alive for %r failed: %r.",
-                self.__class__.__name__,
-                e,
-                extra=self._network_trace_params
+                "Connection keep-alive for %r failed: %r.", self.__class__.__name__, e, extra=self._network_trace_params
             )
 
     async def __aenter__(self):
@@ -197,7 +185,7 @@ class AMQPClientAsync(AMQPClientSync):
         await self._connection.listen(wait=self._socket_timeout, **kwargs)
 
     async def _close_link_async(self):
-        if self._link and not self._link._is_closed: # pylint: disable=protected-access
+        if self._link and not self._link._is_closed:  # pylint: disable=protected-access
             await self._link.detach(close=True)
             self._link = None
 
@@ -227,8 +215,8 @@ class AMQPClientAsync(AMQPClientSync):
             finally:
                 end_time = time.time()
                 if absolute_timeout > 0:
-                    absolute_timeout -= (end_time - start_time)
-        raise retry_settings['history'][-1]
+                    absolute_timeout -= end_time - start_time
+        raise retry_settings["history"][-1]
 
     async def open_async(self, connection=None):
         """Asynchronously open the client. The client can create a new Connection
@@ -249,9 +237,9 @@ class AMQPClientAsync(AMQPClientSync):
             self._external_connection = True
         if not self._connection:
             self._connection = Connection(
-                "amqps://" + self._hostname,
+                "amqps://" + self._hostname if self._use_tls else "amqp://" + self._hostname,
                 sasl_credential=self._auth.sasl,
-                ssl_opts={'ca_certs': self._connection_verify or certifi.where()},
+                ssl_opts=self._ssl_opts,
                 container_id=self._name,
                 max_frame_size=self._max_frame_size,
                 channel_max=self._channel_max,
@@ -262,19 +250,17 @@ class AMQPClientAsync(AMQPClientSync):
                 http_proxy=self._http_proxy,
                 custom_endpoint_address=self._custom_endpoint_address,
                 socket_timeout=self._socket_timeout,
+                use_tls=self._use_tls,
             )
             await self._connection.open()
         if not self._session:
             self._session = self._connection.create_session(
-                incoming_window=self._incoming_window,
-                outgoing_window=self._outgoing_window
+                incoming_window=self._incoming_window, outgoing_window=self._outgoing_window
             )
             await self._session.begin()
         if self._auth.auth_type == AUTH_TYPE_CBS:
             self._cbs_authenticator = CBSAuthenticator(
-                session=self._session,
-                auth=self._auth,
-                auth_timeout=self._auth_timeout
+                session=self._session, auth=self._auth, auth_timeout=self._auth_timeout
             )
             await self._cbs_authenticator.open()
         self._network_trace_params["amqpConnection"] = self._connection._container_id
@@ -305,8 +291,8 @@ class AMQPClientAsync(AMQPClientSync):
         if self._keep_alive_thread:
             await self._keep_alive_thread
             self._keep_alive_thread = None
-        self._network_trace_params["amqpConnection"] = None
-        self._network_trace_params["amqpSession"] = None
+        self._network_trace_params["amqpConnection"] = ""
+        self._network_trace_params["amqpSession"] = ""
 
     async def auth_complete_async(self):
         """Whether the authentication handshake is complete during
@@ -356,7 +342,16 @@ class AMQPClientAsync(AMQPClientSync):
             return True
         return await self._client_run_async(**kwargs)
 
-    async def mgmt_request_async(self, message, **kwargs):
+    async def mgmt_request_async(
+        self,
+        message,
+        *,
+        operation: Optional[Union[bytes, str]] = None,
+        operation_type: Optional[Union[bytes, str]] = None,
+        node: str = "$management",
+        timeout: float = 0,
+        **kwargs
+    ):
         """
         :param message: The message to send in the management request.
         :type message: ~pyamqp.message.Message
@@ -376,10 +371,6 @@ class AMQPClientAsync(AMQPClientSync):
         # The method also takes "status_code_field" and "status_description_field"
         # keyword arguments as alternate names for the status code and description
         # in the response body. Those two keyword arguments are used in Azure services only.
-        operation = kwargs.pop("operation", None)
-        operation_type = kwargs.pop("operation_type", None)
-        node = kwargs.pop("node", "$management")
-        timeout = kwargs.pop('timeout', 0)
         async with self._mgmt_link_lock_async:
             try:
                 mgmt_link = self._mgmt_links[node]
@@ -388,21 +379,20 @@ class AMQPClientAsync(AMQPClientSync):
                 self._mgmt_links[node] = mgmt_link
                 await mgmt_link.open()
 
+        while not await self.client_ready_async():
+            await asyncio.sleep(0.05)
+
         while not await mgmt_link.ready():
             await self._connection.listen(wait=False)
 
-        operation_type = operation_type or b'empty'
+        operation_type = operation_type or b"empty"
         status, description, response = await mgmt_link.execute(
-            message,
-            operation=operation,
-            operation_type=operation_type,
-            timeout=timeout
+            message, operation=operation, operation_type=operation_type, timeout=timeout
         )
         return status, description, response
 
 
 class SendClientAsync(SendClientSync, AMQPClientAsync):
-
     """An asynchronous AMQP client.
 
     :param target: The target AMQP service endpoint. This can either be the URI as
@@ -488,12 +478,15 @@ class SendClientAsync(SendClientSync, AMQPClientAsync):
     :keyword custom_endpoint_address: The custom endpoint address to use for establishing a connection to
      the Event Hubs service, allowing network requests to be routed through any application gateways or
      other paths needed for the host environment. Default is None.
+     Unless specified otherwise, default transport type is TransportType.AmqpOverWebsockets.
      If port is not specified in the `custom_endpoint_address`, by default port 443 will be used.
     :paramtype custom_endpoint_address: str
     :keyword connection_verify: Path to the custom CA_BUNDLE file of the SSL certificate which is used to
-     authenticate the identity of the connection endpoint.
-     Default is None in which case `certifi.where()` will be used.
+     authenticate the identity of the connection endpoint. Ignored if ssl_context passed in. Default is None
+     in which case `certifi.where()` will be used.
     :paramtype connection_verify: str
+    :keyword ssl_context: An instance of ssl.SSLContext to be used. If this is specified, connection_verify is ignored.
+    :paramtype ssl_context: ssl.SSLContext or None
     """
 
     async def _client_ready_async(self):
@@ -505,7 +498,6 @@ class SendClientAsync(SendClientSync, AMQPClientAsync):
         :return: Whether or not the client is ready to start sending messages.
         :rtype: bool
         """
-        # pylint: disable=protected-access
         if not self._link:
             self._link = self._session.create_sender_link(
                 target_address=self.target,
@@ -513,7 +505,8 @@ class SendClientAsync(SendClientSync, AMQPClientAsync):
                 send_settle_mode=self._send_settle_mode,
                 rcv_settle_mode=self._receive_settle_mode,
                 max_message_size=self._max_message_size,
-                properties=self._link_properties)
+                properties=self._link_properties,
+            )
             await self._link.attach()
             return False
         if self._link.get_state().value != 3:  # ATTACHED
@@ -537,10 +530,7 @@ class SendClientAsync(SendClientSync, AMQPClientAsync):
         message_delivery.state = MessageDeliveryState.WaitingForSendAck
         on_send_complete = partial(self._on_send_complete_async, message_delivery)
         delivery = await self._link.send_transfer(
-            message_delivery.message,
-            on_send_complete=on_send_complete,
-            timeout=timeout,
-            send_async=True
+            message_delivery.message, on_send_complete=on_send_complete, timeout=timeout, send_async=True
         )
         return delivery
 
@@ -556,13 +546,10 @@ class SendClientAsync(SendClientSync, AMQPClientAsync):
                         message_delivery,
                         condition=error_info[0][0],
                         description=error_info[0][1],
-                        info=error_info[0][2]
+                        info=error_info[0][2],
                     )
                 except TypeError:
-                    self._process_send_error(
-                        message_delivery,
-                        condition=ErrorCondition.UnknownError
-                    )
+                    self._process_send_error(message_delivery, condition=ErrorCondition.UnknownError)
         elif reason == LinkDeliverySettleReason.SETTLED:
             message_delivery.state = MessageDeliveryState.Ok
         elif reason == LinkDeliverySettleReason.TIMEOUT:
@@ -570,20 +557,12 @@ class SendClientAsync(SendClientSync, AMQPClientAsync):
             message_delivery.error = TimeoutError("Sending message timed out.")
         else:
             # NotDelivered and other unknown errors
-            self._process_send_error(
-                message_delivery,
-                condition=ErrorCondition.UnknownError
-            )
+            self._process_send_error(message_delivery, condition=ErrorCondition.UnknownError)
 
-    async def _send_message_impl_async(self, message, **kwargs):
-        timeout = kwargs.pop("timeout", 0)
+    async def _send_message_impl_async(self, message, *, timeout: float = 0):
         expire_time = (time.time() + timeout) if timeout else None
         await self.open_async()
-        message_delivery = _MessageDelivery(
-            message,
-            MessageDeliveryState.WaitingToBeSent,
-            expire_time
-        )
+        message_delivery = _MessageDelivery(message, MessageDeliveryState.WaitingToBeSent, expire_time)
 
         while not await self.client_ready_async():
             await asyncio.sleep(0.05)
@@ -595,14 +574,13 @@ class SendClientAsync(SendClientSync, AMQPClientAsync):
             running = await self.do_work_async()
         if message_delivery.state not in MESSAGE_DELIVERY_DONE_STATES:
             raise MessageException(
-                condition=ErrorCondition.ClientError,
-                description="Send failed - connection not running."
+                condition=ErrorCondition.ClientError, description="Send failed - connection not running."
             )
 
         if message_delivery.state in (
             MessageDeliveryState.Error,
             MessageDeliveryState.Cancelled,
-            MessageDeliveryState.Timeout
+            MessageDeliveryState.Timeout,
         ):
             try:
                 raise message_delivery.error  # pylint: disable=raising-bad-type
@@ -610,11 +588,16 @@ class SendClientAsync(SendClientSync, AMQPClientAsync):
                 # This is a default handler
                 raise MessageException(condition=ErrorCondition.UnknownError, description="Send failed.") from None
 
-    async def send_message_async(self, message, **kwargs):
+    async def send_message_async(self, message, *, timeout: float = 0, **kwargs):
         """
         :param ~pyamqp.message.Message message: The message to send.
+        :keyword float timeout: timeout in seconds. If set to
+         0, the client will continue to wait until the message is sent or error happens. The
+         default is 0.
         """
-        await self._do_retryable_operation_async(self._send_message_impl_async, message=message, **kwargs)
+        await self._do_retryable_operation_async(
+            self._send_message_impl_async, message=message, timeout=timeout, **kwargs
+        )
 
 
 class ReceiveClientAsync(ReceiveClientSync, AMQPClientAsync):
@@ -703,12 +686,15 @@ class ReceiveClientAsync(ReceiveClientSync, AMQPClientAsync):
     :keyword custom_endpoint_address: The custom endpoint address to use for establishing a connection to
      the Event Hubs service, allowing network requests to be routed through any application gateways or
      other paths needed for the host environment. Default is None.
+     Unless specified otherwise, default transport type is TransportType.AmqpOverWebsockets.
      If port is not specified in the `custom_endpoint_address`, by default port 443 will be used.
     :paramtype custom_endpoint_address: str
     :keyword connection_verify: Path to the custom CA_BUNDLE file of the SSL certificate which is used to
-     authenticate the identity of the connection endpoint.
-     Default is None in which case `certifi.where()` will be used.
+     authenticate the identity of the connection endpoint. Ignored if ssl_context passed in. Default is None
+     in which case `certifi.where()` will be used.
     :paramtype connection_verify: str
+    :keyword ssl_context: An instance of ssl.SSLContext to be used. If this is specified, connection_verify is ignored.
+    :paramtype ssl_context: ssl.SSLContext or None
     """
 
     async def _client_ready_async(self):
@@ -720,18 +706,17 @@ class ReceiveClientAsync(ReceiveClientSync, AMQPClientAsync):
         :return: Whether the client is ready to start receiving messages.
         :rtype: bool
         """
-        # pylint: disable=protected-access
         if not self._link:
             self._link = self._session.create_receiver_link(
                 source_address=self.source,
-                link_credit=self._link_credit,
+                link_credit=0,  # link_credit=0 on flow frame sent before client is ready
                 send_settle_mode=self._send_settle_mode,
                 rcv_settle_mode=self._receive_settle_mode,
                 max_message_size=self._max_message_size,
                 on_transfer=self._message_received_async,
                 properties=self._link_properties,
                 desired_capabilities=self._desired_capabilities,
-                on_attach=self._on_attach
+                on_attach=self._on_attach,
             )
             await self._link.attach()
             return False
@@ -748,8 +733,8 @@ class ReceiveClientAsync(ReceiveClientSync, AMQPClientAsync):
         :rtype: bool
         """
         try:
-            if self._link.current_link_credit <= 0:
-                await self._link.flow()
+            if self._link.total_link_credit <= 0:
+                await self._link.flow(link_credit=self._link_credit)
             await self._connection.listen(wait=self._socket_timeout, **kwargs)
         except ValueError:
             _logger.info("Timeout reached, closing receiver.", extra=self._network_trace_params)
@@ -773,12 +758,17 @@ class ReceiveClientAsync(ReceiveClientSync, AMQPClientAsync):
         if not self._streaming_receive:
             self._received_messages.put((frame, message))
 
-    async def _receive_message_batch_impl_async(self, max_batch_size=None, on_message_received=None, timeout=0):
+    async def _receive_message_batch_impl_async(
+        self,
+        max_batch_size: Optional[int] = None,
+        on_message_received: Optional[Callable] = None,
+        timeout: float = 0,
+    ):
         self._message_received_callback = on_message_received
         max_batch_size = max_batch_size or self._link_credit
         timeout_time = time.time() + timeout if timeout else 0
         receiving = True
-        batch = []
+        batch: List[Message] = []
         await self.open_async()
         while len(batch) < max_batch_size:
             try:
@@ -801,8 +791,7 @@ class ReceiveClientAsync(ReceiveClientSync, AMQPClientAsync):
 
             try:
                 receiving = await asyncio.wait_for(
-                    self.do_work_async(batch=to_receive_size),
-                    timeout=timeout_time - now_time if timeout else None
+                    self.do_work_async(batch=to_receive_size), timeout=timeout_time - now_time if timeout else None
                 )
             except asyncio.TimeoutError:
                 break
@@ -831,7 +820,14 @@ class ReceiveClientAsync(ReceiveClientSync, AMQPClientAsync):
         self._received_messages = queue.Queue()
         await super(ReceiveClientAsync, self).close_async()
 
-    async def receive_message_batch_async(self, **kwargs):
+    async def receive_message_batch_async(  # pylint: disable=unused-argument
+        self,
+        *,
+        max_batch_size: Optional[int] = None,
+        on_message_received: Optional[Callable] = None,
+        timeout: float = 0,
+        **kwargs
+    ) -> Coroutine[Any, Any, list]:
         """Receive a batch of messages. Messages returned in the batch have already been
         accepted - if you wish to add logic to accept or reject messages based on custom
         criteria, pass in a callback. This method will return as soon as some messages are
@@ -850,10 +846,14 @@ class ReceiveClientAsync(ReceiveClientSync, AMQPClientAsync):
          0, the client will continue to wait until at least one message is received. The
          default is 0.
         :paramtype timeout: float
+        :returns: Retryable operation coroutine.
+        :rtype: Coroutine[Any, Any, list]
         """
         return await self._do_retryable_operation_async(
             self._receive_message_batch_impl_async,
-            **kwargs
+            max_batch_size=max_batch_size,
+            on_message_received=on_message_received,
+            timeout=timeout,
         )
 
     async def receive_messages_iter_async(self, timeout=None, on_message_received=None):
@@ -907,69 +907,71 @@ class ReceiveClientAsync(ReceiveClientSync, AMQPClientAsync):
     async def settle_messages_async(
         self,
         delivery_id: Union[int, Tuple[int, int]],
+        delivery_tag: bytes,
         outcome: Literal["accepted"],
         *,
         batchable: Optional[bool] = None
-    ):
-        ...
+    ): ...
 
     @overload
     async def settle_messages_async(
         self,
         delivery_id: Union[int, Tuple[int, int]],
+        delivery_tag: bytes,
         outcome: Literal["released"],
         *,
         batchable: Optional[bool] = None
-    ):
-        ...
+    ): ...
 
     @overload
     async def settle_messages_async(
         self,
         delivery_id: Union[int, Tuple[int, int]],
+        delivery_tag: bytes,
         outcome: Literal["rejected"],
         *,
         error: Optional[AMQPError] = None,
         batchable: Optional[bool] = None
-    ):
-        ...
+    ): ...
 
     @overload
     async def settle_messages_async(
         self,
         delivery_id: Union[int, Tuple[int, int]],
+        delivery_tag: bytes,
         outcome: Literal["modified"],
         *,
         delivery_failed: Optional[bool] = None,
         undeliverable_here: Optional[bool] = None,
         message_annotations: Optional[Dict[Union[str, bytes], Any]] = None,
         batchable: Optional[bool] = None
-    ):
-        ...
+    ): ...
 
     @overload
     async def settle_messages_async(
         self,
         delivery_id: Union[int, Tuple[int, int]],
+        delivery_tag: bytes,
         outcome: Literal["received"],
         *,
         section_number: int,
         section_offset: int,
         batchable: Optional[bool] = None
-    ):
-        ...
+    ): ...
 
-    async def settle_messages_async(self, delivery_id: Union[int, Tuple[int, int]], outcome: str, **kwargs):
-        batchable = kwargs.pop('batchable', None)
-        if outcome.lower() == 'accepted':
+    async def settle_messages_async(
+        self, delivery_id: Union[int, Tuple[int, int]], delivery_tag: bytes, outcome: str, **kwargs
+    ):
+        batchable = kwargs.pop("batchable", None)
+        if outcome.lower() == "accepted":
             state: Outcomes = Accepted()
-        elif outcome.lower() == 'released':
+        elif outcome.lower() == "released":
             state = Released()
-        elif outcome.lower() == 'rejected':
+        elif outcome.lower() == "rejected":
             state = Rejected(**kwargs)
-        elif outcome.lower() == 'modified':
+        elif outcome.lower() == "modified":
             state = Modified(**kwargs)
-        elif outcome.lower() == 'received':
+        elif outcome.lower() == "received":
             state = Received(**kwargs)
         else:
             raise ValueError("Unrecognized message output: {}".format(outcome))
@@ -981,8 +983,9 @@ class ReceiveClientAsync(ReceiveClientSync, AMQPClientAsync):
         await self._link.send_disposition(
             first_delivery_id=first,
             last_delivery_id=last,
+            delivery_tag=delivery_tag,
             settled=True,
             delivery_state=state,
             batchable=batchable,
-            wait=True
+            wait=True,
         )

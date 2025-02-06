@@ -165,7 +165,7 @@ Callers should wait for the operation to complete by calling result() on the pol
 
 ### Convert an asset
 
-We assume that a RemoteRenderingClient has been constructed as described in the [Authenticate the Client](#authenticate-the-client) section.
+We assume that a RemoteRenderingClient has been constructed as described in the [Authenticate the Client](#create-and-authenticate-the-client) section.
 The following snippet describes how to request that "box.fbx", found at at a path of "/input/box/box.fbx" of the blob container at the given storage container URI, gets converted.
 
 Converting an asset can take anywhere from seconds to hours.
@@ -227,7 +227,7 @@ In this example, we list all conversions and print id and creation ad as well as
 
 ### Create a session
 
-We assume that a RemoteRenderingClient has been constructed as described in the [Authenticate the Client](#authenticate-the-client) section.
+We assume that a RemoteRenderingClient has been constructed as described in the [Authenticate the Client](#create-and-authenticate-the-client) section.
 The following snippet describes how to request that a new rendering session be started.
 
 ```python
@@ -368,7 +368,7 @@ If you'd like to contribute to this library, please read the
 to build and test the code.
 
 <!-- LINKS -->
-![Impressions](https://azure-sdk-impressions.azurewebsites.net/api/impressions/azure-sdk-for-python%2Fsdk%remoterendering%2Fazure-mixedreality-remoterendering%2FREADME.png)
+
 
 [azure_core_ref_docs]: https://aka.ms/azsdk/python/core/docs
 [azure_core_exceptions]: https://aka.ms/azsdk/python/core/docs#module-azure.core.exceptions

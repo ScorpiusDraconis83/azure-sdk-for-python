@@ -1,4 +1,4 @@
-# -------------------------------------------------------------------------  # pylint: disable=client-suffix-needed
+# --------------------------------------------------------------------------
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
@@ -15,12 +15,12 @@ import queue
 import time
 import uuid
 from functools import partial
-from typing import Any, Dict, Optional, Tuple, Union, overload, cast
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union, overload, cast
 import certifi
 from typing_extensions import Literal
 
 from ._connection import Connection
-from .message import _MessageDelivery
+from .message import _MessageDelivery, Message
 from .error import (
     AMQPException,
     ErrorCondition,
@@ -57,9 +57,7 @@ Outcomes = Union[Received, Rejected, Released, Accepted, Modified]
 _logger = logging.getLogger(__name__)
 
 
-class AMQPClient(
-    object
-):  # pylint: disable=too-many-instance-attributes
+class AMQPClient(object):  # pylint: disable=too-many-instance-attributes
     """An AMQP client.
     :param hostname: The AMQP endpoint to connect to.
     :type hostname: str
@@ -142,12 +140,15 @@ class AMQPClient(
     :keyword custom_endpoint_address: The custom endpoint address to use for establishing a connection to
      the service, allowing network requests to be routed through any application gateways or
      other paths needed for the host environment. Default is None.
+     Unless specified otherwise, default transport type is TransportType.AmqpOverWebsockets.
      If port is not specified in the `custom_endpoint_address`, by default port 443 will be used.
     :paramtype custom_endpoint_address: str
     :keyword connection_verify: Path to the custom CA_BUNDLE file of the SSL certificate which is used to
-     authenticate the identity of the connection endpoint.
-     Default is None in which case `certifi.where()` will be used.
+     authenticate the identity of the connection endpoint. Ignored if ssl_context passed in. Default is None
+     in which case `certifi.where()` will be used.
     :paramtype connection_verify: str
+    :keyword ssl_context: An instance of ssl.SSLContext to be used. If this is specified, connection_verify is ignored.
+    :paramtype ssl_context: ssl.SSLContext or None
     :keyword float socket_timeout: The maximum time in seconds that the underlying socket in the transport should
      wait when reading or writing data before timing out. The default value is 0.2 (for transport type Amqp),
      and 1 for transport type AmqpOverWebsocket.
@@ -181,7 +182,7 @@ class AMQPClient(
             "remote_idle_timeout_empty_frame_send_ratio", None
         )
         self._network_trace = kwargs.pop("network_trace", False)
-        self._network_trace_params = {"amqpConnection": None, "amqpSession": None, "amqpLink": None}
+        self._network_trace_params = {"amqpConnection": "", "amqpSession": "", "amqpLink": ""}
 
         # Session settings
         self._outgoing_window = kwargs.pop("outgoing_window", OUTGOING_WINDOW)
@@ -189,30 +190,30 @@ class AMQPClient(
         self._handle_max = kwargs.pop("handle_max", None)
 
         # Link settings
-        self._send_settle_mode = kwargs.pop(
-            "send_settle_mode", SenderSettleMode.Unsettled
-        )
-        self._receive_settle_mode = kwargs.pop(
-            "receive_settle_mode", ReceiverSettleMode.Second
-        )
+        self._send_settle_mode = kwargs.pop("send_settle_mode", SenderSettleMode.Unsettled)
+        self._receive_settle_mode = kwargs.pop("receive_settle_mode", ReceiverSettleMode.Second)
         self._desired_capabilities = kwargs.pop("desired_capabilities", None)
         self._on_attach = kwargs.pop("on_attach", None)
 
         # transport
-        if (
-            kwargs.get("transport_type") is TransportType.Amqp
-            and kwargs.get("http_proxy") is not None
-        ):
-            raise ValueError(
-                "Http proxy settings can't be passed if transport_type is explicitly set to Amqp"
-            )
+        if kwargs.get("transport_type") is TransportType.Amqp and kwargs.get("http_proxy") is not None:
+            raise ValueError("Http proxy settings can't be passed if transport_type is explicitly set to Amqp")
         self._transport_type = kwargs.pop("transport_type", TransportType.Amqp)
         self._socket_timeout = kwargs.pop("socket_timeout", None)
         self._http_proxy = kwargs.pop("http_proxy", None)
 
         # Custom Endpoint
         self._custom_endpoint_address = kwargs.get("custom_endpoint_address")
-        self._connection_verify = kwargs.get("connection_verify")
+        connection_verify = kwargs.get("connection_verify")
+        ssl_context = kwargs.get("ssl_context")
+        self._ssl_opts = {}
+        if ssl_context:
+            self._ssl_opts["context"] = ssl_context
+        else:  # str or None
+            self._ssl_opts["ca_certs"] = connection_verify or certifi.where()
+
+        # Emulator
+        self._use_tls: bool = kwargs.get("use_tls", True)
 
     def __enter__(self):
         """Run Client in a context manager.
@@ -236,8 +237,7 @@ class AMQPClient(
                 current_time = time.time()
                 elapsed_time = current_time - start_time
                 if elapsed_time >= self._keep_alive_interval:
-                    _logger.debug("Keeping %r connection alive.", self.__class__.__name__)
-                    self._connection.listen(wait=self._socket_timeout, batch=self._link.current_link_credit)
+                    self._connection.listen(wait=self._socket_timeout, batch=self._link.total_link_credit)
                     start_time = current_time
                 time.sleep(1)
         except Exception as e:  # pylint: disable=broad-except
@@ -313,9 +313,9 @@ class AMQPClient(
             self._external_connection = True
         elif not self._connection:
             self._connection = Connection(
-                "amqps://" + self._hostname,
+                "amqps://" + self._hostname if self._use_tls else "amqp://" + self._hostname,
                 sasl_credential=self._auth.sasl,
-                ssl_opts={"ca_certs": self._connection_verify or certifi.where()},
+                ssl_opts=self._ssl_opts,
                 container_id=self._name,
                 max_frame_size=self._max_frame_size,
                 channel_max=self._channel_max,
@@ -326,6 +326,7 @@ class AMQPClient(
                 http_proxy=self._http_proxy,
                 custom_endpoint_address=self._custom_endpoint_address,
                 socket_timeout=self._socket_timeout,
+                use_tls=self._use_tls,
             )
             self._connection.open()
         if not self._session:
@@ -377,8 +378,8 @@ class AMQPClient(
             except RuntimeError:  # Probably thread failed to start in .open()
                 logging.debug("Keep alive thread failed to join.", exc_info=True)
             self._keep_alive_thread = None
-        self._network_trace_params["amqpConnection"] = None
-        self._network_trace_params["amqpSession"] = None
+        self._network_trace_params["amqpConnection"] = ""
+        self._network_trace_params["amqpSession"] = ""
 
     def auth_complete(self):
         """Whether the authentication handshake is complete during
@@ -427,7 +428,16 @@ class AMQPClient(
             return True
         return self._client_run(**kwargs)
 
-    def mgmt_request(self, message, **kwargs):
+    def mgmt_request(
+        self,
+        message,
+        *,
+        operation: Optional[Union[str, bytes]] = None,
+        operation_type: Optional[Union[str, bytes]] = None,
+        node: str = "$management",
+        timeout: float = 0,
+        **kwargs
+    ):
         """
         :param message: The message to send in the management request.
         :type message: ~pyamqp.message.Message
@@ -447,10 +457,6 @@ class AMQPClient(
         # The method also takes "status_code_field" and "status_description_field"
         # keyword arguments as alternate names for the status code and description
         # in the response body. Those two keyword arguments are used in Azure services only.
-        operation = kwargs.pop("operation", None)
-        operation_type = kwargs.pop("operation_type", None)
-        node = kwargs.pop("node", "$management")
-        timeout = kwargs.pop("timeout", 0)
         with self._mgmt_link_lock:
             try:
                 mgmt_link = self._mgmt_links[node]
@@ -458,6 +464,9 @@ class AMQPClient(
                 mgmt_link = ManagementOperation(self._session, endpoint=node, **kwargs)
                 self._mgmt_links[node] = mgmt_link
                 mgmt_link.open()
+
+        while not self.client_ready():
+            time.sleep(0.05)
 
         while not mgmt_link.ready():
             self._connection.listen(wait=False)
@@ -553,12 +562,15 @@ class SendClient(AMQPClient):
     :keyword custom_endpoint_address: The custom endpoint address to use for establishing a connection to
      the service, allowing network requests to be routed through any application gateways or
      other paths needed for the host environment. Default is None.
+     Unless specified otherwise, default transport type is TransportType.AmqpOverWebsockets.
      If port is not specified in the `custom_endpoint_address`, by default port 443 will be used.
     :paramtype custom_endpoint_address: str
     :keyword connection_verify: Path to the custom CA_BUNDLE file of the SSL certificate which is used to
-     authenticate the identity of the connection endpoint.
-     Default is None in which case `certifi.where()` will be used.
+     authenticate the identity of the connection endpoint. Ignored if ssl_context passed in. Default is None
+     in which case `certifi.where()` will be used.
     :paramtype connection_verify: str
+    :keyword ssl_context: An instance of ssl.SSLContext to be used. If this is specified, connection_verify is ignored.
+    :paramtype ssl_context: ssl.SSLContext or None
     """
 
     def __init__(self, hostname, target, **kwargs):
@@ -578,7 +590,6 @@ class SendClient(AMQPClient):
         :return: Whether the client is ready to start receiving messages.
         :rtype: bool
         """
-        # pylint: disable=protected-access
         if not self._link:
             self._link = self._session.create_sender_link(
                 target_address=self.target,
@@ -625,9 +636,7 @@ class SendClient(AMQPClient):
         except ValueError:
             error = MessageException(condition, description=description, info=info)
         else:
-            error = MessageSendFailed(
-                amqp_condition, description=description, info=info
-            )
+            error = MessageSendFailed(amqp_condition, description=description, info=info)
         message_delivery.state = MessageDeliveryState.Error
         message_delivery.error = error
 
@@ -646,9 +655,7 @@ class SendClient(AMQPClient):
                         info=error_info[0][2],
                     )
                 except TypeError:
-                    self._process_send_error(
-                        message_delivery, condition=ErrorCondition.UnknownError
-                    )
+                    self._process_send_error(message_delivery, condition=ErrorCondition.UnknownError)
         elif reason == LinkDeliverySettleReason.SETTLED:
             message_delivery.state = MessageDeliveryState.Ok
         elif reason == LinkDeliverySettleReason.TIMEOUT:
@@ -656,17 +663,12 @@ class SendClient(AMQPClient):
             message_delivery.error = TimeoutError("Sending message timed out.")
         else:
             # NotDelivered and other unknown errors
-            self._process_send_error(
-                message_delivery, condition=ErrorCondition.UnknownError
-            )
+            self._process_send_error(message_delivery, condition=ErrorCondition.UnknownError)
 
-    def _send_message_impl(self, message, **kwargs):
-        timeout = kwargs.pop("timeout", 0)
+    def _send_message_impl(self, message, *, timeout: float = 0):
         expire_time = (time.time() + timeout) if timeout else None
         self.open()
-        message_delivery = _MessageDelivery(
-            message, MessageDeliveryState.WaitingToBeSent, expire_time
-        )
+        message_delivery = _MessageDelivery(message, MessageDeliveryState.WaitingToBeSent, expire_time)
         while not self.client_ready():
             time.sleep(0.05)
 
@@ -676,8 +678,7 @@ class SendClient(AMQPClient):
             running = self.do_work()
         if message_delivery.state not in MESSAGE_DELIVERY_DONE_STATES:
             raise MessageException(
-                condition=ErrorCondition.ClientError,
-                description="Send failed - connection not running."
+                condition=ErrorCondition.ClientError, description="Send failed - connection not running."
             )
 
         if message_delivery.state in (
@@ -689,21 +690,19 @@ class SendClient(AMQPClient):
                 raise message_delivery.error  # pylint: disable=raising-bad-type
             except TypeError:
                 # This is a default handler
-                raise MessageException(
-                    condition=ErrorCondition.UnknownError, description="Send failed."
-                ) from None
+                raise MessageException(condition=ErrorCondition.UnknownError, description="Send failed.") from None
 
-    def send_message(self, message, **kwargs):
+    def send_message(self, message, *, timeout: float = 0, **kwargs):
         """
         :param ~pyamqp.message.Message message:
         :keyword float timeout: timeout in seconds. If set to
          0, the client will continue to wait until the message is sent or error happens. The
          default is 0.
         """
-        self._do_retryable_operation(self._send_message_impl, message=message, **kwargs)
+        self._do_retryable_operation(self._send_message_impl, message=message, timeout=timeout, **kwargs)
 
 
-class ReceiveClient(AMQPClient): # pylint:disable=too-many-instance-attributes
+class ReceiveClient(AMQPClient):  # pylint:disable=too-many-instance-attributes
     """
     An AMQP client for receiving messages.
     :param source: The source AMQP service endpoint. This can either be the URI as
@@ -788,12 +787,15 @@ class ReceiveClient(AMQPClient): # pylint:disable=too-many-instance-attributes
     :keyword custom_endpoint_address: The custom endpoint address to use for establishing a connection to
      the service, allowing network requests to be routed through any application gateways or
      other paths needed for the host environment. Default is None.
+     Unless specified otherwise, default transport type is TransportType.AmqpOverWebsockets.
      If port is not specified in the `custom_endpoint_address`, by default port 443 will be used.
     :paramtype custom_endpoint_address: str
     :keyword connection_verify: Path to the custom CA_BUNDLE file of the SSL certificate which is used to
-     authenticate the identity of the connection endpoint.
-     Default is None in which case `certifi.where()` will be used.
+     authenticate the identity of the connection endpoint. Ignored if ssl_context passed in. Default is None
+     in which case `certifi.where()` will be used.
     :paramtype connection_verify: str
+    :keyword ssl_context: An instance of ssl.SSLContext to be used. If this is specified, connection_verify is ignored.
+    :paramtype ssl_context: ssl.SSLContext or None
     """
 
     def __init__(self, hostname, source, **kwargs):
@@ -823,11 +825,10 @@ class ReceiveClient(AMQPClient): # pylint:disable=too-many-instance-attributes
         :return: True if the client is ready to start receiving messages.
         :rtype: bool
         """
-        # pylint: disable=protected-access
         if not self._link:
             self._link = self._session.create_receiver_link(
                 source_address=self.source,
-                link_credit=self._link_credit,
+                link_credit=0,  # link_credit=0 on flow frame sent before client is ready
                 send_settle_mode=self._send_settle_mode,
                 rcv_settle_mode=self._receive_settle_mode,
                 max_message_size=self._max_message_size,
@@ -851,8 +852,8 @@ class ReceiveClient(AMQPClient): # pylint:disable=too-many-instance-attributes
         :rtype: bool
         """
         try:
-            if self._link.current_link_credit <= 0:
-                self._link.flow()
+            if self._link.total_link_credit <= 0:
+                self._link.flow(link_credit=self._link_credit)
             self._connection.listen(wait=self._socket_timeout, **kwargs)
         except ValueError:
             _logger.info("Timeout reached, closing receiver.", extra=self._network_trace_params)
@@ -878,13 +879,16 @@ class ReceiveClient(AMQPClient): # pylint:disable=too-many-instance-attributes
             self._received_messages.put((frame, message))
 
     def _receive_message_batch_impl(
-        self, max_batch_size=None, on_message_received=None, timeout=0
+        self,
+        max_batch_size: Optional[int] = None,
+        on_message_received: Optional[Callable] = None,
+        timeout: float = 0,
     ):
         self._message_received_callback = on_message_received
         max_batch_size = max_batch_size or self._link_credit
         timeout = time.time() + timeout if timeout else 0
         receiving = True
-        batch = []
+        batch: List[Message] = []
         self.open()
         while len(batch) < max_batch_size:
             try:
@@ -929,7 +933,14 @@ class ReceiveClient(AMQPClient): # pylint:disable=too-many-instance-attributes
         self._received_messages = queue.Queue()
         super(ReceiveClient, self).close()
 
-    def receive_message_batch(self, **kwargs):
+    def receive_message_batch(  # pylint: disable=unused-argument
+        self,
+        *,
+        max_batch_size: Optional[int] = None,
+        on_message_received: Optional[Callable] = None,
+        timeout: float = 0,
+        **kwargs
+    ):
         """Receive a batch of messages. Messages returned in the batch have already been
         accepted - if you wish to add logic to accept or reject messages based on custom
         criteria, pass in a callback. This method will return as soon as some messages are
@@ -951,7 +962,12 @@ class ReceiveClient(AMQPClient): # pylint:disable=too-many-instance-attributes
         :return: A list of messages.
         :rtype: list[~pyamqp.message.Message]
         """
-        return self._do_retryable_operation(self._receive_message_batch_impl, **kwargs)
+        return self._do_retryable_operation(
+            self._receive_message_batch_impl,
+            max_batch_size=max_batch_size,
+            on_message_received=on_message_received,
+            timeout=timeout,
+        )
 
     def receive_messages_iter(self, timeout=None, on_message_received=None):
         """Receive messages by generator. Messages returned in the generator have already been
@@ -1004,61 +1020,59 @@ class ReceiveClient(AMQPClient): # pylint:disable=too-many-instance-attributes
     def settle_messages(
         self,
         delivery_id: Union[int, Tuple[int, int]],
+        delivery_tag: bytes,
         outcome: Literal["accepted"],
         *,
         batchable: Optional[bool] = None
-    ):
-        ...
+    ): ...
 
     @overload
     def settle_messages(
         self,
         delivery_id: Union[int, Tuple[int, int]],
+        delivery_tag: bytes,
         outcome: Literal["released"],
         *,
         batchable: Optional[bool] = None
-    ):
-        ...
+    ): ...
 
     @overload
     def settle_messages(
         self,
         delivery_id: Union[int, Tuple[int, int]],
+        delivery_tag: bytes,
         outcome: Literal["rejected"],
         *,
         error: Optional[AMQPError] = None,
         batchable: Optional[bool] = None
-    ):
-        ...
+    ): ...
 
     @overload
     def settle_messages(
         self,
         delivery_id: Union[int, Tuple[int, int]],
+        delivery_tag: bytes,
         outcome: Literal["modified"],
         *,
         delivery_failed: Optional[bool] = None,
         undeliverable_here: Optional[bool] = None,
         message_annotations: Optional[Dict[Union[str, bytes], Any]] = None,
         batchable: Optional[bool] = None
-    ):
-        ...
+    ): ...
 
     @overload
     def settle_messages(
         self,
         delivery_id: Union[int, Tuple[int, int]],
+        delivery_tag: bytes,
         outcome: Literal["received"],
         *,
         section_number: int,
         section_offset: int,
         batchable: Optional[bool] = None
-    ):
-        ...
+    ): ...
 
-    def settle_messages(
-        self, delivery_id: Union[int, Tuple[int, int]], outcome: str, **kwargs
-    ):
+    def settle_messages(self, delivery_id: Union[int, Tuple[int, int]], delivery_tag: bytes, outcome: str, **kwargs):
         batchable = kwargs.pop("batchable", None)
         if outcome.lower() == "accepted":
             state: Outcomes = Accepted()
@@ -1080,6 +1094,7 @@ class ReceiveClient(AMQPClient): # pylint:disable=too-many-instance-attributes
         self._link.send_disposition(
             first_delivery_id=first,
             last_delivery_id=last,
+            delivery_tag=delivery_tag,
             settled=True,
             delivery_state=state,
             batchable=batchable,

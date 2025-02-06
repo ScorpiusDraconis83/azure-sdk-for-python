@@ -2,8 +2,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 # -------------------------------------
-from __future__ import print_function
-
 import time
 
 import pytest
@@ -19,6 +17,7 @@ def print(*args):
     assert all(arg is not None for arg in args)
 
 
+@pytest.mark.playback_test_only("Can't run in live pipelines, and there's no reason to.")
 def test_create_secret_client():
     vault_url = "vault_url"
     # pylint:disable=unused-variable

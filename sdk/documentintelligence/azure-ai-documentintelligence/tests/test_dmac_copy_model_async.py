@@ -18,7 +18,7 @@ from azure.ai.documentintelligence.models import (
 )
 from asynctestcase import AsyncDocumentIntelligenceTest
 from conftest import skip_flaky_test
-from preparers import DocumentIntelligencePreparer, GlobalClientPreparer as _GlobalClientPreparer
+from preparers import DocumentIntelligencePreparer, GlobalClientPreparerAsync as _GlobalClientPreparer
 
 DocumentModelAdministrationClientPreparer = functools.partial(
     _GlobalClientPreparer, DocumentIntelligenceAdministrationClient
@@ -32,7 +32,7 @@ class TestCopyModelAsync(AsyncDocumentIntelligenceTest):
         client = kwargs.pop("client")
         with pytest.raises(ValueError) as e:
             async with client:
-                await client.begin_copy_model_to(model_id=None, copy_to_request={})
+                await client.begin_copy_model_to(model_id=None, body={})
         assert "No value for given attribute" in str(e.value)
 
     @DocumentIntelligencePreparer()
@@ -42,7 +42,7 @@ class TestCopyModelAsync(AsyncDocumentIntelligenceTest):
         client = kwargs.pop("client")
         with pytest.raises(ResourceNotFoundError):
             async with client:
-                await client.begin_copy_model_to(model_id="", copy_to_request={})
+                await client.begin_copy_model_to(model_id="", body={})
 
     @skip_flaky_test
     @DocumentIntelligencePreparer()
@@ -66,18 +66,17 @@ class TestCopyModelAsync(AsyncDocumentIntelligenceTest):
             copy_auth = await client.authorize_model_copy(
                 AuthorizeCopyRequest(model_id=recorded_variables.get("model_id_copy"), tags={"testkey": "testvalue"})
             )
-            poller = await client.begin_copy_model_to(model.model_id, copy_to_request=copy_auth)
+            poller = await client.begin_copy_model_to(model.model_id, body=copy_auth)
             copy = await poller.result()
 
             assert copy.api_version == model.api_version
             assert copy.model_id != model.model_id
+            assert copy.model_id == copy_auth["targetModelId"]
             assert copy.description == model.description
-            assert copy.created_date_time == model.created_date_time
-            assert copy.expiration_date_time == model.expiration_date_time
             assert copy.tags == {"testkey": "testvalue"}
             assert model.tags is None
             for name, doc_type in copy.doc_types.items():
-                assert name
+                assert name == copy_auth["targetModelId"]
                 for key, field in doc_type.field_schema.items():
                     assert key
                     assert field["type"]

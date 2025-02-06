@@ -20,8 +20,8 @@ from azure.core.pipeline.policies import (
     RetryPolicy,
     UserAgentPolicy,
 )
-from azure.core.pipeline.transport import HttpTransport
 from azure.core.pipeline.transport import (  # pylint: disable=non-abstract-transport-import,no-name-in-module
+    HttpTransport,
     RequestsTransport,
 )
 from azure.core.rest import HttpRequest, HttpResponse
@@ -51,7 +51,6 @@ def _request_function(f: Callable[["HttpPipeline"], None]):
             Accepts the same parameters as azure.core.rest.HttpRequest, except for the method.
             All other kwargs are forwarded to azure.core.Pipeline.run
 
-            :keyword bool stream: Whether to stream the response, defaults to False
             :return: The request response
             :rtype: HttpResponse
             """

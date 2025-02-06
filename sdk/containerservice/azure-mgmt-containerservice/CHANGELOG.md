@@ -1,5 +1,189 @@
 # Release History
 
+## 34.0.0 (2025-01-20)
+
+### Features Added
+
+  - Added operation ContainerServicesOperations.begin_create_or_update
+  - Added operation ContainerServicesOperations.begin_delete
+  - Added operation ContainerServicesOperations.get
+  - Added operation ContainerServicesOperations.list
+  - Added operation ContainerServicesOperations.list_by_resource_group
+  - Model NetworkProfile has a new parameter peer_vnet_id
+  - Model OpenShiftManagedClusterMasterPoolProfile has a new parameter name
+  - Model OpenShiftManagedClusterMasterPoolProfile has a new parameter os_type
+
+### Breaking Changes
+
+  - Removed subfolders of some unused Api-Versions for smaller package size. If your application requires a specific and non-latest Api-Version, it's recommended to pin this package to the previous released version; If your application always only use latest Api-Version, please ignore this change.
+  - Model BaseManagedCluster no longer has parameter power_state
+  - Model Components1Q1Og48SchemasManagedclusterAllof1 no longer has parameter azure_portal_fqdn
+  - Model Components1Q1Og48SchemasManagedclusterAllof1 no longer has parameter disable_local_accounts
+  - Model Components1Q1Og48SchemasManagedclusterAllof1 no longer has parameter fqdn_subdomain
+  - Model Components1Q1Og48SchemasManagedclusterAllof1 no longer has parameter http_proxy_config
+  - Model Components1Q1Og48SchemasManagedclusterAllof1 no longer has parameter private_link_resources
+  - Model NetworkProfile no longer has parameter management_subnet_cidr
+  - Model OpenShiftManagedCluster no longer has parameter refresh_cluster
+  - Model OpenShiftManagedClusterMasterPoolProfile no longer has parameter api_properties
+  - Removed operation ContainerServicesOperations.list_orchestrators
+  - Removed operation group FleetMembersOperations
+  - Removed operation group FleetsOperations
+  - Removed operation group LoadBalancersOperations
+  - Removed operation group ManagedClusterSnapshotsOperations
+  - Removed operation group OperationStatusResultOperations
+
+## 33.0.0 (2024-11-08)
+
+### Features Added
+
+  - Model AdvancedNetworking has a new parameter enabled
+  - Model AdvancedNetworkingSecurity has a new parameter enabled
+  - Model AgentPool has a new parameter e_tag
+  - Model ContainerServiceNetworkProfile has a new parameter advanced_networking
+  - Model ManagedCluster has a new parameter e_tag
+  - Model ManagedCluster has a new parameter node_resource_group_profile
+  - Model ManagedClusterAgentPoolProfile has a new parameter e_tag
+  - Model ManagedClusterAgentPoolProfileProperties has a new parameter e_tag
+  - Operation AgentPoolsOperations.begin_create_or_update has a new optional parameter if_match
+  - Operation AgentPoolsOperations.begin_create_or_update has a new optional parameter if_none_match
+  - Operation AgentPoolsOperations.begin_delete has a new optional parameter if_match
+  - Operation ManagedClustersOperations.begin_create_or_update has a new optional parameter if_match
+  - Operation ManagedClustersOperations.begin_create_or_update has a new optional parameter if_none_match
+  - Operation ManagedClustersOperations.begin_delete has a new optional parameter if_match
+  - Operation ManagedClustersOperations.begin_update_tags has a new optional parameter if_match
+
+### Breaking Changes
+
+  - Model AdvancedNetworkingObservability no longer has parameter tls_management
+  - Model AdvancedNetworkingSecurity no longer has parameter fqdn_policy
+
+## 32.1.0 (2024-10-11)
+
+### Features Added
+
+  - Model AgentPoolGPUProfile has a new parameter driver_type
+  - Operation AgentPoolsOperations.begin_delete has a new optional parameter ignore_pod_disruption_budget
+
+## 32.0.0 (2024-09-12)
+
+### Features Added
+
+  - Added operation AgentPoolsOperations.begin_delete_machines
+  - Model AdvancedNetworking has a new parameter security
+  - Model AdvancedNetworkingObservability has a new parameter tls_management
+  - Model AgentPool has a new parameter security_profile
+  - Model ManagedClusterAgentPoolProfile has a new parameter security_profile
+  - Model ManagedClusterAgentPoolProfileProperties has a new parameter security_profile
+
+### Breaking Changes
+
+  - Model AgentPoolSecurityProfile no longer has parameter ssh_access
+
+## 31.0.0 (2024-07-18)
+
+### Features Added
+
+  - Added operation group LoadBalancersOperations
+  - Model ManagedClusterAzureMonitorProfileAppMonitoring has a new parameter auto_instrumentation
+  - Model ManagedClusterAzureMonitorProfileAppMonitoring has a new parameter open_telemetry_logs
+  - Model ManagedClusterAzureMonitorProfileAppMonitoring has a new parameter open_telemetry_metrics
+  - Model ManagedClusterAzureMonitorProfileAppMonitoringOpenTelemetryMetrics has a new parameter port
+  - Model ManagedClusterAzureMonitorProfileContainerInsights has a new parameter disable_custom_metrics
+  - Model ManagedClusterAzureMonitorProfileContainerInsights has a new parameter disable_prometheus_metrics_scraping
+  - Model ManagedClusterAzureMonitorProfileContainerInsights has a new parameter syslog_port
+  - Model ManagedClusterPropertiesAutoScalerProfile has a new parameter daemonset_eviction_for_empty_nodes
+  - Model ManagedClusterPropertiesAutoScalerProfile has a new parameter daemonset_eviction_for_occupied_nodes
+  - Model ManagedClusterPropertiesAutoScalerProfile has a new parameter ignore_daemonsets_utilization
+  - Model ScaleProfile has a new parameter autoscale
+
+### Breaking Changes
+
+  - Model ManagedClusterAzureMonitorProfileAppMonitoring no longer has parameter enabled
+  - Model ManagedClusterAzureMonitorProfileContainerInsights no longer has parameter windows_host_logs
+  - Removed operation ManagedClustersOperations.get_os_options
+
+## 30.0.0 (2024-04-22)
+
+### Features Added
+
+  - Model AgentPool has a new parameter windows_profile
+  - Model KubernetesVersion has a new parameter is_default
+  - Model ManagedCluster has a new parameter metrics_profile
+  - Model ManagedClusterAgentPoolProfile has a new parameter windows_profile
+  - Model ManagedClusterAgentPoolProfileProperties has a new parameter windows_profile
+
+### Breaking Changes
+
+  - Model IstioEgressGateway no longer has parameter node_selector
+
+## 29.1.0 (2024-02-20)
+
+### Features Added
+
+  - Model AgentPoolSecurityProfile has a new parameter enable_secure_boot
+  - Model AgentPoolSecurityProfile has a new parameter enable_vtpm
+  - Model ManagedCluster has a new parameter ingress_profile
+
+## 29.0.0 (2024-01-22)
+
+### Breaking Changes
+
+  - Model AgentPool no longer has parameter artifact_streaming_profile
+  - Model AgentPool no longer has parameter enable_custom_ca_trust
+  - Model AgentPool no longer has parameter gpu_profile
+  - Model AgentPool no longer has parameter message_of_the_day
+  - Model AgentPool no longer has parameter node_initialization_taints
+  - Model AgentPool no longer has parameter security_profile
+  - Model AgentPool no longer has parameter virtual_machine_nodes_status
+  - Model AgentPool no longer has parameter virtual_machines_profile
+  - Model AgentPool no longer has parameter windows_profile
+  - Model ContainerServiceNetworkProfile no longer has parameter kube_proxy_config
+  - Model ContainerServiceNetworkProfile no longer has parameter monitoring
+  - Model ManagedCluster no longer has parameter ai_toolchain_operator_profile
+  - Model ManagedCluster no longer has parameter creation_data
+  - Model ManagedCluster no longer has parameter enable_namespace_resources
+  - Model ManagedCluster no longer has parameter guardrails_profile
+  - Model ManagedCluster no longer has parameter ingress_profile
+  - Model ManagedCluster no longer has parameter metrics_profile
+  - Model ManagedCluster no longer has parameter node_provisioning_profile
+  - Model ManagedCluster no longer has parameter node_resource_group_profile
+  - Model ManagedClusterAPIServerAccessProfile no longer has parameter enable_vnet_integration
+  - Model ManagedClusterAPIServerAccessProfile no longer has parameter subnet_id
+  - Model ManagedClusterAgentPoolProfile no longer has parameter artifact_streaming_profile
+  - Model ManagedClusterAgentPoolProfile no longer has parameter enable_custom_ca_trust
+  - Model ManagedClusterAgentPoolProfile no longer has parameter gpu_profile
+  - Model ManagedClusterAgentPoolProfile no longer has parameter message_of_the_day
+  - Model ManagedClusterAgentPoolProfile no longer has parameter node_initialization_taints
+  - Model ManagedClusterAgentPoolProfile no longer has parameter security_profile
+  - Model ManagedClusterAgentPoolProfile no longer has parameter virtual_machine_nodes_status
+  - Model ManagedClusterAgentPoolProfile no longer has parameter virtual_machines_profile
+  - Model ManagedClusterAgentPoolProfile no longer has parameter windows_profile
+  - Model ManagedClusterAgentPoolProfileProperties no longer has parameter artifact_streaming_profile
+  - Model ManagedClusterAgentPoolProfileProperties no longer has parameter enable_custom_ca_trust
+  - Model ManagedClusterAgentPoolProfileProperties no longer has parameter gpu_profile
+  - Model ManagedClusterAgentPoolProfileProperties no longer has parameter message_of_the_day
+  - Model ManagedClusterAgentPoolProfileProperties no longer has parameter node_initialization_taints
+  - Model ManagedClusterAgentPoolProfileProperties no longer has parameter security_profile
+  - Model ManagedClusterAgentPoolProfileProperties no longer has parameter virtual_machine_nodes_status
+  - Model ManagedClusterAgentPoolProfileProperties no longer has parameter virtual_machines_profile
+  - Model ManagedClusterAgentPoolProfileProperties no longer has parameter windows_profile
+  - Model ManagedClusterAzureMonitorProfile no longer has parameter logs
+  - Model ManagedClusterAzureMonitorProfileMetrics no longer has parameter app_monitoring_open_telemetry_metrics
+  - Model ManagedClusterHTTPProxyConfig no longer has parameter effective_no_proxy
+  - Model ManagedClusterPropertiesAutoScalerProfile no longer has parameter daemonset_eviction_for_empty_nodes
+  - Model ManagedClusterPropertiesAutoScalerProfile no longer has parameter daemonset_eviction_for_occupied_nodes
+  - Model ManagedClusterPropertiesAutoScalerProfile no longer has parameter ignore_daemonsets_utilization
+  - Model ManagedClusterSecurityProfile no longer has parameter custom_ca_trust_certificates
+  - Model ManagedClusterSecurityProfile no longer has parameter image_integrity
+  - Model ManagedClusterSecurityProfile no longer has parameter node_restriction
+  - Model ManagedClusterStorageProfileDiskCSIDriver no longer has parameter version
+  - Model ManagedClusterWorkloadAutoScalerProfileVerticalPodAutoscaler no longer has parameter addon_autoscaling
+  - Operation AgentPoolsOperations.begin_delete no longer has parameter ignore_pod_disruption_budget
+  - Operation ManagedClustersOperations.begin_delete no longer has parameter ignore_pod_disruption_budget
+  - Removed operation AgentPoolsOperations.begin_delete_machines
+  - Removed operation ManagedClustersOperations.get_guardrails_versions
+  - Removed operation ManagedClustersOperations.list_guardrails_versions
+
 ## 28.0.0 (2023-11-20)
 
 ### Features Added

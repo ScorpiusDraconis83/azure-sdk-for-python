@@ -7,6 +7,7 @@
 # --------------------------------------------------------------------------
 
 from azure.identity import DefaultAzureCredential
+
 from azure.mgmt.servicefabricmanagedclusters import ServiceFabricManagedClustersManagementClient
 
 """
@@ -32,20 +33,61 @@ def main():
     response = client.node_types.begin_create_or_update(
         resource_group_name="resRg",
         cluster_name="myCluster",
-        node_type_name="BE",
+        node_type_name="BE-testResourceGroup-testRegion-test",
         parameters={
             "properties": {
                 "additionalDataDisks": [
                     {"diskLetter": "F", "diskSizeGB": 256, "diskType": "StandardSSD_LRS", "lun": 1},
                     {"diskLetter": "G", "diskSizeGB": 150, "diskType": "Premium_LRS", "lun": 2},
                 ],
+                "additionalNetworkInterfaceConfigurations": [
+                    {
+                        "dscpConfiguration": {
+                            "id": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/resRg/providers/Microsoft.Network/dscpConfigurations/myDscpConfig"
+                        },
+                        "enableAcceleratedNetworking": True,
+                        "ipConfigurations": [
+                            {
+                                "applicationGatewayBackendAddressPools": [
+                                    {
+                                        "id": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/resRg/providers/Microsoft.Network/applicationGateways/appgw-test/backendAddressPools/appgwBepoolTest"
+                                    }
+                                ],
+                                "loadBalancerBackendAddressPools": [
+                                    {
+                                        "id": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/resRg/providers/Microsoft.Network/loadBalancers/test-LB/backendAddressPools/LoadBalancerBEAddressPool"
+                                    }
+                                ],
+                                "loadBalancerInboundNatPools": [
+                                    {
+                                        "id": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/resRg/providers/Microsoft.Network/loadBalancers/test-LB/inboundNatPools/LoadBalancerNATPool"
+                                    }
+                                ],
+                                "name": "ipconfig-1",
+                                "privateIPAddressVersion": "IPv4",
+                                "publicIPAddressConfiguration": {
+                                    "ipTags": [{"ipTagType": "RoutingPreference", "tag": "Internet"}],
+                                    "name": "publicip-1",
+                                    "publicIPAddressVersion": "IPv4",
+                                },
+                                "subnet": {
+                                    "id": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/resRg/providers/Microsoft.Network/virtualNetworks/vnet1/subnets/subnet1"
+                                },
+                            }
+                        ],
+                        "name": "nic-1",
+                    }
+                ],
                 "capacities": {"ClientConnections": "65536"},
+                "computerNamePrefix": "BE",
                 "dataDiskLetter": "S",
                 "dataDiskSizeGB": 200,
                 "dataDiskType": "Premium_LRS",
+                "dscpConfigurationId": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/resRg/providers/Microsoft.Network/dscpConfigurations/myDscpConfig",
                 "enableAcceleratedNetworking": True,
                 "enableEncryptionAtHost": True,
                 "enableNodePublicIP": True,
+                "enableNodePublicIPv6": True,
                 "enableOverProvisioning": False,
                 "evictionPolicy": "Deallocate",
                 "frontendConfigurations": [
@@ -59,13 +101,25 @@ def main():
                 "isSpotVM": True,
                 "isStateless": True,
                 "multiplePlacementGroups": True,
+                "natGatewayId": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/resRg/providers/Microsoft.Network/natGateways/myNatGateway",
                 "placementProperties": {"HasSSD": "true", "NodeColor": "green", "SomeProperty": "5"},
                 "secureBootEnabled": True,
                 "securityType": "TrustedLaunch",
+                "serviceArtifactReferenceId": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/resRg/providers/Microsoft.Compute/galleries/myGallery/serviceArtifacts/myServiceArtifact/vmArtifactsProfiles/myVmArtifactProfile",
                 "spotRestoreTimeout": "PT30M",
                 "subnetId": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/resRg/providers/Microsoft.Network/virtualNetworks/vnet1/subnets/subnet1",
                 "useDefaultPublicLoadBalancer": True,
                 "useEphemeralOSDisk": True,
+                "vmApplications": [
+                    {
+                        "configurationReference": "https://mystorageaccount.blob.core.windows.net/containername/blobname",
+                        "enableAutomaticUpgrade": True,
+                        "order": 1,
+                        "packageReferenceId": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/resRg/providers/Microsoft.Compute/galleries/myGallery/applications/myApplication/versions/1.0.0",
+                        "treatFailureAsDeploymentFailure": False,
+                        "vmGalleryTags": '{"Tag1":"Value1","Tag2":"Value2"}',
+                    }
+                ],
                 "vmExtensions": [
                     {
                         "name": "Microsoft.Azure.Geneva.GenevaMonitoring",
@@ -75,6 +129,7 @@ def main():
                             "forceUpdateTag": "v.1.0",
                             "publisher": "Microsoft.Azure.Geneva",
                             "settings": {},
+                            "setupOrder": ["BeforeSFRuntime"],
                             "type": "GenevaMonitoring",
                             "typeHandlerVersion": "2.0",
                         },
@@ -112,6 +167,6 @@ def main():
     print(response)
 
 
-# x-ms-original-file: specification/servicefabricmanagedclusters/resource-manager/Microsoft.ServiceFabric/preview/2023-02-01-preview/examples/NodeTypePutOperation_example_max.json
+# x-ms-original-file: specification/servicefabricmanagedclusters/resource-manager/Microsoft.ServiceFabric/preview/2024-09-01-preview/examples/NodeTypePutOperation_example_max.json
 if __name__ == "__main__":
     main()

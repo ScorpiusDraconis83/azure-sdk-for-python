@@ -1,6 +1,6 @@
 # Release History
 
-## 4.9.0b4 (Unreleased)
+## 4.10.1 (Unreleased)
 
 ### Features Added
 
@@ -9,7 +9,37 @@
 ### Bugs Fixed
 
 ### Other Changes
+
+## 4.10.0 (2024-10-17)
+
+### Features Added
+- Added support for Continuous Access Evaluation (CAE). `enable_cae=True` is passed to all `get_token` requests.
+
+### Bugs Fixed
+- Typing errors from using Key Vault clients as context managers have been fixed
+  ([#34744](https://github.com/Azure/azure-sdk-for-python/issues/34744))
+
+### Other Changes
+- Updated minimum `azure-core` version to 1.31.0
+
+## 4.9.0 (2024-02-22)
+- Added support for service API version `7.5`
+- (From 4.9.0b2) The `cryptography` library's `RSAPrivateKey` and `RSAPublicKey` interfaces are now implemented by
+  `KeyVaultRSAPrivateKey` and `KeyVaultRSAPublicKey` classes that can use keys managed by Key Vault
+- (From 4.9.0b2) `CryptographyClient` has `create_rsa_private_key` and `create_rsa_public_key` methods that return a
+  `KeyVaultRSAPrivateKey` and `KeyVaultRSAPublicKey`, respectively
+- (From 4.9.0b3) Added `KeyProperties.hsm_platform` to get the underlying HSM platform
+
+### Bugs Fixed
+- (From 4.9.0b1) Token requests made during AD FS authentication no longer specify an erroneous "adfs" tenant ID
+  ([#29888](https://github.com/Azure/azure-sdk-for-python/issues/29888))
+
+### Other Changes
 - Python 3.7 is no longer supported. Please use Python version 3.8 or later.
+- `asyncio` is no longer directly referenced by the library
+  ([#33819](https://github.com/Azure/azure-sdk-for-python/pull/33819))
+- Updated minimum `azure-core` version to 1.29.5
+- Dropped `azure-common` requirement
 
 ## 4.9.0b3 (2023-11-03)
 
@@ -405,7 +435,7 @@ as a context manager, a `KeyClient` closes opened sockets on exit.
 ### Breaking changes:
 - Removed `KeyClient.get_cryptography_client()` and `CryptographyClient.get_key()`
 - Moved the optional parameters of several methods into kwargs (
-[docs](https://azuresdkdocs.blob.core.windows.net/$web/python/azure-keyvault-keys/4.0.0/index.html)
+[docs](https://azuresdkdocs.z19.web.core.windows.net/python/azure-keyvault-keys/4.0.0/index.html)
 detail the new keyword arguments):
   - `create_key` now has positional parameters `name` and `key_type`
   - `create_ec_key` and `create_rsa_key` now have one positional parameter, `name`

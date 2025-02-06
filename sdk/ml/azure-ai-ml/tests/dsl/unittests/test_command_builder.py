@@ -788,7 +788,7 @@ class TestCommandFunction:
         node = spark(
             code="./tests/test_configs/spark_job/basic_spark_job/src",
             entry={"file": "./main.py"},
-            resources={"instance_type": "Standard_E8S_V3", "runtime_version": "3.2.0"},
+            resources={"instance_type": "Standard_E8S_V3", "runtime_version": "3.3.0"},
             driver_cores=1,
             driver_memory="2g",
             executor_cores=2,
@@ -805,7 +805,7 @@ class TestCommandFunction:
         node = spark(
             code="./tests/test_configs/spark_job/basic_spark_job/src",
             entry={"file": "./main.py"},
-            resources={"instance_type": "Standard_E8S_V3", "runtime_version": "3.2.0"},
+            resources={"instance_type": "Standard_E8S_V3", "runtime_version": "3.3.0"},
             driver_cores=1,
             driver_memory="2g",
             executor_cores=2,
@@ -822,7 +822,7 @@ class TestCommandFunction:
         node = spark(
             code="./tests/test_configs/spark_job/basic_spark_job/src",
             entry={"file": "./main.py"},
-            resources={"instance_type": "Standard_E8S_V3", "runtime_version": "3.2.0"},
+            resources={"instance_type": "Standard_E8S_V3", "runtime_version": "3.3.0"},
             driver_cores=1,
             driver_memory="2g",
             executor_cores=2,
@@ -838,7 +838,7 @@ class TestCommandFunction:
         node = spark(
             code="./tests/test_configs/spark_job/basic_spark_job/src",
             entry={"file": "./main.py"},
-            resources={"instance_type": "Standard_E8S_V3", "runtime_version": "3.2.0"},
+            resources={"instance_type": "Standard_E8S_V3", "runtime_version": "3.3.0"},
             driver_cores=1,
             driver_memory="2g",
             executor_cores=2,
@@ -859,7 +859,7 @@ class TestCommandFunction:
         node = spark(
             code="./tests/test_configs/spark_job/basic_spark_job/src",
             entry={"file": "./main.py"},
-            resources={"instance_type": "Standard_E8S_V3", "runtime_version": "3.2.0"},
+            resources={"instance_type": "Standard_E8S_V3", "runtime_version": "3.3.0"},
             driver_cores=1,
             driver_memory="2g",
             executor_cores=2,
@@ -1047,7 +1047,7 @@ class TestCommandFunction:
         test_command_params["identity"] = UserIdentityConfiguration()
         command_node = command(**test_command_params)
         rest_dict = command_node._to_rest_object()
-        assert rest_dict["identity"] == {"type": "user_identity"}
+        assert rest_dict["identity"] == {"identity_type": "UserIdentity"}
 
         @pipeline
         def my_pipeline():
@@ -1063,7 +1063,7 @@ class TestCommandFunction:
                 "display_name": "my-fancy-job",
                 "distribution": {"distribution_type": "Mpi", "process_count_per_instance": 4},
                 "environment_variables": {"foo": "bar"},
-                "identity": {"type": "user_identity"},
+                "identity": {"identity_type": "UserIdentity"},
                 "inputs": {
                     "boolean": {"job_input_type": "literal", "value": "False"},
                     "float": {"job_input_type": "literal", "value": "0.01"},

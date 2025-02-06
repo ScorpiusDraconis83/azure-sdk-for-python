@@ -11,7 +11,7 @@ trigger:
     include:
     - sdk/ml/
     - scripts/
-    - sdk/core/    
+    - sdk/core/
 
 pr:
   branches:
@@ -24,13 +24,12 @@ pr:
   paths:
     include:
     - sdk/ml/
-    - sdk/core/    
+    - sdk/core/
 
 extends:
   template: /eng/pipelines/templates/stages/archetype-sdk-client.yml
   parameters:
     ServiceDirectory: ml
-    ValidateFormatting: true
     TestTimeoutInMinutes: 75
     TestProxy: true
     # This is a short term solution to create API review for python azure-ml package only when running pipeline manually

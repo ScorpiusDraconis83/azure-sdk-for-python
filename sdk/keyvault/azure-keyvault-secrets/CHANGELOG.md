@@ -1,6 +1,6 @@
 # Release History
 
-## 4.8.0b3 (Unreleased)
+## 4.9.1 (Unreleased)
 
 ### Features Added
 
@@ -9,7 +9,34 @@
 ### Bugs Fixed
 
 ### Other Changes
+
+## 4.9.0 (2024-10-17)
+
+### Features Added
+- Added support for Continuous Access Evaluation (CAE). `enable_cae=True` is passed to all `get_token` requests.
+
+### Bugs Fixed
+- Typing errors from using Key Vault clients as context managers have been fixed
+  ([#34744](https://github.com/Azure/azure-sdk-for-python/issues/34744))
+
+### Other Changes
+- Updated minimum `azure-core` version to 1.31.0
+
+## 4.8.0 (2024-02-22)
+
+### Features Added
+- Added support for service API version `7.5`
+
+### Bugs Fixed
+- (From 4.8.0b1) Token requests made during AD FS authentication no longer specify an erroneous "adfs" tenant ID
+  ([#29888](https://github.com/Azure/azure-sdk-for-python/issues/29888))
+
+### Other Changes
 - Python 3.7 is no longer supported. Please use Python version 3.8 or later.
+- `asyncio` is no longer directly referenced by the library
+  ([#33819](https://github.com/Azure/azure-sdk-for-python/pull/33819))
+- Updated minimum `azure-core` version to 1.29.5
+- Dropped `azure-common` requirement
 
 ## 4.8.0b2 (2023-11-03)
 
@@ -159,7 +186,7 @@ Used as a context manager, a `SecretClient` closes opened sockets on exit.
 ## 4.0.0 (2019-10-31)
 ### Breaking changes:
 - Moved optional parameters of two methods into kwargs (
-[docs](https://azuresdkdocs.blob.core.windows.net/$web/python/azure-keyvault-secrets/4.0.0/azure.keyvault.secrets.html)
+[docs](https://azuresdkdocs.z19.web.core.windows.net/python/azure-keyvault-secrets/4.0.0/azure.keyvault.secrets.html)
 detail the new keyword arguments):
   - `set_secret` now has positional parameters `name` and `value`
   - `update_secret_properties` now has positional parameters `name` and

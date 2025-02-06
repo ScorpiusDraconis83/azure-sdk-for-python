@@ -2,8 +2,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License. See License.txt in the project root for license information.
 # --------------------------------------------------------------------------------------------
-from __future__ import unicode_literals
-
 from enum import Enum
 
 
@@ -46,6 +44,7 @@ MGMT_STATUS_DESC = b"status-description"
 USER_AGENT_PREFIX = "azsdk-python-eventhubs"
 UAMQP_LIBRARY = "uamqp"
 PYAMQP_LIBRARY = "pyamqp"
+MAX_BUFFER_LENGTH = 300
 
 NO_RETRY_ERRORS = [
     b"com.microsoft:argument-out-of-range",
@@ -59,7 +58,7 @@ CUSTOM_CONDITION_BACKOFF = {
     b"com.microsoft:server-busy": 4,
     b"com.microsoft:timeout": 2,
     b"com.microsoft:operation-cancelled": 0,
-    b"com.microsoft:container-close": 4
+    b"com.microsoft:container-close": 4,
 }
 
 
@@ -67,12 +66,14 @@ CUSTOM_CONDITION_BACKOFF = {
 class TransportType(Enum):
     """Transport type
     The underlying transport protocol type:
-     Amqp: AMQP over the default TCP transport protocol, it uses port 5671.
-     AmqpOverWebsocket: Amqp over the Web Sockets transport protocol, it uses
-     port 443.
+    Amqp: AMQP over the default TCP transport protocol, it uses port 5671.
+    AmqpOverWebsocket: Amqp over the Web Sockets transport protocol, it uses
+    port 443.
     """
+
     Amqp = 1
     AmqpOverWebsocket = 2
+
 
 DEFAULT_AMQPS_PORT = 5671
 DEFAULT_AMQP_WSS_PORT = 443

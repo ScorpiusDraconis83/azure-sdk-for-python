@@ -31,8 +31,24 @@ from enum import Enum
 import logging
 import os
 import sys
-from typing import Type, Optional, Callable, Union, Dict, Any, TypeVar, Tuple, Generic, Mapping, List
-from azure.core.tracing import AbstractSpan
+from typing import (
+    Type,
+    Optional,
+    Callable,
+    Union,
+    Dict,
+    Any,
+    TypeVar,
+    Tuple,
+    Generic,
+    Mapping,
+    List,
+    TYPE_CHECKING,
+)
+from ._azure_clouds import AzureClouds
+
+if TYPE_CHECKING:
+    from azure.core.tracing import AbstractSpan
 
 ValidInputType = TypeVar("ValidInputType")
 ValueType = TypeVar("ValueType")
@@ -114,6 +130,28 @@ def convert_logging(value: Union[str, int]) -> int:
     return level
 
 
+def convert_azure_cloud(value: Union[str, AzureClouds]) -> AzureClouds:
+    """Convert a string to an Azure Cloud
+
+    :param value: the value to convert
+    :type value: string
+    :returns: An AzureClouds enum value
+    :rtype: AzureClouds
+    :raises ValueError: If conversion to AzureClouds fails
+
+    """
+    if isinstance(value, AzureClouds):
+        return value
+    if isinstance(value, str):
+        azure_clouds = {cloud.name: cloud for cloud in AzureClouds}
+        if value in azure_clouds:
+            return azure_clouds[value]
+        raise ValueError(
+            "Cannot convert {} to Azure Cloud, valid values are: {}".format(value, ", ".join(azure_clouds.keys()))
+        )
+    raise ValueError("Cannot convert {} to Azure Cloud".format(value))
+
+
 def _get_opencensus_span() -> Optional[Type[AbstractSpan]]:
     """Returns the OpenCensusSpan if the opencensus tracing plugin is installed else returns None.
 
@@ -121,7 +159,7 @@ def _get_opencensus_span() -> Optional[Type[AbstractSpan]]:
     :returns: OpenCensusSpan type or None
     """
     try:
-        from azure.core.tracing.ext.opencensus_span import (  # pylint:disable=redefined-outer-name
+        from azure.core.tracing.ext.opencensus_span import (
             OpenCensusSpan,
         )
 
@@ -137,7 +175,7 @@ def _get_opentelemetry_span() -> Optional[Type[AbstractSpan]]:
     :returns: OpenTelemetrySpan type or None
     """
     try:
-        from azure.core.tracing.ext.opentelemetry_span import (  # pylint:disable=redefined-outer-name
+        from azure.core.tracing.ext.opentelemetry_span import (
             OpenTelemetrySpan,
         )
 
@@ -181,7 +219,7 @@ def convert_tracing_impl(value: Optional[Union[str, Type[AbstractSpan]]]) -> Opt
     """
     if value is None:
         return (
-            _get_opencensus_span_if_opencensus_is_imported() or _get_opentelemetry_span_if_opentelemetry_is_imported()
+            _get_opentelemetry_span_if_opentelemetry_is_imported() or _get_opencensus_span_if_opencensus_is_imported()
         )
 
     if not isinstance(value, str):
@@ -264,7 +302,7 @@ class PrioritizedSetting(Generic[ValidInputType, ValueType]):
         :type value: str or int or float or None
         :returns: the value of the setting
         :rtype: str or int or float
-        :raises: RuntimeError if no value can be determined
+        :raises RuntimeError: if no value can be determined
         """
 
         # 4. immediate values
@@ -480,6 +518,13 @@ class Settings:
         env_var="AZURE_SDK_TRACING_IMPLEMENTATION",
         convert=convert_tracing_impl,
         default=None,
+    )
+
+    azure_cloud: PrioritizedSetting[Union[str, AzureClouds], AzureClouds] = PrioritizedSetting(
+        "azure_cloud",
+        env_var="AZURE_CLOUD",
+        convert=convert_azure_cloud,
+        default=AzureClouds.AZURE_PUBLIC_CLOUD,
     )
 
 

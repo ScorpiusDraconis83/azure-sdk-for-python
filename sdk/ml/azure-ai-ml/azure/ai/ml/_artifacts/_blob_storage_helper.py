@@ -10,19 +10,22 @@ import sys
 import time
 import uuid
 from pathlib import Path, PurePosixPath
-from typing import TYPE_CHECKING, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
-from typing_extensions import Literal
 from colorama import Fore
+from typing_extensions import Literal
 
 from azure.ai.ml._artifacts._constants import (
     ARTIFACT_ORIGIN,
     BLOB_DATASTORE_IS_HDI_FOLDER_KEY,
     FILE_SIZE_WARNING,
+    KEY_AUTHENTICATION_ERROR_CODE,
     LEGACY_ARTIFACT_DIRECTORY,
     MAX_CONCURRENCY,
+    SAS_KEY_AUTHENTICATION_ERROR_MSG,
     UPLOAD_CONFIRMATION,
 )
+from azure.ai.ml._azure_environments import _get_cloud_details
 from azure.ai.ml._utils._asset_utils import (
     AssetNotChangedError,
     IgnoreFile,
@@ -32,10 +35,9 @@ from azure.ai.ml._utils._asset_utils import (
     upload_directory,
     upload_file,
 )
-from azure.ai.ml._azure_environments import _get_cloud_details
 from azure.ai.ml.constants._common import STORAGE_AUTH_MISMATCH_ERROR
 from azure.ai.ml.exceptions import ErrorCategory, ErrorTarget, MlException, ValidationException
-from azure.core.exceptions import ResourceNotFoundError
+from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
 from azure.storage.blob import BlobServiceClient, ContainerClient
 
 if TYPE_CHECKING:
@@ -58,7 +60,7 @@ class BlobStorageClient:
         self.total_file_count = 1
         self.uploaded_file_count = 0
         self.overwrite = False
-        self.indicator_file = None
+        self.indicator_file: Any = None
         self.legacy = False
         self.name = None
         self.version = None
@@ -142,12 +144,12 @@ class BlobStorageClient:
                 time.sleep(0.5)
             self._set_confirmation_metadata(name, version)
         except AssetNotChangedError:
-            name = self.name
-            version = self.version
+            name = str(self.name)
+            version = str(self.version)
             if self.legacy:
                 dest = dest.replace(ARTIFACT_ORIGIN, LEGACY_ARTIFACT_DIRECTORY)
 
-        artifact_info = {
+        artifact_info: Dict = {
             "remote path": dest,
             "name": name,
             "version": version,
@@ -169,7 +171,16 @@ class BlobStorageClient:
             blob_client = self.container_client.get_blob_client(blob=self.indicator_file)
             legacy_blob_client = self.container_client.get_blob_client(blob=legacy_indicator_file)
 
-            properties = blob_client.get_blob_properties()
+            try:
+                properties = blob_client.get_blob_properties()
+            except HttpResponseError as e:
+                if e.error_code == KEY_AUTHENTICATION_ERROR_CODE:  # pylint: disable=no-member
+                    formatted_msg = SAS_KEY_AUTHENTICATION_ERROR_MSG.format(e.error_code, e.exc_value)
+                    exception_with_documentation = Exception(formatted_msg)
+                    exception_with_documentation.__traceback__ = e.exc_traceback
+                    raise exception_with_documentation from e
+                raise e
+
             metadata = properties.get("metadata")
 
             # first check legacy folder's metadata to see if artifact is stored there
@@ -196,7 +207,7 @@ class BlobStorageClient:
             self.overwrite = True  # if upload never confirmed, approve overriding the partial upload
         except ResourceNotFoundError:
             pass
-        except Exception as e:  # pylint: disable=broad-except
+        except Exception as e:
             # pylint: disable=no-member
             if hasattr(e, "error_code") and e.error_code == STORAGE_AUTH_MISMATCH_ERROR:
                 msg = (

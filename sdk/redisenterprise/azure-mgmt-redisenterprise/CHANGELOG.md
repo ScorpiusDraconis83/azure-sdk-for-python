@@ -1,5 +1,44 @@
 # Release History
 
+## 3.1.0b2 (2024-10-16)
+
+### Features Added
+
+  - Added operation group AccessPolicyAssignmentOperations
+  - Model Cluster has a new parameter high_availability
+  - Model Cluster has a new parameter redundancy_mode
+  - Model ClusterUpdate has a new parameter high_availability
+  - Model ClusterUpdate has a new parameter redundancy_mode
+  - Model Database has a new parameter access_keys_authentication
+  - Model Database has a new parameter system_data
+  - Model DatabaseUpdate has a new parameter access_keys_authentication
+  - Model ProxyResource has a new parameter system_data
+
+## 3.1.0b1 (2024-05-20)
+
+### Features Added
+
+  - Added operation DatabasesOperations.begin_force_link_to_replication_group
+  - Added operation DatabasesOperations.begin_upgrade_db_redis_version
+  - Model Database has a new parameter defer_upgrade
+  - Model Database has a new parameter redis_version
+  - Model DatabaseUpdate has a new parameter defer_upgrade
+  - Model DatabaseUpdate has a new parameter redis_version
+
+## 3.0.0 (2024-03-04)
+
+### Features Added
+
+  - Added operation DatabasesOperations.begin_flush
+  - Model Cluster has a new parameter encryption
+  - Model Cluster has a new parameter identity
+  - Model ClusterUpdate has a new parameter encryption
+  - Model ClusterUpdate has a new parameter identity
+
+### Breaking Changes
+
+  - Renamed operation PrivateEndpointConnectionsOperations.delete to PrivateEndpointConnectionsOperations.begin_delete
+
 ## 2.1.0b2 (2023-04-20)
 
 ### Features Added

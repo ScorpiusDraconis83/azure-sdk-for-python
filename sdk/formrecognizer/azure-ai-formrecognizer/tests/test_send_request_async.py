@@ -9,21 +9,22 @@ from devtools_testutils.aio import recorded_by_proxy_async
 from devtools_testutils import set_bodiless_matcher
 from azure.core.rest import HttpRequest
 from azure.ai.formrecognizer.aio import DocumentModelAdministrationClient, FormTrainingClient
-from preparers import FormRecognizerPreparer, GlobalClientPreparer as _GlobalClientPreparer
+from preparers import FormRecognizerPreparer, get_async_client
 from asynctestcase import AsyncFormRecognizerTest
 
-DocumentModelAdministrationClientPreparer = functools.partial(_GlobalClientPreparer, DocumentModelAdministrationClient)
-FormTrainingClientPreparer = functools.partial(_GlobalClientPreparer, FormTrainingClient)
+get_dma_client = functools.partial(get_async_client, DocumentModelAdministrationClient)
+get_ft_client = functools.partial(get_async_client, FormTrainingClient)
 
 
 class TestSendRequestAsync(AsyncFormRecognizerTest):
-
     @FormRecognizerPreparer()
-    @DocumentModelAdministrationClientPreparer()
     @recorded_by_proxy_async
-    async def test_get_resource_details(self, client, **kwargs):
+    async def test_get_resource_details(self, **kwargs):
+        client = get_dma_client()
         set_bodiless_matcher()
         async with client:
+            resource_details = await client.get_resource_details()
+
             request = HttpRequest(
                 method="GET",
                 url="info",
@@ -33,8 +34,8 @@ class TestSendRequestAsync(AsyncFormRecognizerTest):
             received_info1 = result.json()
             assert received_info1
             assert received_info1["customDocumentModels"]
-            assert received_info1["customDocumentModels"]["count"] == 0
-            assert received_info1["customDocumentModels"]["limit"] == 250
+            assert received_info1["customDocumentModels"]["count"] == resource_details.custom_document_models.count
+            assert received_info1["customDocumentModels"]["limit"] == resource_details.custom_document_models.limit
 
             request = HttpRequest(
                 method="GET",
@@ -66,9 +67,9 @@ class TestSendRequestAsync(AsyncFormRecognizerTest):
             result = await client.send_request(request)
             received_info4 = result.json()
             assert received_info4
-            assert received_info4["summary"]["count"] == 0
-            assert received_info4["summary"]["limit"] == 250
-            
+            assert received_info4["summary"]["count"] == resource_details.custom_document_models.count
+            assert received_info4["summary"]["limit"] == resource_details.custom_document_models.limit
+
             # test with v2 API version with absolute url
             request = HttpRequest(
                 method="GET",
@@ -81,11 +82,13 @@ class TestSendRequestAsync(AsyncFormRecognizerTest):
             assert received_info5["summary"]["limit"] == received_info4["summary"]["limit"]
 
     @FormRecognizerPreparer()
-    @FormTrainingClientPreparer(client_kwargs={"api_version": "2.1"})
     @recorded_by_proxy_async
-    async def test_get_account_properties_v2(self, client):
+    async def test_get_account_properties_v2(self):
+        client = get_ft_client(api_version="2.1")
         set_bodiless_matcher()
         async with client:
+            account_properties = await client.get_account_properties()
+
             request = HttpRequest(
                 method="GET",
                 url="custom/models?op=summary",
@@ -95,9 +98,9 @@ class TestSendRequestAsync(AsyncFormRecognizerTest):
             received_info1 = result.json()
             assert received_info1
             assert received_info1["summary"]
-            assert received_info1["summary"]["count"] == 0
-            assert received_info1["summary"]["limit"] == 250
-            
+            assert received_info1["summary"]["count"] == account_properties.custom_model_count
+            assert received_info1["summary"]["limit"] == account_properties.custom_model_limit
+
             # test with absolute url
             request = HttpRequest(
                 method="GET",
@@ -108,7 +111,7 @@ class TestSendRequestAsync(AsyncFormRecognizerTest):
             received_info3 = result.json()
             assert received_info3["summary"]["count"] == received_info1["summary"]["count"]
             assert received_info3["summary"]["limit"] == received_info1["summary"]["limit"]
-            
+
             # relative URLs can't override the API version on 2.x clients
             request = HttpRequest(
                 method="GET",
@@ -119,7 +122,7 @@ class TestSendRequestAsync(AsyncFormRecognizerTest):
             received_info4 = result.json()
             assert received_info4["error"]["code"] == "404"
             assert received_info4["error"]["message"] == "Resource not found"
-            
+
             # test with v2 API version with absolute url
             request = HttpRequest(
                 method="GET",
@@ -129,5 +132,5 @@ class TestSendRequestAsync(AsyncFormRecognizerTest):
             result = await client.send_request(request)
             received_info5 = result.json()
             assert received_info5
-            assert received_info5["customDocumentModels"]["count"] == 0
-            assert received_info5["customDocumentModels"]["limit"] == 250
+            assert received_info5["customDocumentModels"]["count"] == account_properties.custom_model_count
+            assert received_info5["customDocumentModels"]["limit"] == account_properties.custom_model_limit

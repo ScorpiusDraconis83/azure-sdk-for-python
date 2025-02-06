@@ -65,20 +65,29 @@ client = KeyVaultAccessControlClient(vault_url=MANAGED_HSM_URL, credential=crede
 > **NOTE:** For an asynchronous client, import `azure.keyvault.administration.aio`'s `KeyVaultAccessControlClient` instead.
 
 #### Create a KeyVaultBackupClient
-After configuring your environment for the [DefaultAzureCredential][default_cred_ref] to use a suitable method of authentication, you can do the following to create a backup client (replacing the value of `vault_url` with your Managed HSM's URL):
+After creating a user-assigned [managed identity][managed_identity] and
+[granting it access to your Managed HSM][managed_identity_backup_setup], you can do the following to create a backup
+client (setting the value of `CLIENT_ID` to your managed identity's client ID):
 
 <!-- SNIPPET:backup_restore_operations.create_a_backup_restore_client -->
 
 ```python
-from azure.identity import DefaultAzureCredential
+from azure.identity import ManagedIdentityCredential
 from azure.keyvault.administration import KeyVaultBackupClient
 
 MANAGED_HSM_URL = os.environ["MANAGED_HSM_URL"]
-credential = DefaultAzureCredential()
+MANAGED_IDENTITY_CLIENT_ID = os.environ["CLIENT_ID"]
+credential = ManagedIdentityCredential(client_id=MANAGED_IDENTITY_CLIENT_ID)
 client = KeyVaultBackupClient(vault_url=MANAGED_HSM_URL, credential=credential)
 ```
 
 <!-- END SNIPPET -->
+
+Using the `ManagedIdentityCredential` is preferred in order to enable authenticating backup and restore operations with
+Managed Identity. Any other `azure-identity` credential could be provided instead if SAS tokens are used in these
+operations.
+
+See [azure-identity][managed_identity_ref] documentation for more information on Managed Identity authentication.
 
 > **NOTE:** For an asynchronous client, import `azure.keyvault.administration.aio`'s `KeyVaultBackupClient` instead.
 
@@ -124,7 +133,7 @@ A `KeyVaultSettingsClient` manages Managed HSM account settings.
 This section contains code snippets covering common tasks:
 * Access control
     * [List all role definitions](#list-all-role-definitions)
-    * [Set, get, and delete a role definition](#set-get-and-delete-a-role-defintion)
+    * [Set, get, and delete a role definition](#set-get-and-delete-a-role-definition)
     * [List all role assignments](#list-all-role-assignments)
     * [Create, get, and delete a role assignment](#create-get-and-delete-a-role-assignment)
 * Backup and restore
@@ -149,7 +158,6 @@ for definition in role_definitions:
 <!-- END SNIPPET -->
 
 ### Set, get, and delete a role definition
-
 `set_role_definition` can be used by a `KeyVaultAccessControlClient` to either create a custom role definition or update
 an existing definition with the specified unique `name` (a UUID).
 
@@ -266,7 +274,11 @@ client.delete_role_assignment(scope=scope, name=role_assignment.name)
 
 ### Perform a full key backup
 The `KeyVaultBackupClient` can be used to back up your entire collection of keys. The backing store for full key
-backups is a blob storage container using Shared Access Signature (SAS) authentication.
+backups is a blob storage container using either Managed Identity (which is preferred) or Shared Access Signature (SAS)
+authentication.
+
+If using Managed Identity, first make sure your user-assigned managed identity has the correct access to your Storage
+account and Managed HSM per [the service's guidance][managed_identity_backup_setup].
 
 For more details on creating a SAS token using a `BlobServiceClient` from [`azure-storage-blob`][storage_blob], refer
 to the library's [credential documentation][sas_docs]. Alternatively, it is possible to
@@ -276,9 +288,8 @@ to the library's [credential documentation][sas_docs]. Alternatively, it is poss
 
 ```python
 CONTAINER_URL = os.environ["CONTAINER_URL"]
-SAS_TOKEN = os.environ["SAS_TOKEN"]
 
-backup_result: KeyVaultBackupResult = client.begin_backup(CONTAINER_URL, sas_token=SAS_TOKEN).result()
+backup_result: KeyVaultBackupResult = client.begin_backup(CONTAINER_URL, use_managed_identity=True).result()
 print(f"Azure Storage Blob URL of the backup: {backup_result.folder_url}")
 ```
 
@@ -290,8 +301,12 @@ the operation is complete without returning an object.
 
 ### Perform a full key restore
 The `KeyVaultBackupClient` can be used to restore your entire collection of keys from a backup. The data source for a
-full key restore is a storage blob accessed using Shared Access Signature authentication. You will also need the URL of
-the backup (`KeyVaultBackupResult.folder_url`) from the [above snippet](#perform-a-full-key-backup).
+full key restore is a storage blob accessed using either Managed Identity (which is preferred) or Shared Access
+Signature (SAS) authentication. You will also need the URL of the backup (`KeyVaultBackupResult.folder_url`) from the
+[above snippet](#perform-a-full-key-backup).
+
+If using Managed Identity, first make sure your user-assigned managed identity has the correct access to your Storage
+account and Managed HSM per [the service's guidance][managed_identity_backup_setup].
 
 For more details on creating a SAS token using a `BlobServiceClient` from [`azure-storage-blob`][storage_blob], refer
 to the library's [credential documentation][sas_docs]. Alternatively, it is possible to
@@ -300,10 +315,8 @@ to the library's [credential documentation][sas_docs]. Alternatively, it is poss
 <!-- SNIPPET:backup_restore_operations.begin_restore -->
 
 ```python
-SAS_TOKEN = os.environ["SAS_TOKEN"]
-
 # `backup_result` is the KeyVaultBackupResult returned by `begin_backup`
-client.begin_restore(backup_result.folder_url, sas_token=SAS_TOKEN).wait()
+client.begin_restore(backup_result.folder_url, use_managed_identity=True).wait()
 print("Vault restored successfully.")
 ```
 
@@ -346,14 +359,10 @@ Clients from the Administration library can only be used to perform operations o
 
 ## Next steps
 Several samples are available in the Azure SDK for Python GitHub repository. These samples provide example code for additional Key Vault scenarios:
-| File | Description |
-|-------------|-------------|
-| [access_control_operations.py][access_control_operations_sample] | create/update/delete role definitions and role assignments |
-| [access_control_operations_async.py][access_control_operations_async_sample] | create/update/delete role definitions and role assignments with an async client |
-| [backup_restore_operations.py][backup_operations_sample] | full backup and restore |
-| [backup_restore_operations_async.py][backup_operations_async_sample] | full backup and restore with an async client |
-| [settings_operations.py][settings_operations_sample] | list and update Key Vault settings |
-| [settings_operations_async.py][settings_operations_async_sample] | list and update Key Vault settings with an async client |
+
+- [Create/update/delete role definitions and role assignments][access_control_operations_sample] ([async version][access_control_operations_async_sample])
+- [Full backup and restore][backup_operations_sample] ([async version][backup_operations_async_sample])
+- [List and update Key Vault settings][settings_operations_sample] ([async version][settings_operations_async_sample])
 
 ###  Additional documentation
 For more extensive documentation on Azure Key Vault, see the [API reference documentation][reference_docs].
@@ -378,7 +387,7 @@ contact opencode@microsoft.com with any additional questions or comments.
 
 
 <!-- LINKS -->
-[access_control]: https://docs.microsoft.com/azure/key-vault/managed-hsm/access-control
+[access_control]: https://learn.microsoft.com/azure/key-vault/managed-hsm/access-control
 [access_control_operations_sample]: https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/keyvault/azure-keyvault-administration/samples/access_control_operations.py
 [access_control_operations_async_sample]: https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/keyvault/azure-keyvault-administration/samples/access_control_operations_async.py
 [administration_samples]: https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/keyvault/azure-keyvault-administration/samples
@@ -390,20 +399,22 @@ contact opencode@microsoft.com with any additional questions or comments.
 
 [backup_operations_sample]: https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/keyvault/azure-keyvault-administration/samples/backup_restore_operations.py
 [backup_operations_async_sample]: https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/keyvault/azure-keyvault-administration/samples/backup_restore_operations_async.py
-[best_practices]: https://docs.microsoft.com/azure/key-vault/managed-hsm/best-practices
-[built_in_roles]: https://docs.microsoft.com/azure/key-vault/managed-hsm/built-in-roles
+[best_practices]: https://learn.microsoft.com/azure/key-vault/managed-hsm/best-practices
+[built_in_roles]: https://learn.microsoft.com/azure/key-vault/managed-hsm/built-in-roles
 
 [code_of_conduct]: https://opensource.microsoft.com/codeofconduct/
 
 [default_cred_ref]: https://aka.ms/azsdk/python/identity/docs#azure.identity.DefaultAzureCredential
 
-[keyvault_docs]: https://docs.microsoft.com/azure/key-vault/
+[keyvault_docs]: https://learn.microsoft.com/azure/key-vault/
 
 [library_src]: https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/keyvault/azure-keyvault-administration/azure/keyvault/administration
 
-[managed_hsm]: https://docs.microsoft.com/azure/key-vault/managed-hsm/overview
-[managed_hsm_cli]: https://docs.microsoft.com/azure/key-vault/managed-hsm/quick-create-cli
-[managed_identity]: https://docs.microsoft.com/azure/active-directory/managed-identities-azure-resources/overview
+[managed_hsm]: https://learn.microsoft.com/azure/key-vault/managed-hsm/overview
+[managed_hsm_cli]: https://learn.microsoft.com/azure/key-vault/managed-hsm/quick-create-cli
+[managed_identity]: https://learn.microsoft.com/entra/identity/managed-identities-azure-resources/overview
+[managed_identity_backup_setup]: https://learn.microsoft.com/azure/key-vault/managed-hsm/backup-restore#prerequisites-if-backing-up-and-restoring-using-user-assigned-managed-identity
+[managed_identity_ref]: https://aka.ms/azsdk/python/identity/docs#azure.identity.ManagedIdentityCredential
 
 [pip]: https://pypi.org/project/pip/
 [pypi_package_administration]: https://pypi.org/project/azure-keyvault-administration
@@ -417,4 +428,4 @@ contact opencode@microsoft.com with any additional questions or comments.
 [storage_explorer]: https://learn.microsoft.com/azure/vs-azure-tools-storage-manage-with-storage-explorer
 
 
-![Impressions](https://azure-sdk-impressions.azurewebsites.net/api/impressions/azure-sdk-for-python%2Fsdk%2Fkeyvault%2Fazure-keyvault-administration%2FREADME.png)
+

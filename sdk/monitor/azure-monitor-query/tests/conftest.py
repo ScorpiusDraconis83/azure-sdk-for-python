@@ -36,7 +36,7 @@ def add_sanitizers(test_proxy, environment_variables):
         ENV_CLIENT_ID: TEST_ID,
         ENV_CLIENT_SECRET: TEST_ID,
         ENV_TABLE_NAME: TEST_TABLE_NAME,
-        ENV_DCR_ID: TEST_ID
+        ENV_DCR_ID: TEST_ID,
     }
     environment_variables.sanitize_batch(sanitization_mapping)
     add_header_regex_sanitizer(key="Set-Cookie", value="[set-cookie;]")
@@ -49,6 +49,4 @@ def monitor_info(environment_variables):
         "workspace_id": environment_variables.get(ENV_WORKSPACE_ID),
         "secondary_workspace_id": environment_variables.get(ENV_SECONDARY_WORKSPACE_ID),
         "table_name": environment_variables.get(ENV_TABLE_NAME),
-        "client_id": environment_variables.get(ENV_CLIENT_ID),
-        "tenant_id": environment_variables.get(ENV_TENANT_ID)
     }

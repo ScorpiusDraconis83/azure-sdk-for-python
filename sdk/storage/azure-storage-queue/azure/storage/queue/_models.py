@@ -3,8 +3,7 @@
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
 # --------------------------------------------------------------------------
-# pylint: disable=too-few-public-methods, too-many-instance-attributes
-# pylint: disable=super-init-not-called
+# pylint: disable=too-few-public-methods, super-init-not-called
 
 import sys
 from typing import Any, Callable, Dict, List, Optional, Tuple, TYPE_CHECKING, Union
@@ -19,9 +18,9 @@ from ._generated.models import Metrics as GeneratedMetrics
 from ._generated.models import RetentionPolicy as GeneratedRetentionPolicy
 
 if sys.version_info >= (3, 11):
-    from typing import Self # pylint: disable=no-name-in-module, ungrouped-imports
+    from typing import Self
 else:
-    from typing_extensions import Self # pylint: disable=ungrouped-imports
+    from typing_extensions import Self
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -325,9 +324,8 @@ class AccessPolicy(GenAccessPolicy):
     :param Optional[Union["datetime", str]] start:
         The time at which the shared access signature becomes valid. If
         omitted, start time for this call is assumed to be the time when the
-        storage service receives the request. Azure will always convert values
-        to UTC. If a date is passed in without timezone info, it is assumed to
-        be UTC.
+        storage service receives the request. The provided datetime will always
+        be interpreted as UTC.
     """
 
     permission: Optional[Union[QueueSasPermissions, str]] #type: ignore [assignment]

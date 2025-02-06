@@ -27,7 +27,7 @@ docker = DockerProxy()
 module_logger = logging.getLogger(__name__)
 initialize_logger_info(module_logger, terminator="")
 
-DEFAULT_LABELS = {
+DEFAULT_LABELS: Dict = {
     LocalEndpointConstants.LABEL_KEY_AZUREML_LOCAL_ENDPOINT: "",
     LocalEndpointConstants.LABEL_KEY_ENDPOINT_NAME: "",
     LocalEndpointConstants.LABEL_KEY_DEPLOYMENT_NAME: "",
@@ -45,14 +45,14 @@ class DockerClient(object):
 
     def __init__(
         self,
-        client: Optional["docker.DockerClient"] = None,
+        client: Optional["docker.DockerClient"] = None,  # type: ignore[name-defined]
         vscode_client: Optional[VSCodeClient] = None,
     ):
         self._lazy_client = client
         self._vscode_client = vscode_client if vscode_client else VSCodeClient()
 
     @property
-    def _client(self) -> "docker.DockerClient":
+    def _client(self) -> "docker.DockerClient":  # type: ignore[name-defined]
         """Lazy initializer for docker-py client.
 
         :return: docker.client.DockerClient
@@ -184,8 +184,8 @@ class DockerClient(object):
         labels = get_container_labels(
             endpoint_name=endpoint_name,
             deployment_name=deployment_name,
-            endpoint_metadata=endpoint_metadata,
-            deployment_metadata=deployment_metadata,
+            endpoint_metadata=endpoint_metadata,  # type: ignore[arg-type]
+            deployment_metadata=deployment_metadata,  # type: ignore[arg-type]
             azureml_port=azureml_port,
         )
         module_logger.debug("Setting labels: '%s'\n", labels)
@@ -213,7 +213,7 @@ class DockerClient(object):
                     build_directory=build_directory,
                     image_name=image_name,
                     environment=environment,
-                    volumes=volumes,
+                    volumes=volumes,  # type: ignore[arg-type]
                     labels=labels,
                 )
             finally:
@@ -221,9 +221,7 @@ class DockerClient(object):
                 # to add debugpy statements
                 container.remove()
             app_path = environment[LocalEndpointConstants.ENVVAR_KEY_AML_APP_ROOT]
-            self._vscode_client.invoke_dev_container(
-                devcontainer_path=devcontainer_path, app_path=app_path
-            )  # pylint: disable=redundant-keyword-arg
+            self._vscode_client.invoke_dev_container(devcontainer_path=devcontainer_path, app_path=app_path)
             time.sleep(LocalEndpointConstants.DEFAULT_STARTUP_WAIT_TIME_SECONDS)
         else:
             container.start()
@@ -262,7 +260,7 @@ class DockerClient(object):
             container.remove()
             module_logger.debug("Endpoint container '%s' is removed.", container.name)
 
-    def get_endpoint(self, endpoint_name: str) -> dict:
+    def get_endpoint(self, endpoint_name: str) -> Optional[dict]:
         """Returns metadata for local endpoint or deployment.
 
         :param endpoint_name: name of local endpoint
@@ -275,7 +273,7 @@ class DockerClient(object):
             raise LocalEndpointNotFoundError(endpoint_name=endpoint_name)
         return get_endpoint_json_from_container(container=container)
 
-    def get_deployment(self, endpoint_name: str, deployment_name: Optional[str] = None) -> dict:
+    def get_deployment(self, endpoint_name: str, deployment_name: Optional[str] = None) -> Optional[dict]:
         """Returns metadata for local deployment.
 
         :param endpoint_name: name of local endpoint
@@ -290,7 +288,7 @@ class DockerClient(object):
             raise LocalEndpointNotFoundError(endpoint_name=endpoint_name, deployment_name=deployment_name)
         return get_deployment_json_from_container(container=container)
 
-    def get_scoring_uri(self, endpoint_name: str, deployment_name: Optional[str] = None) -> str:
+    def get_scoring_uri(self, endpoint_name: str, deployment_name: Optional[str] = None) -> Optional[str]:
         """Returns scoring uri for local endpoint or deployment.
 
         :param endpoint_name: name of local endpoint
@@ -309,7 +307,7 @@ class DockerClient(object):
             return None
         _validate_container_state(
             endpoint_name=endpoint_name,
-            deployment_name=deployment_name,
+            deployment_name=str(deployment_name),
             container=container,
         )
         return get_scoring_uri_from_container(container=container)
@@ -363,7 +361,7 @@ class DockerClient(object):
         deployment_name: Optional[str] = None,
         verify_single_deployment: bool = False,
         include_stopped: bool = True,
-    ) -> "docker.models.containers.Container":
+    ) -> "docker.models.containers.Container":  # type: ignore[name-defined]
         """Builds and runs an image from provided image context.
 
         :param endpoint_name: name of local endpoint
@@ -470,21 +468,25 @@ def get_container_labels(
     return labels
 
 
-def get_endpoint_json_from_container(container: "docker.models.containers.Container") -> dict:
+def get_endpoint_json_from_container(
+    container: "docker.models.containers.Container",  # type: ignore[name-defined]
+) -> Optional[dict]:
     if container:
         data = container.labels[LocalEndpointConstants.LABEL_KEY_ENDPOINT_JSON]
         return json.loads(data)
     return None
 
 
-def get_deployment_json_from_container(container: "docker.models.containers.Container") -> dict:
+def get_deployment_json_from_container(
+    container: "docker.models.containers.Container",  # type: ignore[name-defined]
+) -> Optional[dict]:
     if container:
         data = container.labels[LocalEndpointConstants.LABEL_KEY_DEPLOYMENT_JSON]
         return json.loads(data)
     return None
 
 
-def get_status_from_container(container: "docker.models.containers.Container") -> str:
+def get_status_from_container(container: "docker.models.containers.Container") -> str:  # type: ignore[name-defined]
     """Returns status of container.
 
     :param container: container of local Deployment
@@ -495,7 +497,9 @@ def get_status_from_container(container: "docker.models.containers.Container") -
     return container.status
 
 
-def get_scoring_uri_from_container(container: "docker.models.containers.Container") -> str:
+def get_scoring_uri_from_container(
+    container: "docker.models.containers.Container",  # type: ignore[name-defined]
+) -> str:
     """Returns scoring_uri of container.
 
     :param container: container of local Deployment
@@ -547,7 +551,7 @@ def _get_container_name(endpoint_name: str, deployment_name: Optional[str] = Non
 def _validate_container_state(
     endpoint_name: str,
     deployment_name: str,
-    container: "docker.models.containers.Container",
+    container: "docker.models.containers.Container",  # type: ignore[name-defined]
 ):
     """Returns a container name.
 

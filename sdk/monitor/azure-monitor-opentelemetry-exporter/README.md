@@ -1,6 +1,8 @@
 # Microsoft OpenTelemetry exporter for Azure Monitor
 
-The exporter for Azure Monitor allows you to export data utilizing the OpenTelemetry SDK and send telemetry data to Azure Monitor for applications written in Python.
+The exporter for Azure Monitor allows Python applications to export data from the OpenTelemetry SDK to Azure Monitor. The exporter is intended for users who require advanced configuration or have more complicated telemetry needs that require all of distributed tracing, logging and metrics. If you have simpler configuration requirements, we recommend using the [Azure Monitor OpenTelemetry Distro](https://learn.microsoft.com/azure/azure-monitor/app/opentelemetry-enable?tabs=python) instead for a simpler one-line setup.
+
+Prior to using this SDK, please read and understand [Data Collection Basics](https://learn.microsoft.com/azure/azure-monitor/app/opentelemetry-overview?tabs=python), especially the section on [telemetry types](https://learn.microsoft.com/azure/azure-monitor/app/opentelemetry-overview?tabs=python#telemetry-types). OpenTelemetry terminology differs from Application Insights terminology so it is important to understand the way the telemetry types map to each other.
 
 [Source code](https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/monitor/azure-monitor-opentelemetry-exporter) | [Package (PyPi)][pypi] | [API reference documentation][api_docs] | [Product documentation][product_docs] | [Samples][exporter_samples] | [Changelog](https://github.com/Azure/azure-sdk-for-python/blob/main/sdk/monitor/azure-monitor-opentelemetry-exporter/CHANGELOG.md)
 
@@ -21,7 +23,7 @@ To use this package, you must have:
 * Azure subscription - [Create a free account][azure_sub]
 * Azure Monitor - [How to use application insights][application_insights_namespace]
 * OpenTelemetry SDK - [OpenTelemetry SDK for Python][ot_sdk_python]
-* Python 3.7 or later - [Install Python][python]
+* Python 3.8 or later - [Install Python][python]
 
 ### Instantiate the client
 
@@ -152,6 +154,14 @@ The following sections provide several code snippets covering some of the most c
 
 Review the [OpenTelemetry Logging SDK][ot_logging_sdk] to learn how to use OpenTelemetry components to collect logs.
 
+When integrating the `AzureMonitorLogExporter`, it's **strongly advised to utilize a named logger** rather
+than the root logger.
+This recommendation stems from the exporter's dependency on `azure-core` for constructing and dispatching requests.
+Since `azure-core` itself uses a Python logger, attaching the handler to the root logger would
+inadvertently capture and export these internal log messages as well.
+This triggers a recursive loop of logging and exporting, leading to an unnecessary proliferation of log data.
+To avoid this, configure a named logger for your application's logging needs or set up your logging handler to filter out logs originating from the SDK library.
+
 #### Export Hello World Log
 
 ```python
@@ -179,13 +189,12 @@ exporter = AzureMonitorLogExporter(
 )
 
 logger_provider.add_log_record_processor(BatchLogRecordProcessor(exporter))
+
+# Attach LoggingHandler to namespaced logger
 handler = LoggingHandler()
-
-# Attach LoggingHandler to root logger
-logging.getLogger().addHandler(handler)
-logging.getLogger().setLevel(logging.NOTSET)
-
 logger = logging.getLogger(__name__)
+logger.addHandler(handler)
+logger.setLevel(logging.NOTSET)
 
 logger.warning("Hello World!")
 
@@ -224,13 +233,12 @@ exporter = AzureMonitorLogExporter(
 )
 
 logger_provider.add_log_record_processor(BatchLogRecordProcessor(exporter))
+
+# Attach LoggingHandler to namespaced logger
 handler = LoggingHandler()
-
-# Attach LoggingHandler to root logger
-logging.getLogger().addHandler(handler)
-logging.getLogger().setLevel(logging.NOTSET)
-
 logger = logging.getLogger(__name__)
+logger.addHandler(handler)
+logger.setLevel(logging.NOTSET)
 
 logger.info("INFO: Outside of span")
 with tracer.start_as_current_span("foo"):
@@ -264,13 +272,12 @@ exporter = AzureMonitorLogExporter(
 )
 
 logger_provider.add_log_record_processor(BatchLogRecordProcessor(exporter))
+
+# Attach LoggingHandler to namespaced logger
 handler = LoggingHandler()
-
-# Attach LoggingHandler to root logger
-logging.getLogger().addHandler(handler)
-logging.getLogger().setLevel(logging.NOTSET)
-
 logger = logging.getLogger(__name__)
+logger.addHandler(handler)
+logger.setLevel(logging.NOTSET)
 
 # Custom properties
 logger.debug("DEBUG: Debug with properties", extra={"debug": "true"})
@@ -640,7 +647,7 @@ Please find further examples in the [samples][exporter_samples] directory demons
 
 ### Additional documentation
 
-For more extensive documentation on the Azure Monitor service, see the [Azure Monitor documentation][product_docs] on docs.microsoft.com.
+For more extensive documentation on the Azure Monitor service, see the [Azure Monitor documentation][product_docs] on learn.microsoft.com.
 
 For detailed overview of OpenTelemetry, visit their [overview](https://github.com/open-telemetry/opentelemetry-specification/blob/master/specification/overview.md) page.
 
@@ -666,23 +673,23 @@ contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additio
 [aad_for_ai_docs]: https://learn.microsoft.com/azure/azure-monitor/app/azure-ad-authentication?tabs=python
 [api_docs]: https://azure.github.io/azure-sdk-for-python/monitor.html#azure-monitor-opentelemetry-exporter
 [exporter_samples]: https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/monitor/azure-monitor-opentelemetry-exporter/samples
-[product_docs]: https://docs.microsoft.com/azure/azure-monitor/overview
+[product_docs]: https://learn.microsoft.com/azure/azure-monitor/overview
 [azure_sub]: https://azure.microsoft.com/free/
 [pip]: https://pypi.org/project/pip/
 [pypi]: https://pypi.org/project/azure-monitor-opentelemetry-exporter/
 [python]: https://www.python.org/downloads/
 [ot_sdk_python]: https://github.com/open-telemetry/opentelemetry-python
-[application_insights_namespace]: https://docs.microsoft.com/azure/azure-monitor/app/app-insights-overview#how-do-i-use-application-insights
+[application_insights_namespace]: https://learn.microsoft.com/azure/azure-monitor/app/app-insights-overview#how-do-i-use-application-insights
 [opentelemetry_spec]: https://opentelemetry.io/
 [instrumentation_library]: https://github.com/open-telemetry/opentelemetry-specification/blob/master/specification/overview.md#instrumentation-libraries
 [log_concept]: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/overview.md#log-signal
-[log_record]: https://opentelemetry-python.readthedocs.io/en/stable/sdk/_logs.html#opentelemetry.sdk._logs.LogRecord
-[logger]: https://opentelemetry-python.readthedocs.io/en/stable/sdk/_logs.html#opentelemetry.sdk._logs.Logger
-[logger_provider]: https://opentelemetry-python.readthedocs.io/en/stable/sdk/_logs.html#opentelemetry.sdk._logs.LoggerProvider
-[log_record_processor]: https://opentelemetry-python.readthedocs.io/en/stable/sdk/_logs.html#opentelemetry.sdk._logs.LogRecordProcessor
-[logging_handler]: https://opentelemetry-python.readthedocs.io/en/stable/sdk/_logs.html#opentelemetry.sdk._logs.LoggingHandler
+[log_record]: https://opentelemetry-python.readthedocs.io/en/latest/sdk/_logs.html#opentelemetry.sdk._logs.LogRecord
+[logger]: https://opentelemetry-python.readthedocs.io/en/latest/sdk/_logs.html#opentelemetry.sdk._logs.Logger
+[logger_provider]: https://opentelemetry-python.readthedocs.io/en/latest/sdk/_logs.html#opentelemetry.sdk._logs.LoggerProvider
+[log_record_processor]: https://opentelemetry-python.readthedocs.io/en/latest/sdk/_logs.html#opentelemetry.sdk._logs.LogRecordProcessor
+[logging_handler]: https://opentelemetry-python.readthedocs.io/en/latest/sdk/_logs.html#opentelemetry.sdk._logs.LoggingHandler
 [log_reference]: https://github.com/Azure/azure-sdk-for-python/blob/main/sdk/monitor/azure-monitor-opentelemetry-exporter/azure/monitor/opentelemetry/exporter/export/logs/_exporter.py
-[ot_logging_sdk]: https://opentelemetry-python.readthedocs.io/en/stable/sdk/_logs.html
+[ot_logging_sdk]: https://opentelemetry-python.readthedocs.io/en/latest/sdk/_logs.html
 [metric_concept]: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/overview.md#metric-signal
 [measurement]: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/metrics/api.md#measurement
 [instrument]: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/metrics/api.md#instrument
@@ -690,12 +697,12 @@ contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additio
 [meter_provider]: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/metrics/api.md#meterprovider
 [metric_reader]:https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/metrics/sdk.md#metricreader
 [metric_reference]: https://github.com/Azure/azure-sdk-for-python/blob/main/sdk/monitor/azure-monitor-opentelemetry-exporter/azure/monitor/opentelemetry/exporter/export/metrics/_exporter.py
-[ot_metrics_sdk]: https://opentelemetry-python.readthedocs.io/en/stable/sdk/metrics.html
+[ot_metrics_sdk]: https://opentelemetry-python.readthedocs.io/en/latest/sdk/metrics.html
 [trace_concept]: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/overview.md#tracing-signal
-[span]: https://opentelemetry-python.readthedocs.io/en/stable/api/trace.html?highlight=TracerProvider#opentelemetry.trace.Span
-[tracer]: https://opentelemetry-python.readthedocs.io/en/stable/api/trace.html?highlight=TracerProvider#opentelemetry.trace.Tracer
-[tracer_provider]: https://opentelemetry-python.readthedocs.io/en/stable/api/trace.html?highlight=TracerProvider#opentelemetry.trace.TracerProvider
-[span_processor]: https://opentelemetry-python.readthedocs.io/en/stable/_modules/opentelemetry/sdk/trace.html?highlight=SpanProcessor#
+[span]: https://opentelemetry-python.readthedocs.io/en/latest/api/trace.html?highlight=TracerProvider#opentelemetry.trace.Span
+[tracer]: https://opentelemetry-python.readthedocs.io/en/latest/api/trace.html?highlight=TracerProvider#opentelemetry.trace.Tracer
+[tracer_provider]: https://opentelemetry-python.readthedocs.io/en/latest/api/trace.html?highlight=TracerProvider#opentelemetry.trace.TracerProvider
+[span_processor]: https://opentelemetry-python.readthedocs.io/en/latest/_modules/opentelemetry/sdk/trace.html?highlight=SpanProcessor#
 [trace_reference]: https://github.com/Azure/azure-sdk-for-python/blob/main/sdk/monitor/azure-monitor-opentelemetry-exporter/azure/monitor/opentelemetry/exporter/export/trace/_exporter.py
-[ot_tracing_sdk]: https://opentelemetry-python.readthedocs.io/en/stable/sdk/trace.html
+[ot_tracing_sdk]: https://opentelemetry-python.readthedocs.io/en/latest/sdk/trace.html
 [sampler_ref]: https://github.com/open-telemetry/opentelemetry-specification/blob/master/specification/trace/sdk.md#sampling

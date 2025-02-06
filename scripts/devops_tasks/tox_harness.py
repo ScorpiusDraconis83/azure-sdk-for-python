@@ -20,6 +20,7 @@ from ci_tools.environment_exclusions import filter_tox_environment_string
 from ci_tools.ci_interactions import output_ci_warning
 from ci_tools.scenario.generation import replace_dev_reqs
 from ci_tools.functions import cleanup_directory
+from ci_tools.parsing import ParsedSetup
 from pkg_resources import parse_requirements, RequirementParseError
 import logging
 
@@ -81,7 +82,7 @@ def compare_req_to_injected_reqs(parsed_req, injected_packages):
 
 def inject_custom_reqs(file, injected_packages, package_dir):
     req_lines = []
-    injected_packages = [p for p in re.split("[\s,]", injected_packages) if p]
+    injected_packages = [p for p in re.split(r"[\s,]", injected_packages) if p]
 
     if injected_packages:
         logging.info("Adding custom packages to requirements for {}".format(package_dir))
@@ -252,13 +253,14 @@ def prep_and_run_tox(targeted_packages: List[str], parsed_args: Namespace) -> No
     skipped_tox_checks = {}
 
     for index, package_dir in enumerate(targeted_packages):
+        parsed_package = ParsedSetup.from_path(package_dir)
         destination_tox_ini = os.path.join(package_dir, "tox.ini")
         destination_dev_req = os.path.join(package_dir, "dev_requirements.txt")
 
         tox_execution_array = [sys.executable, "-m", "tox"]
 
         if parsed_args.tenvparallel:
-            tox_execution_array.extend(["run-parallel", "-p", "all"])
+            tox_execution_array.extend(["run-parallel", "-p", parsed_args.tenvparallel])
         else:
             tox_execution_array.append("run")
 
@@ -298,9 +300,9 @@ def prep_and_run_tox(targeted_packages: List[str], parsed_args: Namespace) -> No
                 file.write("\n")
 
         if in_ci():
-            replace_dev_reqs(destination_dev_req, package_dir)
-            replace_dev_reqs(test_tools_path, package_dir)
-            replace_dev_reqs(dependency_tools_path, package_dir)
+            replace_dev_reqs(destination_dev_req, package_dir, parsed_args.wheel_dir)
+            replace_dev_reqs(test_tools_path, package_dir, parsed_args.wheel_dir)
+            replace_dev_reqs(dependency_tools_path, package_dir, parsed_args.wheel_dir)
             os.environ["TOX_PARALLEL_NO_SPINNER"] = "1"
 
         inject_custom_reqs(destination_dev_req, parsed_args.injected_packages, package_dir)
@@ -316,7 +318,7 @@ def prep_and_run_tox(targeted_packages: List[str], parsed_args: Namespace) -> No
                         if check not in skipped_tox_checks:
                             skipped_tox_checks[check] = []
 
-                    skipped_tox_checks[check].append(package_name)
+                        skipped_tox_checks[check].append(parsed_package)
 
             if not filtered_tox_environment_set:
                 logging.info(
@@ -327,7 +329,6 @@ def prep_and_run_tox(targeted_packages: List[str], parsed_args: Namespace) -> No
                 continue
 
             tox_execution_array.extend(["-e", filtered_tox_environment_set])
-
 
         if parsed_args.tox_env == "apistub":
             local_options_array = []
@@ -342,7 +343,10 @@ def prep_and_run_tox(targeted_packages: List[str], parsed_args: Namespace) -> No
     if in_ci() and skipped_tox_checks:
         warning_content = ""
         for check in skipped_tox_checks:
-            warning_content += f"{check} is skipped by packages: {sorted(set(skipped_tox_checks[check]))}. \n"
+            packages_with_suppression = [pkg.name for pkg in skipped_tox_checks[check] if not pkg.is_reporting_suppressed(check)]
+
+            if packages_with_suppression:
+                warning_content += f"{check} is skipped by packages: {sorted(set(packages_with_suppression))}. \n"
 
         if warning_content:
             output_ci_warning(
@@ -350,9 +354,9 @@ def prep_and_run_tox(targeted_packages: List[str], parsed_args: Namespace) -> No
                     "setup_execute_tests.py -> tox_harness.py::prep_and_run_tox",
             )
 
-    return_code = execute_tox_serial(tox_command_tuples)
+    return_result = execute_tox_serial(tox_command_tuples)
 
     if not parsed_args.disablecov:
         collect_tox_coverage_files(targeted_packages)
 
-    sys.exit(return_code)
+    sys.exit(return_result) #type: ignore

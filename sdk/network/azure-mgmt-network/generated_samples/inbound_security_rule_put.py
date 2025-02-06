@@ -7,6 +7,7 @@
 # --------------------------------------------------------------------------
 
 from azure.identity import DefaultAzureCredential
+
 from azure.mgmt.network import NetworkManagementClient
 
 """
@@ -35,13 +36,23 @@ def main():
         rule_collection_name="rule1",
         parameters={
             "properties": {
-                "rules": [{"destinationPortRange": 22, "protocol": "TCP", "sourceAddressPrefix": "50.20.121.5/32"}]
+                "ruleType": "Permanent",
+                "rules": [
+                    {
+                        "appliesOn": ["slbip1"],
+                        "destinationPortRange": 22,
+                        "destinationPortRanges": ["80-100"],
+                        "name": "inboundRule1",
+                        "protocol": "TCP",
+                        "sourceAddressPrefix": "50.20.121.5/32",
+                    }
+                ],
             }
         },
     ).result()
     print(response)
 
 
-# x-ms-original-file: specification/network/resource-manager/Microsoft.Network/stable/2023-06-01/examples/InboundSecurityRulePut.json
+# x-ms-original-file: specification/network/resource-manager/Microsoft.Network/stable/2024-05-01/examples/InboundSecurityRulePut.json
 if __name__ == "__main__":
     main()

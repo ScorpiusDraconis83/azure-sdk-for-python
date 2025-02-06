@@ -20,6 +20,7 @@
 # SOFTWARE.
 
 # pylint: disable=missing-client-constructor-parameter-credential,missing-client-constructor-parameter-kwargs
+# pylint: disable=docstring-keyword-should-match-keyword-only
 
 """Create, read, update and delete users in the Azure Cosmos DB SQL API service.
 """
@@ -80,10 +81,11 @@ class UserProxy:
         :rtype: dict[str, Any]
         """
         request_options = build_options(kwargs)
-        response_hook = kwargs.pop('response_hook', None)
-        self._properties = self.client_connection.ReadUser(user_link=self.user_link, options=request_options, **kwargs)
-        if response_hook:
-            response_hook(self.client_connection.last_response_headers, self._properties)
+        self._properties = self.client_connection.ReadUser(
+            user_link=self.user_link,
+            options=request_options,
+            **kwargs
+        )
         return self._properties
 
     @distributed_trace
@@ -100,7 +102,11 @@ class UserProxy:
         if max_item_count is not None:
             feed_options["maxItemCount"] = max_item_count
 
-        result = self.client_connection.ReadPermissions(user_link=self.user_link, options=feed_options, **kwargs)
+        result = self.client_connection.ReadPermissions(
+            user_link=self.user_link,
+            options=feed_options,
+            response_hook=response_hook,
+            **kwargs)
 
         if response_hook:
             response_hook(self.client_connection.last_response_headers, result)
@@ -132,8 +138,9 @@ class UserProxy:
 
         result = self.client_connection.QueryPermissions(
             user_link=self.user_link,
-            query=query if parameters is None else dict(query=query, parameters=parameters),
+            query=query if parameters is None else {"query": query, "parameters": parameters},
             options=feed_options,
+            response_hook=response_hook,
             **kwargs
         )
 
@@ -150,24 +157,20 @@ class UserProxy:
     ) -> Permission:
         """Get the permission identified by `id`.
 
-        :param permission: The ID (name), dict representing the properties or :class:`Permission`
+        :param permission: The ID (name), dict representing the properties or :class:`~azure.cosmos.Permission`
             instance of the permission to be retrieved.
-        :type permission: Union[str, Permission, Dict[str, Any]]
+        :type permission: Union[str, ~azure.cosmos.Permission, Dict[str, Any]]
         :keyword Callable response_hook: A callable invoked with the response metadata.
         :returns: A dict representing the retrieved permission.
         :raises ~azure.cosmos.exceptions.CosmosHttpResponseError: If the given permission couldn't be retrieved.
         :rtype: Dict[str, Any]
         """
         request_options = build_options(kwargs)
-        response_hook = kwargs.pop('response_hook', None)
-
         permission_resp = self.client_connection.ReadPermission(
-            permission_link=self._get_permission_link(permission), options=request_options, **kwargs
+            permission_link=self._get_permission_link(permission),
+            options=request_options,
+            **kwargs
         )
-
-        if response_hook:
-            response_hook(self.client_connection.last_response_headers, permission_resp)
-
         return Permission(
             id=permission_resp["id"],
             user_link=self.user_link,
@@ -189,15 +192,12 @@ class UserProxy:
         :rtype: Dict[str, Any]
         """
         request_options = build_options(kwargs)
-        response_hook = kwargs.pop('response_hook', None)
-
         permission = self.client_connection.CreatePermission(
-            user_link=self.user_link, permission=body, options=request_options, **kwargs
+            user_link=self.user_link,
+            permission=body,
+            options=request_options,
+            **kwargs
         )
-
-        if response_hook:
-            response_hook(self.client_connection.last_response_headers, permission)
-
         return Permission(
             id=permission["id"],
             user_link=self.user_link,
@@ -220,15 +220,9 @@ class UserProxy:
         :rtype: Dict[str, Any]
         """
         request_options = build_options(kwargs)
-        response_hook = kwargs.pop('response_hook', None)
-
         permission = self.client_connection.UpsertPermission(
             user_link=self.user_link, permission=body, options=request_options, **kwargs
         )
-
-        if response_hook:
-            response_hook(self.client_connection.last_response_headers, permission)
-
         return Permission(
             id=permission["id"],
             user_link=self.user_link,
@@ -248,9 +242,9 @@ class UserProxy:
 
         If the permission does not already exist, an exception is raised.
 
-        :param permission: The ID (name), dict representing the properties or :class:`Permission`
+        :param permission: The ID (name), dict representing the properties or :class:`~azure.cosmos.Permission`
             instance of the permission to be replaced.
-        :type permission: Union[str, Permission, Dict[str, Any]]
+        :type permission: Union[str, ~azure.cosmos.Permission, Dict[str, Any]]
         :param Dict[str, Any] body: A dict-like object representing the permission to replace.
         :keyword Callable response_hook: A callable invoked with the response metadata.
         :returns: A dict representing the permission after replace went through.
@@ -259,15 +253,12 @@ class UserProxy:
         :rtype: Dict[str, Any]
         """
         request_options = build_options(kwargs)
-        response_hook = kwargs.pop('response_hook', None)
-
         permission_resp = self.client_connection.ReplacePermission(
-            permission_link=self._get_permission_link(permission), permission=body, options=request_options, **kwargs
+            permission_link=self._get_permission_link(permission),
+            permission=body,
+            options=request_options,
+            **kwargs
         )
-
-        if response_hook:
-            response_hook(self.client_connection.last_response_headers, permission_resp)
-
         return Permission(
             id=permission_resp["id"],
             user_link=self.user_link,
@@ -286,18 +277,15 @@ class UserProxy:
 
         If the permission does not already exist, an exception is raised.
 
-        :param permission: The ID (name), dict representing the properties or :class:`Permission`
+        :param permission: The ID (name), dict representing the properties or :class:`~azure.cosmos.Permission`
             instance of the permission to be replaced.
-        :type permission: Union[str, Permission, Dict[str, Any]]
+        :type permission: Union[str, ~azure.cosmos.Permission, Dict[str, Any]]
         :keyword Callable response_hook: A callable invoked with the response metadata.
         :raises ~azure.cosmos.exceptions.CosmosHttpResponseError: The permission wasn't deleted successfully.
         :raises ~azure.cosmos.exceptions.CosmosResourceNotFoundError: The permission does not exist for the user.
         :rtype: None
         """
         request_options = build_options(kwargs)
-        response_hook = kwargs.pop('response_hook', None)
         self.client_connection.DeletePermission(
             permission_link=self._get_permission_link(permission), options=request_options, **kwargs
         )
-        if response_hook:
-            response_hook(self.client_connection.last_response_headers, None)

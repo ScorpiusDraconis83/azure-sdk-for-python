@@ -1,6 +1,6 @@
 # Release History
 
-## 1.1.0b4 (Unreleased)
+## 2.0.1 (Unreleased)
 
 ### Features Added
 
@@ -8,9 +8,69 @@
 
 ### Bugs Fixed
 
-- Verifies that the `refresh_interval`` is at least 1 second.
-
 ### Other Changes
+
+## 2.0.0 (2025-01-06)
+
+### Features Added
+
+* Added support for load balancing between replicas.
+* Added support for adding telemetry information to feature flags.
+
+## 2.0.0b3 (2024-11-13)
+
+### Breaking Changes
+
+* Allocation Id value changed so other providers can match the value.
+
+## 2.0.0b2 (2024-10-11)
+
+### Feature Added
+
+* Added AllocationId to the feature flag telemetry metadata when the feature flag has telemetry enabled.
+
+### Bugs Fixed
+
+* Fixed a number of cases where snake case was used instead of pascal case for feature flag telemetry.
+  * etag -> ETag
+  * feature_flag_reference -> FeatureFlagReference
+  * feature_flag_id -> FeatureFlagId
+
+## 2.0.0b1 (2024-09-11)
+
+### Features Added
+
+* Added support for feature flag telemetry.
+
+## 1.3.0 (2024-09-09)
+
+### Features Added
+
+* Added support for auto failover between replicas.
+* Added support for auto discovery of replicas.
+
+## 1.2.0 (2024-05-24)
+
+### Features Added
+
+* Enable loading of feature flags with `feature_flag_enabled`
+* Select Feature Flags to load with `feature_flag_selectors`
+* Enable/Disable Feature Flag Refresh with `feature_flag_refresh_enabled`
+
+### Bugs Fixed
+
+* Fixes issue where loading configurations were slower due to returning a copy of the configurations.
+
+## 1.1.0 (2024-01-29)
+
+### Features Added
+
+* New API for Azure App Configuration Provider, `refresh`, which can be used to refresh the configuration from the Azure App Configuration service. `refresh` by default can check every 30 seconds for changes to specified sentinel keys. If a change is detected then all configurations are reloaded. Sentinel keys can be set by passing a list of `SentinelKey`'s to `refresh_on`.
+* Added new options `on_refresh_success` and `on_refresh_failure` callbacks to the load method. These callbacks are called when the refresh method successfully refreshes the configuration or fails to refresh the configuration.
+
+### Bugs Fixed
+
+* Verifies that the `refresh_interval` is at least 1 second.
 
 ## 1.1.0b3 (2023-12-19)
 

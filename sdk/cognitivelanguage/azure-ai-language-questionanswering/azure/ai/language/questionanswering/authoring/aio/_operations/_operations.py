@@ -390,9 +390,6 @@ class AuthoringClientOperationsMixin(AuthoringClientMixinABC):  # pylint: disabl
         :param options: Parameters needed to create the project. Is either a JSON type or a IO[bytes]
          type. Required.
         :type options: JSON or IO[bytes]
-        :keyword content_type: Body Parameter content-type. Known values are: 'application/json'.
-         Default value is None.
-        :paramtype content_type: str
         :return: JSON object
         :rtype: JSON
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -557,13 +554,6 @@ class AuthoringClientOperationsMixin(AuthoringClientMixinABC):  # pylint: disabl
 
         :param project_name: The name of the project to use. Required.
         :type project_name: str
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be AsyncLROBasePolling. Pass in False
-         for this operation to not poll, or pass in your own initialized polling object for a personal
-         polling strategy.
-        :paramtype polling: bool or ~azure.core.polling.AsyncPollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of AsyncLROPoller that returns None
         :rtype: ~azure.core.polling.AsyncLROPoller[None]
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -686,13 +676,6 @@ class AuthoringClientOperationsMixin(AuthoringClientMixinABC):  # pylint: disabl
         :keyword asset_kind: Kind of the asset of the project. Known values are: "qnas" and "synonyms".
          Default value is None.
         :paramtype asset_kind: str
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be AsyncLROBasePolling. Pass in False
-         for this operation to not poll, or pass in your own initialized polling object for a personal
-         polling strategy.
-        :paramtype polling: bool or ~azure.core.polling.AsyncPollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of AsyncLROPoller that returns JSON object
         :rtype: ~azure.core.polling.AsyncLROPoller[JSON]
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -907,13 +890,6 @@ class AuthoringClientOperationsMixin(AuthoringClientMixinABC):  # pylint: disabl
         :keyword content_type: Body Parameter content-type. Content type parameter for JSON body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be AsyncLROBasePolling. Pass in False
-         for this operation to not poll, or pass in your own initialized polling object for a personal
-         polling strategy.
-        :paramtype polling: bool or ~azure.core.polling.AsyncPollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of AsyncLROPoller that returns JSON object
         :rtype: ~azure.core.polling.AsyncLROPoller[JSON]
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -1002,7 +978,7 @@ class AuthoringClientOperationsMixin(AuthoringClientMixinABC):  # pylint: disabl
                                                 ],
                                                 "source": "str"  #
                                                   Optional. Source from which QnA was indexed e.g.
-                                                  https://docs.microsoft.com/en-us/azure/cognitive-services/QnAMaker/FAQs
+                                                  https://learn.microsoft.com/azure/cognitive-services/QnAMaker/FAQs
                                                   .
                                             },
                                             "qnaId": 0  # Optional. ID of
@@ -1023,7 +999,7 @@ class AuthoringClientOperationsMixin(AuthoringClientMixinABC):  # pylint: disabl
                                 ],
                                 "source": "str",  # Optional. Source from which QnA
                                   was indexed e.g.
-                                  https://docs.microsoft.com/en-us/azure/cognitive-services/QnAMaker/FAQs
+                                  https://learn.microsoft.com/azure/cognitive-services/QnAMaker/FAQs
                                   .
                                 "sourceDisplayName": "str"  # Optional. Friendly name
                                   of the Source.
@@ -1127,13 +1103,6 @@ class AuthoringClientOperationsMixin(AuthoringClientMixinABC):  # pylint: disabl
         :keyword content_type: Body Parameter content-type. Content type parameter for binary body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be AsyncLROBasePolling. Pass in False
-         for this operation to not poll, or pass in your own initialized polling object for a personal
-         polling strategy.
-        :paramtype polling: bool or ~azure.core.polling.AsyncPollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of AsyncLROPoller that returns JSON object
         :rtype: ~azure.core.polling.AsyncLROPoller[JSON]
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -1212,16 +1181,6 @@ class AuthoringClientOperationsMixin(AuthoringClientMixinABC):  # pylint: disabl
         :keyword asset_kind: Kind of the asset of the project. Known values are: "qnas" and "synonyms".
          Default value is None.
         :paramtype asset_kind: str
-        :keyword content_type: Body Parameter content-type. Known values are: 'application/json'.
-         Default value is None.
-        :paramtype content_type: str
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be AsyncLROBasePolling. Pass in False
-         for this operation to not poll, or pass in your own initialized polling object for a personal
-         polling strategy.
-        :paramtype polling: bool or ~azure.core.polling.AsyncPollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of AsyncLROPoller that returns JSON object
         :rtype: ~azure.core.polling.AsyncLROPoller[JSON]
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -1310,7 +1269,7 @@ class AuthoringClientOperationsMixin(AuthoringClientMixinABC):  # pylint: disabl
                                                 ],
                                                 "source": "str"  #
                                                   Optional. Source from which QnA was indexed e.g.
-                                                  https://docs.microsoft.com/en-us/azure/cognitive-services/QnAMaker/FAQs
+                                                  https://learn.microsoft.com/azure/cognitive-services/QnAMaker/FAQs
                                                   .
                                             },
                                             "qnaId": 0  # Optional. ID of
@@ -1331,7 +1290,7 @@ class AuthoringClientOperationsMixin(AuthoringClientMixinABC):  # pylint: disabl
                                 ],
                                 "source": "str",  # Optional. Source from which QnA
                                   was indexed e.g.
-                                  https://docs.microsoft.com/en-us/azure/cognitive-services/QnAMaker/FAQs
+                                  https://learn.microsoft.com/azure/cognitive-services/QnAMaker/FAQs
                                   .
                                 "sourceDisplayName": "str"  # Optional. Friendly name
                                   of the Source.
@@ -1528,13 +1487,6 @@ class AuthoringClientOperationsMixin(AuthoringClientMixinABC):  # pylint: disabl
         :type project_name: str
         :param deployment_name: The name of the specific deployment of the project to use. Required.
         :type deployment_name: str
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be AsyncLROBasePolling. Pass in False
-         for this operation to not poll, or pass in your own initialized polling object for a personal
-         polling strategy.
-        :paramtype polling: bool or ~azure.core.polling.AsyncPollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of AsyncLROPoller that returns JSON object
         :rtype: ~azure.core.polling.AsyncLROPoller[JSON]
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -1899,9 +1851,6 @@ class AuthoringClientOperationsMixin(AuthoringClientMixinABC):  # pylint: disabl
         :param synonyms: All the synonyms of a project. Is either a JSON type or a IO[bytes] type.
          Required.
         :type synonyms: JSON or IO[bytes]
-        :keyword content_type: Body Parameter content-type. Known values are: 'application/json'.
-         Default value is None.
-        :paramtype content_type: str
         :return: None
         :rtype: None
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -2182,13 +2131,6 @@ class AuthoringClientOperationsMixin(AuthoringClientMixinABC):  # pylint: disabl
         :keyword content_type: Body Parameter content-type. Content type parameter for JSON body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be AsyncLROBasePolling. Pass in False
-         for this operation to not poll, or pass in your own initialized polling object for a personal
-         polling strategy.
-        :paramtype polling: bool or ~azure.core.polling.AsyncPollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of LROPoller that returns an iterator like instance of JSON object
         :rtype: ~azure.core.polling.AsyncLROPoller[~azure.core.async_paging.AsyncItemPaged[JSON]]
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -2252,13 +2194,6 @@ class AuthoringClientOperationsMixin(AuthoringClientMixinABC):  # pylint: disabl
         :keyword content_type: Body Parameter content-type. Content type parameter for binary body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be AsyncLROBasePolling. Pass in False
-         for this operation to not poll, or pass in your own initialized polling object for a personal
-         polling strategy.
-        :paramtype polling: bool or ~azure.core.polling.AsyncPollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of LROPoller that returns an iterator like instance of JSON object
         :rtype: ~azure.core.polling.AsyncLROPoller[~azure.core.async_paging.AsyncItemPaged[JSON]]
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -2297,16 +2232,6 @@ class AuthoringClientOperationsMixin(AuthoringClientMixinABC):  # pylint: disabl
         :param sources: Update sources parameters of a project. Is either a [JSON] type or a IO[bytes]
          type. Required.
         :type sources: list[JSON] or IO[bytes]
-        :keyword content_type: Body Parameter content-type. Known values are: 'application/json'.
-         Default value is None.
-        :paramtype content_type: str
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be AsyncLROBasePolling. Pass in False
-         for this operation to not poll, or pass in your own initialized polling object for a personal
-         polling strategy.
-        :paramtype polling: bool or ~azure.core.polling.AsyncPollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of LROPoller that returns an iterator like instance of JSON object
         :rtype: ~azure.core.polling.AsyncLROPoller[~azure.core.async_paging.AsyncItemPaged[JSON]]
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -2565,7 +2490,7 @@ class AuthoringClientOperationsMixin(AuthoringClientMixinABC):  # pylint: disabl
                                     ],
                                     "source": "str"  # Optional. Source from
                                       which QnA was indexed e.g.
-                                      https://docs.microsoft.com/en-us/azure/cognitive-services/QnAMaker/FAQs
+                                      https://learn.microsoft.com/azure/cognitive-services/QnAMaker/FAQs
                                       .
                                 },
                                 "qnaId": 0  # Optional. ID of the QnA corresponding
@@ -2584,7 +2509,7 @@ class AuthoringClientOperationsMixin(AuthoringClientMixinABC):  # pylint: disabl
                         "str"  # Optional. List of questions associated with the answer.
                     ],
                     "source": "str"  # Optional. Source from which QnA was indexed e.g.
-                      https://docs.microsoft.com/en-us/azure/cognitive-services/QnAMaker/FAQs .
+                      https://learn.microsoft.com/azure/cognitive-services/QnAMaker/FAQs .
                 }
         """
         _headers = kwargs.pop("headers", {}) or {}
@@ -2757,13 +2682,6 @@ class AuthoringClientOperationsMixin(AuthoringClientMixinABC):  # pylint: disabl
         :keyword content_type: Body Parameter content-type. Content type parameter for JSON body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be AsyncLROBasePolling. Pass in False
-         for this operation to not poll, or pass in your own initialized polling object for a personal
-         polling strategy.
-        :paramtype polling: bool or ~azure.core.polling.AsyncPollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of LROPoller that returns an iterator like instance of JSON object
         :rtype: ~azure.core.polling.AsyncLROPoller[~azure.core.async_paging.AsyncItemPaged[JSON]]
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -2826,7 +2744,7 @@ class AuthoringClientOperationsMixin(AuthoringClientMixinABC):  # pylint: disabl
                             ],
                             "source": "str"  # Optional. Source from which QnA was
                               indexed e.g.
-                              https://docs.microsoft.com/en-us/azure/cognitive-services/QnAMaker/FAQs .
+                              https://learn.microsoft.com/azure/cognitive-services/QnAMaker/FAQs .
                         }
                     }
                 ]
@@ -2900,7 +2818,7 @@ class AuthoringClientOperationsMixin(AuthoringClientMixinABC):  # pylint: disabl
                                     ],
                                     "source": "str"  # Optional. Source from
                                       which QnA was indexed e.g.
-                                      https://docs.microsoft.com/en-us/azure/cognitive-services/QnAMaker/FAQs
+                                      https://learn.microsoft.com/azure/cognitive-services/QnAMaker/FAQs
                                       .
                                 },
                                 "qnaId": 0  # Optional. ID of the QnA corresponding
@@ -2919,7 +2837,7 @@ class AuthoringClientOperationsMixin(AuthoringClientMixinABC):  # pylint: disabl
                         "str"  # Optional. List of questions associated with the answer.
                     ],
                     "source": "str"  # Optional. Source from which QnA was indexed e.g.
-                      https://docs.microsoft.com/en-us/azure/cognitive-services/QnAMaker/FAQs .
+                      https://learn.microsoft.com/azure/cognitive-services/QnAMaker/FAQs .
                 }
         """
 
@@ -2941,13 +2859,6 @@ class AuthoringClientOperationsMixin(AuthoringClientMixinABC):  # pylint: disabl
         :keyword content_type: Body Parameter content-type. Content type parameter for binary body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be AsyncLROBasePolling. Pass in False
-         for this operation to not poll, or pass in your own initialized polling object for a personal
-         polling strategy.
-        :paramtype polling: bool or ~azure.core.polling.AsyncPollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of LROPoller that returns an iterator like instance of JSON object
         :rtype: ~azure.core.polling.AsyncLROPoller[~azure.core.async_paging.AsyncItemPaged[JSON]]
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -3024,7 +2935,7 @@ class AuthoringClientOperationsMixin(AuthoringClientMixinABC):  # pylint: disabl
                                     ],
                                     "source": "str"  # Optional. Source from
                                       which QnA was indexed e.g.
-                                      https://docs.microsoft.com/en-us/azure/cognitive-services/QnAMaker/FAQs
+                                      https://learn.microsoft.com/azure/cognitive-services/QnAMaker/FAQs
                                       .
                                 },
                                 "qnaId": 0  # Optional. ID of the QnA corresponding
@@ -3043,7 +2954,7 @@ class AuthoringClientOperationsMixin(AuthoringClientMixinABC):  # pylint: disabl
                         "str"  # Optional. List of questions associated with the answer.
                     ],
                     "source": "str"  # Optional. Source from which QnA was indexed e.g.
-                      https://docs.microsoft.com/en-us/azure/cognitive-services/QnAMaker/FAQs .
+                      https://learn.microsoft.com/azure/cognitive-services/QnAMaker/FAQs .
                 }
         """
 
@@ -3063,16 +2974,6 @@ class AuthoringClientOperationsMixin(AuthoringClientMixinABC):  # pylint: disabl
         :param qnas: Update QnAs parameters of a project. Is either a [JSON] type or a IO[bytes] type.
          Required.
         :type qnas: list[JSON] or IO[bytes]
-        :keyword content_type: Body Parameter content-type. Known values are: 'application/json'.
-         Default value is None.
-        :paramtype content_type: str
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be AsyncLROBasePolling. Pass in False
-         for this operation to not poll, or pass in your own initialized polling object for a personal
-         polling strategy.
-        :paramtype polling: bool or ~azure.core.polling.AsyncPollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of LROPoller that returns an iterator like instance of JSON object
         :rtype: ~azure.core.polling.AsyncLROPoller[~azure.core.async_paging.AsyncItemPaged[JSON]]
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -3149,7 +3050,7 @@ class AuthoringClientOperationsMixin(AuthoringClientMixinABC):  # pylint: disabl
                                     ],
                                     "source": "str"  # Optional. Source from
                                       which QnA was indexed e.g.
-                                      https://docs.microsoft.com/en-us/azure/cognitive-services/QnAMaker/FAQs
+                                      https://learn.microsoft.com/azure/cognitive-services/QnAMaker/FAQs
                                       .
                                 },
                                 "qnaId": 0  # Optional. ID of the QnA corresponding
@@ -3168,7 +3069,7 @@ class AuthoringClientOperationsMixin(AuthoringClientMixinABC):  # pylint: disabl
                         "str"  # Optional. List of questions associated with the answer.
                     ],
                     "source": "str"  # Optional. Source from which QnA was indexed e.g.
-                      https://docs.microsoft.com/en-us/azure/cognitive-services/QnAMaker/FAQs .
+                      https://learn.microsoft.com/azure/cognitive-services/QnAMaker/FAQs .
                 }
         """
 
@@ -3379,9 +3280,6 @@ class AuthoringClientOperationsMixin(AuthoringClientMixinABC):  # pylint: disabl
         :param feedback: Feedback for Active Learning. Is either a JSON type or a IO[bytes] type.
          Required.
         :type feedback: JSON or IO[bytes]
-        :keyword content_type: Body Parameter content-type. Known values are: 'application/json'.
-         Default value is None.
-        :paramtype content_type: str
         :return: None
         :rtype: None
         :raises ~azure.core.exceptions.HttpResponseError:

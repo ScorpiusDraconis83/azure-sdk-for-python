@@ -7,30 +7,32 @@
 # Changes may cause incorrect behavior and will be lost if the code is regenerated.
 # --------------------------------------------------------------------------
 import sys
-from typing import Any, Callable, Dict, IO, Iterator, Optional, TypeVar, Union
+from typing import Any, Callable, Dict, IO, Iterator, Literal, Optional, TypeVar, Union
 
+from azure.core import PipelineClient
 from azure.core.exceptions import (
     ClientAuthenticationError,
     HttpResponseError,
     ResourceExistsError,
     ResourceNotFoundError,
     ResourceNotModifiedError,
+    StreamClosedError,
+    StreamConsumedError,
     map_error,
 )
 from azure.core.pipeline import PipelineResponse
-from azure.core.pipeline.transport import HttpResponse
-from azure.core.rest import HttpRequest
+from azure.core.rest import HttpRequest, HttpResponse
 from azure.core.tracing.decorator import distributed_trace
 from azure.core.utils import case_insensitive_dict
 
 from .. import models as _models
-from .._serialization import Serializer
-from .._vendor import _convert_request
+from .._configuration import AzureFileStorageConfiguration
+from .._serialization import Deserializer, Serializer
 
-if sys.version_info >= (3, 8):
-    from typing import Literal  # pylint: disable=no-name-in-module, ungrouped-imports
+if sys.version_info >= (3, 9):
+    from collections.abc import MutableMapping
 else:
-    from typing_extensions import Literal  # type: ignore  # pylint: disable=ungrouped-imports
+    from typing import MutableMapping  # type: ignore
 T = TypeVar("T")
 ClsType = Optional[Callable[[PipelineResponse[HttpRequest, HttpResponse], T, Dict[str, Any]], Any]]
 
@@ -51,12 +53,17 @@ def build_create_request(
     file_content_disposition: Optional[str] = None,
     metadata: Optional[Dict[str, str]] = None,
     file_permission: str = "inherit",
+    file_permission_format: Optional[Union[str, _models.FilePermissionFormat]] = None,
     file_permission_key: Optional[str] = None,
     file_attributes: str = "none",
     file_creation_time: str = "now",
     file_last_write_time: str = "now",
     file_change_time: Optional[str] = None,
     lease_id: Optional[str] = None,
+    owner: Optional[str] = None,
+    group: Optional[str] = None,
+    file_mode: Optional[str] = None,
+    nfs_file_type: Optional[Union[str, _models.NfsFileType]] = None,
     allow_trailing_dot: Optional[bool] = None,
     file_request_intent: Optional[Union[str, _models.ShareTokenIntent]] = None,
     **kwargs: Any
@@ -65,7 +72,7 @@ def build_create_request(
     _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
     file_type_constant: Literal["file"] = kwargs.pop("file_type_constant", _headers.pop("x-ms-type", "file"))
-    version: Literal["2023-01-03"] = kwargs.pop("version", _headers.pop("x-ms-version", "2023-01-03"))
+    version: Literal["2025-05-05"] = kwargs.pop("version", _headers.pop("x-ms-version", "2025-05-05"))
     accept = _headers.pop("Accept", "application/xml")
 
     # Construct URL
@@ -104,9 +111,14 @@ def build_create_request(
         _headers["x-ms-meta"] = _SERIALIZER.header("metadata", metadata, "{str}")
     if file_permission is not None:
         _headers["x-ms-file-permission"] = _SERIALIZER.header("file_permission", file_permission, "str")
+    if file_permission_format is not None:
+        _headers["x-ms-file-permission-format"] = _SERIALIZER.header(
+            "file_permission_format", file_permission_format, "str"
+        )
     if file_permission_key is not None:
         _headers["x-ms-file-permission-key"] = _SERIALIZER.header("file_permission_key", file_permission_key, "str")
-    _headers["x-ms-file-attributes"] = _SERIALIZER.header("file_attributes", file_attributes, "str")
+    if file_attributes is not None:
+        _headers["x-ms-file-attributes"] = _SERIALIZER.header("file_attributes", file_attributes, "str")
     if file_creation_time is not None:
         _headers["x-ms-file-creation-time"] = _SERIALIZER.header("file_creation_time", file_creation_time, "str")
     if file_last_write_time is not None:
@@ -117,6 +129,14 @@ def build_create_request(
         _headers["x-ms-lease-id"] = _SERIALIZER.header("lease_id", lease_id, "str")
     if file_request_intent is not None:
         _headers["x-ms-file-request-intent"] = _SERIALIZER.header("file_request_intent", file_request_intent, "str")
+    if owner is not None:
+        _headers["x-ms-owner"] = _SERIALIZER.header("owner", owner, "str")
+    if group is not None:
+        _headers["x-ms-group"] = _SERIALIZER.header("group", group, "str")
+    if file_mode is not None:
+        _headers["x-ms-mode"] = _SERIALIZER.header("file_mode", file_mode, "str")
+    if nfs_file_type is not None:
+        _headers["x-ms-file-file-type"] = _SERIALIZER.header("nfs_file_type", nfs_file_type, "str")
     _headers["Accept"] = _SERIALIZER.header("accept", accept, "str")
 
     return HttpRequest(method="PUT", url=_url, params=_params, headers=_headers, **kwargs)
@@ -128,6 +148,7 @@ def build_download_request(
     timeout: Optional[int] = None,
     range: Optional[str] = None,
     range_get_content_md5: Optional[bool] = None,
+    structured_body_type: Optional[str] = None,
     lease_id: Optional[str] = None,
     allow_trailing_dot: Optional[bool] = None,
     file_request_intent: Optional[Union[str, _models.ShareTokenIntent]] = None,
@@ -136,7 +157,7 @@ def build_download_request(
     _headers = case_insensitive_dict(kwargs.pop("headers", {}) or {})
     _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-    version: Literal["2023-01-03"] = kwargs.pop("version", _headers.pop("x-ms-version", "2023-01-03"))
+    version: Literal["2025-05-05"] = kwargs.pop("version", _headers.pop("x-ms-version", "2025-05-05"))
     accept = _headers.pop("Accept", "application/xml")
 
     # Construct URL
@@ -161,6 +182,8 @@ def build_download_request(
         _headers["x-ms-range-get-content-md5"] = _SERIALIZER.header(
             "range_get_content_md5", range_get_content_md5, "bool"
         )
+    if structured_body_type is not None:
+        _headers["x-ms-structured-body"] = _SERIALIZER.header("structured_body_type", structured_body_type, "str")
     if lease_id is not None:
         _headers["x-ms-lease-id"] = _SERIALIZER.header("lease_id", lease_id, "str")
     if file_request_intent is not None:
@@ -183,7 +206,7 @@ def build_get_properties_request(
     _headers = case_insensitive_dict(kwargs.pop("headers", {}) or {})
     _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-    version: Literal["2023-01-03"] = kwargs.pop("version", _headers.pop("x-ms-version", "2023-01-03"))
+    version: Literal["2025-05-05"] = kwargs.pop("version", _headers.pop("x-ms-version", "2025-05-05"))
     accept = _headers.pop("Accept", "application/xml")
 
     # Construct URL
@@ -225,7 +248,7 @@ def build_delete_request(
     _headers = case_insensitive_dict(kwargs.pop("headers", {}) or {})
     _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-    version: Literal["2023-01-03"] = kwargs.pop("version", _headers.pop("x-ms-version", "2023-01-03"))
+    version: Literal["2025-05-05"] = kwargs.pop("version", _headers.pop("x-ms-version", "2025-05-05"))
     accept = _headers.pop("Accept", "application/xml")
 
     # Construct URL
@@ -265,12 +288,16 @@ def build_set_http_headers_request(
     file_content_md5: Optional[bytes] = None,
     file_content_disposition: Optional[str] = None,
     file_permission: str = "inherit",
+    file_permission_format: Optional[Union[str, _models.FilePermissionFormat]] = None,
     file_permission_key: Optional[str] = None,
     file_attributes: str = "none",
     file_creation_time: str = "now",
     file_last_write_time: str = "now",
     file_change_time: Optional[str] = None,
     lease_id: Optional[str] = None,
+    owner: Optional[str] = None,
+    group: Optional[str] = None,
+    file_mode: Optional[str] = None,
     allow_trailing_dot: Optional[bool] = None,
     file_request_intent: Optional[Union[str, _models.ShareTokenIntent]] = None,
     **kwargs: Any
@@ -279,7 +306,7 @@ def build_set_http_headers_request(
     _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
     comp: Literal["properties"] = kwargs.pop("comp", _params.pop("comp", "properties"))
-    version: Literal["2023-01-03"] = kwargs.pop("version", _headers.pop("x-ms-version", "2023-01-03"))
+    version: Literal["2025-05-05"] = kwargs.pop("version", _headers.pop("x-ms-version", "2025-05-05"))
     accept = _headers.pop("Accept", "application/xml")
 
     # Construct URL
@@ -315,9 +342,14 @@ def build_set_http_headers_request(
         )
     if file_permission is not None:
         _headers["x-ms-file-permission"] = _SERIALIZER.header("file_permission", file_permission, "str")
+    if file_permission_format is not None:
+        _headers["x-ms-file-permission-format"] = _SERIALIZER.header(
+            "file_permission_format", file_permission_format, "str"
+        )
     if file_permission_key is not None:
         _headers["x-ms-file-permission-key"] = _SERIALIZER.header("file_permission_key", file_permission_key, "str")
-    _headers["x-ms-file-attributes"] = _SERIALIZER.header("file_attributes", file_attributes, "str")
+    if file_attributes is not None:
+        _headers["x-ms-file-attributes"] = _SERIALIZER.header("file_attributes", file_attributes, "str")
     if file_creation_time is not None:
         _headers["x-ms-file-creation-time"] = _SERIALIZER.header("file_creation_time", file_creation_time, "str")
     if file_last_write_time is not None:
@@ -330,6 +362,12 @@ def build_set_http_headers_request(
         _headers["x-ms-allow-trailing-dot"] = _SERIALIZER.header("allow_trailing_dot", allow_trailing_dot, "bool")
     if file_request_intent is not None:
         _headers["x-ms-file-request-intent"] = _SERIALIZER.header("file_request_intent", file_request_intent, "str")
+    if owner is not None:
+        _headers["x-ms-owner"] = _SERIALIZER.header("owner", owner, "str")
+    if group is not None:
+        _headers["x-ms-group"] = _SERIALIZER.header("group", group, "str")
+    if file_mode is not None:
+        _headers["x-ms-mode"] = _SERIALIZER.header("file_mode", file_mode, "str")
     _headers["Accept"] = _SERIALIZER.header("accept", accept, "str")
 
     return HttpRequest(method="PUT", url=_url, params=_params, headers=_headers, **kwargs)
@@ -349,7 +387,7 @@ def build_set_metadata_request(
     _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
     comp: Literal["metadata"] = kwargs.pop("comp", _params.pop("comp", "metadata"))
-    version: Literal["2023-01-03"] = kwargs.pop("version", _headers.pop("x-ms-version", "2023-01-03"))
+    version: Literal["2025-05-05"] = kwargs.pop("version", _headers.pop("x-ms-version", "2025-05-05"))
     accept = _headers.pop("Accept", "application/xml")
 
     # Construct URL
@@ -396,7 +434,7 @@ def build_acquire_lease_request(
 
     comp: Literal["lease"] = kwargs.pop("comp", _params.pop("comp", "lease"))
     action: Literal["acquire"] = kwargs.pop("action", _headers.pop("x-ms-lease-action", "acquire"))
-    version: Literal["2023-01-03"] = kwargs.pop("version", _headers.pop("x-ms-version", "2023-01-03"))
+    version: Literal["2025-05-05"] = kwargs.pop("version", _headers.pop("x-ms-version", "2025-05-05"))
     accept = _headers.pop("Accept", "application/xml")
 
     # Construct URL
@@ -445,7 +483,7 @@ def build_release_lease_request(
 
     comp: Literal["lease"] = kwargs.pop("comp", _params.pop("comp", "lease"))
     action: Literal["release"] = kwargs.pop("action", _headers.pop("x-ms-lease-action", "release"))
-    version: Literal["2023-01-03"] = kwargs.pop("version", _headers.pop("x-ms-version", "2023-01-03"))
+    version: Literal["2025-05-05"] = kwargs.pop("version", _headers.pop("x-ms-version", "2025-05-05"))
     accept = _headers.pop("Accept", "application/xml")
 
     # Construct URL
@@ -492,7 +530,7 @@ def build_change_lease_request(
 
     comp: Literal["lease"] = kwargs.pop("comp", _params.pop("comp", "lease"))
     action: Literal["change"] = kwargs.pop("action", _headers.pop("x-ms-lease-action", "change"))
-    version: Literal["2023-01-03"] = kwargs.pop("version", _headers.pop("x-ms-version", "2023-01-03"))
+    version: Literal["2025-05-05"] = kwargs.pop("version", _headers.pop("x-ms-version", "2025-05-05"))
     accept = _headers.pop("Accept", "application/xml")
 
     # Construct URL
@@ -540,7 +578,7 @@ def build_break_lease_request(
 
     comp: Literal["lease"] = kwargs.pop("comp", _params.pop("comp", "lease"))
     action: Literal["break"] = kwargs.pop("action", _headers.pop("x-ms-lease-action", "break"))
-    version: Literal["2023-01-03"] = kwargs.pop("version", _headers.pop("x-ms-version", "2023-01-03"))
+    version: Literal["2025-05-05"] = kwargs.pop("version", _headers.pop("x-ms-version", "2025-05-05"))
     accept = _headers.pop("Accept", "application/xml")
 
     # Construct URL
@@ -582,7 +620,9 @@ def build_upload_range_request(
     content_md5: Optional[bytes] = None,
     lease_id: Optional[str] = None,
     file_last_written_mode: Optional[Union[str, _models.FileLastWrittenMode]] = None,
-    content: Optional[IO] = None,
+    structured_body_type: Optional[str] = None,
+    structured_content_length: Optional[int] = None,
+    content: Optional[IO[bytes]] = None,
     allow_trailing_dot: Optional[bool] = None,
     file_request_intent: Optional[Union[str, _models.ShareTokenIntent]] = None,
     **kwargs: Any
@@ -592,7 +632,7 @@ def build_upload_range_request(
 
     comp: Literal["range"] = kwargs.pop("comp", _params.pop("comp", "range"))
     content_type: Optional[str] = kwargs.pop("content_type", _headers.pop("Content-Type", None))
-    version: Literal["2023-01-03"] = kwargs.pop("version", _headers.pop("x-ms-version", "2023-01-03"))
+    version: Literal["2025-05-05"] = kwargs.pop("version", _headers.pop("x-ms-version", "2025-05-05"))
     accept = _headers.pop("Accept", "application/xml")
 
     # Construct URL
@@ -625,6 +665,12 @@ def build_upload_range_request(
         _headers["x-ms-allow-trailing-dot"] = _SERIALIZER.header("allow_trailing_dot", allow_trailing_dot, "bool")
     if file_request_intent is not None:
         _headers["x-ms-file-request-intent"] = _SERIALIZER.header("file_request_intent", file_request_intent, "str")
+    if structured_body_type is not None:
+        _headers["x-ms-structured-body"] = _SERIALIZER.header("structured_body_type", structured_body_type, "str")
+    if structured_content_length is not None:
+        _headers["x-ms-structured-content-length"] = _SERIALIZER.header(
+            "structured_content_length", structured_content_length, "int"
+        )
     if content_type is not None:
         _headers["Content-Type"] = _SERIALIZER.header("content_type", content_type, "str")
     _headers["Accept"] = _SERIALIZER.header("accept", accept, "str")
@@ -648,6 +694,7 @@ def build_upload_range_from_url_request(
     file_last_written_mode: Optional[Union[str, _models.FileLastWrittenMode]] = None,
     allow_trailing_dot: Optional[bool] = None,
     allow_source_trailing_dot: Optional[bool] = None,
+    file_request_intent: Optional[Union[str, _models.ShareTokenIntent]] = None,
     **kwargs: Any
 ) -> HttpRequest:
     _headers = case_insensitive_dict(kwargs.pop("headers", {}) or {})
@@ -657,7 +704,7 @@ def build_upload_range_from_url_request(
     file_range_write_from_url: Literal["update"] = kwargs.pop(
         "file_range_write_from_url", _headers.pop("x-ms-write", "update")
     )
-    version: Literal["2023-01-03"] = kwargs.pop("version", _headers.pop("x-ms-version", "2023-01-03"))
+    version: Literal["2025-05-05"] = kwargs.pop("version", _headers.pop("x-ms-version", "2025-05-05"))
     accept = _headers.pop("Accept", "application/xml")
 
     # Construct URL
@@ -709,6 +756,8 @@ def build_upload_range_from_url_request(
         _headers["x-ms-source-allow-trailing-dot"] = _SERIALIZER.header(
             "allow_source_trailing_dot", allow_source_trailing_dot, "bool"
         )
+    if file_request_intent is not None:
+        _headers["x-ms-file-request-intent"] = _SERIALIZER.header("file_request_intent", file_request_intent, "str")
     _headers["Accept"] = _SERIALIZER.header("accept", accept, "str")
 
     return HttpRequest(method="PUT", url=_url, params=_params, headers=_headers, **kwargs)
@@ -722,6 +771,7 @@ def build_get_range_list_request(
     timeout: Optional[int] = None,
     range: Optional[str] = None,
     lease_id: Optional[str] = None,
+    support_rename: Optional[bool] = None,
     allow_trailing_dot: Optional[bool] = None,
     file_request_intent: Optional[Union[str, _models.ShareTokenIntent]] = None,
     **kwargs: Any
@@ -730,7 +780,7 @@ def build_get_range_list_request(
     _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
     comp: Literal["rangelist"] = kwargs.pop("comp", _params.pop("comp", "rangelist"))
-    version: Literal["2023-01-03"] = kwargs.pop("version", _headers.pop("x-ms-version", "2023-01-03"))
+    version: Literal["2025-05-05"] = kwargs.pop("version", _headers.pop("x-ms-version", "2025-05-05"))
     accept = _headers.pop("Accept", "application/xml")
 
     # Construct URL
@@ -760,6 +810,8 @@ def build_get_range_list_request(
         _headers["x-ms-allow-trailing-dot"] = _SERIALIZER.header("allow_trailing_dot", allow_trailing_dot, "bool")
     if file_request_intent is not None:
         _headers["x-ms-file-request-intent"] = _SERIALIZER.header("file_request_intent", file_request_intent, "str")
+    if support_rename is not None:
+        _headers["x-ms-file-support-rename"] = _SERIALIZER.header("support_rename", support_rename, "bool")
     _headers["Accept"] = _SERIALIZER.header("accept", accept, "str")
 
     return HttpRequest(method="GET", url=_url, params=_params, headers=_headers, **kwargs)
@@ -772,6 +824,7 @@ def build_start_copy_request(
     timeout: Optional[int] = None,
     metadata: Optional[Dict[str, str]] = None,
     file_permission: str = "inherit",
+    file_permission_format: Optional[Union[str, _models.FilePermissionFormat]] = None,
     file_permission_key: Optional[str] = None,
     file_permission_copy_mode: Optional[Union[str, _models.PermissionCopyModeType]] = None,
     ignore_read_only: Optional[bool] = None,
@@ -781,6 +834,11 @@ def build_start_copy_request(
     file_change_time: Optional[str] = None,
     set_archive_attribute: Optional[bool] = None,
     lease_id: Optional[str] = None,
+    owner: Optional[str] = None,
+    group: Optional[str] = None,
+    file_mode: Optional[str] = None,
+    file_mode_copy_mode: Optional[Union[str, _models.ModeCopyMode]] = None,
+    file_owner_copy_mode: Optional[Union[str, _models.OwnerCopyMode]] = None,
     allow_trailing_dot: Optional[bool] = None,
     allow_source_trailing_dot: Optional[bool] = None,
     file_request_intent: Optional[Union[str, _models.ShareTokenIntent]] = None,
@@ -789,7 +847,7 @@ def build_start_copy_request(
     _headers = case_insensitive_dict(kwargs.pop("headers", {}) or {})
     _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-    version: Literal["2023-01-03"] = kwargs.pop("version", _headers.pop("x-ms-version", "2023-01-03"))
+    version: Literal["2025-05-05"] = kwargs.pop("version", _headers.pop("x-ms-version", "2025-05-05"))
     accept = _headers.pop("Accept", "application/xml")
 
     # Construct URL
@@ -811,6 +869,10 @@ def build_start_copy_request(
     _headers["x-ms-copy-source"] = _SERIALIZER.header("copy_source", copy_source, "str")
     if file_permission is not None:
         _headers["x-ms-file-permission"] = _SERIALIZER.header("file_permission", file_permission, "str")
+    if file_permission_format is not None:
+        _headers["x-ms-file-permission-format"] = _SERIALIZER.header(
+            "file_permission_format", file_permission_format, "str"
+        )
     if file_permission_key is not None:
         _headers["x-ms-file-permission-key"] = _SERIALIZER.header("file_permission_key", file_permission_key, "str")
     if file_permission_copy_mode is not None:
@@ -841,6 +903,16 @@ def build_start_copy_request(
         )
     if file_request_intent is not None:
         _headers["x-ms-file-request-intent"] = _SERIALIZER.header("file_request_intent", file_request_intent, "str")
+    if owner is not None:
+        _headers["x-ms-owner"] = _SERIALIZER.header("owner", owner, "str")
+    if group is not None:
+        _headers["x-ms-group"] = _SERIALIZER.header("group", group, "str")
+    if file_mode is not None:
+        _headers["x-ms-mode"] = _SERIALIZER.header("file_mode", file_mode, "str")
+    if file_mode_copy_mode is not None:
+        _headers["x-ms-file-mode-copy-mode"] = _SERIALIZER.header("file_mode_copy_mode", file_mode_copy_mode, "str")
+    if file_owner_copy_mode is not None:
+        _headers["x-ms-file-owner-copy-mode"] = _SERIALIZER.header("file_owner_copy_mode", file_owner_copy_mode, "str")
     _headers["Accept"] = _SERIALIZER.header("accept", accept, "str")
 
     return HttpRequest(method="PUT", url=_url, params=_params, headers=_headers, **kwargs)
@@ -863,7 +935,7 @@ def build_abort_copy_request(
     copy_action_abort_constant: Literal["abort"] = kwargs.pop(
         "copy_action_abort_constant", _headers.pop("x-ms-copy-action", "abort")
     )
-    version: Literal["2023-01-03"] = kwargs.pop("version", _headers.pop("x-ms-version", "2023-01-03"))
+    version: Literal["2025-05-05"] = kwargs.pop("version", _headers.pop("x-ms-version", "2025-05-05"))
     accept = _headers.pop("Accept", "application/xml")
 
     # Construct URL
@@ -909,7 +981,7 @@ def build_list_handles_request(
     _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
     comp: Literal["listhandles"] = kwargs.pop("comp", _params.pop("comp", "listhandles"))
-    version: Literal["2023-01-03"] = kwargs.pop("version", _headers.pop("x-ms-version", "2023-01-03"))
+    version: Literal["2025-05-05"] = kwargs.pop("version", _headers.pop("x-ms-version", "2025-05-05"))
     accept = _headers.pop("Accept", "application/xml")
 
     # Construct URL
@@ -957,7 +1029,7 @@ def build_force_close_handles_request(
     _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
     comp: Literal["forceclosehandles"] = kwargs.pop("comp", _params.pop("comp", "forceclosehandles"))
-    version: Literal["2023-01-03"] = kwargs.pop("version", _headers.pop("x-ms-version", "2023-01-03"))
+    version: Literal["2025-05-05"] = kwargs.pop("version", _headers.pop("x-ms-version", "2025-05-05"))
     accept = _headers.pop("Accept", "application/xml")
 
     # Construct URL
@@ -1003,6 +1075,7 @@ def build_rename_request(
     file_last_write_time: Optional[str] = None,
     file_change_time: Optional[str] = None,
     file_permission: str = "inherit",
+    file_permission_format: Optional[Union[str, _models.FilePermissionFormat]] = None,
     file_permission_key: Optional[str] = None,
     metadata: Optional[Dict[str, str]] = None,
     file_content_type: Optional[str] = None,
@@ -1015,7 +1088,7 @@ def build_rename_request(
     _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
     comp: Literal["rename"] = kwargs.pop("comp", _params.pop("comp", "rename"))
-    version: Literal["2023-01-03"] = kwargs.pop("version", _headers.pop("x-ms-version", "2023-01-03"))
+    version: Literal["2025-05-05"] = kwargs.pop("version", _headers.pop("x-ms-version", "2025-05-05"))
     accept = _headers.pop("Accept", "application/xml")
 
     # Construct URL
@@ -1054,6 +1127,10 @@ def build_rename_request(
         _headers["x-ms-file-change-time"] = _SERIALIZER.header("file_change_time", file_change_time, "str")
     if file_permission is not None:
         _headers["x-ms-file-permission"] = _SERIALIZER.header("file_permission", file_permission, "str")
+    if file_permission_format is not None:
+        _headers["x-ms-file-permission-format"] = _SERIALIZER.header(
+            "file_permission_format", file_permission_format, "str"
+        )
     if file_permission_key is not None:
         _headers["x-ms-file-permission-key"] = _SERIALIZER.header("file_permission_key", file_permission_key, "str")
     if metadata is not None:
@@ -1073,7 +1150,154 @@ def build_rename_request(
     return HttpRequest(method="PUT", url=_url, params=_params, headers=_headers, **kwargs)
 
 
-class FileOperations:
+def build_create_symbolic_link_request(
+    url: str,
+    *,
+    link_text: str,
+    timeout: Optional[int] = None,
+    metadata: Optional[Dict[str, str]] = None,
+    file_creation_time: str = "now",
+    file_last_write_time: str = "now",
+    request_id_parameter: Optional[str] = None,
+    lease_id: Optional[str] = None,
+    owner: Optional[str] = None,
+    group: Optional[str] = None,
+    file_request_intent: Optional[Union[str, _models.ShareTokenIntent]] = None,
+    **kwargs: Any
+) -> HttpRequest:
+    _headers = case_insensitive_dict(kwargs.pop("headers", {}) or {})
+    _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
+
+    restype: Literal["symboliclink"] = kwargs.pop("restype", _params.pop("restype", "symboliclink"))
+    version: Literal["2025-05-05"] = kwargs.pop("version", _headers.pop("x-ms-version", "2025-05-05"))
+    accept = _headers.pop("Accept", "application/xml")
+
+    # Construct URL
+    _url = kwargs.pop("template_url", "{url}")
+    path_format_arguments = {
+        "url": _SERIALIZER.url("url", url, "str", skip_quote=True),
+    }
+
+    _url: str = _url.format(**path_format_arguments)  # type: ignore
+
+    # Construct parameters
+    _params["restype"] = _SERIALIZER.query("restype", restype, "str")
+    if timeout is not None:
+        _params["timeout"] = _SERIALIZER.query("timeout", timeout, "int", minimum=0)
+
+    # Construct headers
+    _headers["x-ms-version"] = _SERIALIZER.header("version", version, "str")
+    if metadata is not None:
+        _headers["x-ms-meta"] = _SERIALIZER.header("metadata", metadata, "{str}")
+    if file_creation_time is not None:
+        _headers["x-ms-file-creation-time"] = _SERIALIZER.header("file_creation_time", file_creation_time, "str")
+    if file_last_write_time is not None:
+        _headers["x-ms-file-last-write-time"] = _SERIALIZER.header("file_last_write_time", file_last_write_time, "str")
+    if request_id_parameter is not None:
+        _headers["x-ms-client-request-id"] = _SERIALIZER.header("request_id_parameter", request_id_parameter, "str")
+    if lease_id is not None:
+        _headers["x-ms-lease-id"] = _SERIALIZER.header("lease_id", lease_id, "str")
+    if owner is not None:
+        _headers["x-ms-owner"] = _SERIALIZER.header("owner", owner, "str")
+    if group is not None:
+        _headers["x-ms-group"] = _SERIALIZER.header("group", group, "str")
+    _headers["x-ms-link-text"] = _SERIALIZER.header("link_text", link_text, "str")
+    if file_request_intent is not None:
+        _headers["x-ms-file-request-intent"] = _SERIALIZER.header("file_request_intent", file_request_intent, "str")
+    _headers["Accept"] = _SERIALIZER.header("accept", accept, "str")
+
+    return HttpRequest(method="PUT", url=_url, params=_params, headers=_headers, **kwargs)
+
+
+def build_get_symbolic_link_request(
+    url: str,
+    *,
+    timeout: Optional[int] = None,
+    sharesnapshot: Optional[str] = None,
+    request_id_parameter: Optional[str] = None,
+    file_request_intent: Optional[Union[str, _models.ShareTokenIntent]] = None,
+    **kwargs: Any
+) -> HttpRequest:
+    _headers = case_insensitive_dict(kwargs.pop("headers", {}) or {})
+    _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
+
+    restype: Literal["symboliclink"] = kwargs.pop("restype", _params.pop("restype", "symboliclink"))
+    version: Literal["2025-05-05"] = kwargs.pop("version", _headers.pop("x-ms-version", "2025-05-05"))
+    accept = _headers.pop("Accept", "application/xml")
+
+    # Construct URL
+    _url = kwargs.pop("template_url", "{url}")
+    path_format_arguments = {
+        "url": _SERIALIZER.url("url", url, "str", skip_quote=True),
+    }
+
+    _url: str = _url.format(**path_format_arguments)  # type: ignore
+
+    # Construct parameters
+    _params["restype"] = _SERIALIZER.query("restype", restype, "str")
+    if timeout is not None:
+        _params["timeout"] = _SERIALIZER.query("timeout", timeout, "int", minimum=0)
+    if sharesnapshot is not None:
+        _params["sharesnapshot"] = _SERIALIZER.query("sharesnapshot", sharesnapshot, "str")
+
+    # Construct headers
+    _headers["x-ms-version"] = _SERIALIZER.header("version", version, "str")
+    if request_id_parameter is not None:
+        _headers["x-ms-client-request-id"] = _SERIALIZER.header("request_id_parameter", request_id_parameter, "str")
+    if file_request_intent is not None:
+        _headers["x-ms-file-request-intent"] = _SERIALIZER.header("file_request_intent", file_request_intent, "str")
+    _headers["Accept"] = _SERIALIZER.header("accept", accept, "str")
+
+    return HttpRequest(method="GET", url=_url, params=_params, headers=_headers, **kwargs)
+
+
+def build_create_hard_link_request(
+    url: str,
+    *,
+    target_file: str,
+    timeout: Optional[int] = None,
+    request_id_parameter: Optional[str] = None,
+    lease_id: Optional[str] = None,
+    file_request_intent: Optional[Union[str, _models.ShareTokenIntent]] = None,
+    **kwargs: Any
+) -> HttpRequest:
+    _headers = case_insensitive_dict(kwargs.pop("headers", {}) or {})
+    _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
+
+    restype: Literal["hardlink"] = kwargs.pop("restype", _params.pop("restype", "hardlink"))
+    file_type_constant: Literal["file"] = kwargs.pop("file_type_constant", _headers.pop("x-ms-type", "file"))
+    version: Literal["2025-05-05"] = kwargs.pop("version", _headers.pop("x-ms-version", "2025-05-05"))
+    accept = _headers.pop("Accept", "application/xml")
+
+    # Construct URL
+    _url = kwargs.pop("template_url", "{url}")
+    path_format_arguments = {
+        "url": _SERIALIZER.url("url", url, "str", skip_quote=True),
+    }
+
+    _url: str = _url.format(**path_format_arguments)  # type: ignore
+
+    # Construct parameters
+    _params["restype"] = _SERIALIZER.query("restype", restype, "str")
+    if timeout is not None:
+        _params["timeout"] = _SERIALIZER.query("timeout", timeout, "int", minimum=0)
+
+    # Construct headers
+    _headers["x-ms-version"] = _SERIALIZER.header("version", version, "str")
+    _headers["x-ms-type"] = _SERIALIZER.header("file_type_constant", file_type_constant, "str")
+    if request_id_parameter is not None:
+        _headers["x-ms-client-request-id"] = _SERIALIZER.header("request_id_parameter", request_id_parameter, "str")
+    if lease_id is not None:
+        _headers["x-ms-lease-id"] = _SERIALIZER.header("lease_id", lease_id, "str")
+    _headers["x-ms-file-target-file"] = _SERIALIZER.header("target_file", target_file, "str")
+    if file_request_intent is not None:
+        _headers["x-ms-file-request-intent"] = _SERIALIZER.header("file_request_intent", file_request_intent, "str")
+    _headers["Accept"] = _SERIALIZER.header("accept", accept, "str")
+
+    return HttpRequest(method="PUT", url=_url, params=_params, headers=_headers, **kwargs)
+
+
+class FileOperations:  # pylint: disable=too-many-public-methods
     """
     .. warning::
         **DO NOT** instantiate this class directly.
@@ -1087,10 +1311,10 @@ class FileOperations:
 
     def __init__(self, *args, **kwargs):
         input_args = list(args)
-        self._client = input_args.pop(0) if input_args else kwargs.pop("client")
-        self._config = input_args.pop(0) if input_args else kwargs.pop("config")
-        self._serialize = input_args.pop(0) if input_args else kwargs.pop("serializer")
-        self._deserialize = input_args.pop(0) if input_args else kwargs.pop("deserializer")
+        self._client: PipelineClient = input_args.pop(0) if input_args else kwargs.pop("client")
+        self._config: AzureFileStorageConfiguration = input_args.pop(0) if input_args else kwargs.pop("config")
+        self._serialize: Serializer = input_args.pop(0) if input_args else kwargs.pop("serializer")
+        self._deserialize: Deserializer = input_args.pop(0) if input_args else kwargs.pop("deserializer")
 
     @distributed_trace
     def create(  # pylint: disable=inconsistent-return-statements
@@ -1099,15 +1323,21 @@ class FileOperations:
         timeout: Optional[int] = None,
         metadata: Optional[Dict[str, str]] = None,
         file_permission: str = "inherit",
+        file_permission_format: Optional[Union[str, _models.FilePermissionFormat]] = None,
         file_permission_key: Optional[str] = None,
         file_attributes: str = "none",
         file_creation_time: str = "now",
         file_last_write_time: str = "now",
         file_change_time: Optional[str] = None,
+        owner: Optional[str] = None,
+        group: Optional[str] = None,
+        file_mode: Optional[str] = None,
+        nfs_file_type: Optional[Union[str, _models.NfsFileType]] = None,
         file_http_headers: Optional[_models.FileHTTPHeaders] = None,
         lease_access_conditions: Optional[_models.LeaseAccessConditions] = None,
         **kwargs: Any
     ) -> None:
+        # pylint: disable=line-too-long
         """Creates a new file or replaces a file. Note it only initializes the file with no content.
 
         :param file_content_length: Specifies the maximum size for the file, up to 4 TB. Required.
@@ -1126,6 +1356,13 @@ class FileOperations:
          input, it must have owner, group and dacl. Note: Only one of the x-ms-file-permission or
          x-ms-file-permission-key should be specified. Default value is "inherit".
         :type file_permission: str
+        :param file_permission_format: Optional. Available for version 2023-06-01 and later. Specifies
+         the format in which the permission is returned. Acceptable values are SDDL or binary. If
+         x-ms-file-permission-format is unspecified or explicitly set to SDDL, the permission is
+         returned in SDDL format. If x-ms-file-permission-format is explicitly set to binary, the
+         permission is returned as a base64 string representing the binary encoding of the permission.
+         Known values are: "Sddl" and "Binary". Default value is None.
+        :type file_permission_format: str or ~azure.storage.fileshare.models.FilePermissionFormat
         :param file_permission_key: Key of the permission to be set for the directory/file. Note: Only
          one of the x-ms-file-permission or x-ms-file-permission-key should be specified. Default value
          is None.
@@ -1143,19 +1380,26 @@ class FileOperations:
         :param file_change_time: Change time for the file/directory. Default value: Now. Default value
          is None.
         :type file_change_time: str
+        :param owner: Optional, NFS only. The owner of the file or directory. Default value is None.
+        :type owner: str
+        :param group: Optional, NFS only. The owning group of the file or directory. Default value is
+         None.
+        :type group: str
+        :param file_mode: Optional, NFS only. The file mode of the file or directory. Default value is
+         None.
+        :type file_mode: str
+        :param nfs_file_type: Optional, NFS only. Type of the file or directory. Known values are:
+         "Regular", "Directory", and "SymLink". Default value is None.
+        :type nfs_file_type: str or ~azure.storage.fileshare.models.NfsFileType
         :param file_http_headers: Parameter group. Default value is None.
         :type file_http_headers: ~azure.storage.fileshare.models.FileHTTPHeaders
         :param lease_access_conditions: Parameter group. Default value is None.
         :type lease_access_conditions: ~azure.storage.fileshare.models.LeaseAccessConditions
-        :keyword file_type_constant: Dummy constant parameter, file type can only be file. Default
-         value is "file". Note that overriding this default value may result in unsupported behavior.
-        :paramtype file_type_constant: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: None or the result of cls(response)
         :rtype: None
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -1186,7 +1430,7 @@ class FileOperations:
         if lease_access_conditions is not None:
             _lease_id = lease_access_conditions.lease_id
 
-        request = build_create_request(
+        _request = build_create_request(
             url=self._config.url,
             file_content_length=file_content_length,
             timeout=timeout,
@@ -1198,26 +1442,29 @@ class FileOperations:
             file_content_disposition=_file_content_disposition,
             metadata=metadata,
             file_permission=file_permission,
+            file_permission_format=file_permission_format,
             file_permission_key=file_permission_key,
             file_attributes=file_attributes,
             file_creation_time=file_creation_time,
             file_last_write_time=file_last_write_time,
             file_change_time=file_change_time,
             lease_id=_lease_id,
+            owner=owner,
+            group=group,
+            file_mode=file_mode,
+            nfs_file_type=nfs_file_type,
             allow_trailing_dot=self._config.allow_trailing_dot,
             file_request_intent=self._config.file_request_intent,
             file_type_constant=file_type_constant,
             version=self._config.version,
-            template_url=self.create.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -1253,11 +1500,13 @@ class FileOperations:
         )
         response_headers["x-ms-file-id"] = self._deserialize("str", response.headers.get("x-ms-file-id"))
         response_headers["x-ms-file-parent-id"] = self._deserialize("str", response.headers.get("x-ms-file-parent-id"))
+        response_headers["x-ms-mode"] = self._deserialize("str", response.headers.get("x-ms-mode"))
+        response_headers["x-ms-owner"] = self._deserialize("str", response.headers.get("x-ms-owner"))
+        response_headers["x-ms-group"] = self._deserialize("str", response.headers.get("x-ms-group"))
+        response_headers["x-ms-file-file-type"] = self._deserialize("str", response.headers.get("x-ms-file-file-type"))
 
         if cls:
-            return cls(pipeline_response, None, response_headers)
-
-    create.metadata = {"url": "{url}"}
+            return cls(pipeline_response, None, response_headers)  # type: ignore
 
     @distributed_trace
     def download(
@@ -1265,9 +1514,11 @@ class FileOperations:
         timeout: Optional[int] = None,
         range: Optional[str] = None,
         range_get_content_md5: Optional[bool] = None,
+        structured_body_type: Optional[str] = None,
         lease_access_conditions: Optional[_models.LeaseAccessConditions] = None,
         **kwargs: Any
     ) -> Iterator[bytes]:
+        # pylint: disable=line-too-long
         """Reads or downloads a file from the system, including its metadata and properties.
 
         :param timeout: The timeout parameter is expressed in seconds. For more information, see
@@ -1281,14 +1532,16 @@ class FileOperations:
          Range header, the service returns the MD5 hash for the range, as long as the range is less than
          or equal to 4 MB in size. Default value is None.
         :type range_get_content_md5: bool
+        :param structured_body_type: Specifies the response content should be returned as a structured
+         message and specifies the message schema version and properties. Default value is None.
+        :type structured_body_type: str
         :param lease_access_conditions: Parameter group. Default value is None.
         :type lease_access_conditions: ~azure.storage.fileshare.models.LeaseAccessConditions
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :return: Iterator of the response bytes or the result of cls(response)
+        :return: Iterator[bytes] or the result of cls(response)
         :rtype: Iterator[bytes]
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -1305,167 +1558,105 @@ class FileOperations:
         if lease_access_conditions is not None:
             _lease_id = lease_access_conditions.lease_id
 
-        request = build_download_request(
+        _request = build_download_request(
             url=self._config.url,
             timeout=timeout,
             range=range,
             range_get_content_md5=range_get_content_md5,
+            structured_body_type=structured_body_type,
             lease_id=_lease_id,
             allow_trailing_dot=self._config.allow_trailing_dot,
             file_request_intent=self._config.file_request_intent,
             version=self._config.version,
-            template_url=self.download.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
+        _decompress = kwargs.pop("decompress", True)
         _stream = True
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
 
         if response.status_code not in [200, 206]:
+            try:
+                response.read()  # Load the body in memory and close the socket
+            except (StreamConsumedError, StreamClosedError):
+                pass
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             error = self._deserialize.failsafe_deserialize(_models.StorageError, pipeline_response)
             raise HttpResponseError(response=response, model=error)
 
         response_headers = {}
-        if response.status_code == 200:
-            response_headers["Last-Modified"] = self._deserialize("rfc-1123", response.headers.get("Last-Modified"))
-            response_headers["x-ms-meta"] = self._deserialize("{str}", response.headers.get("x-ms-meta"))
-            response_headers["Content-Length"] = self._deserialize("int", response.headers.get("Content-Length"))
-            response_headers["Content-Type"] = self._deserialize("str", response.headers.get("Content-Type"))
-            response_headers["Content-Range"] = self._deserialize("str", response.headers.get("Content-Range"))
-            response_headers["ETag"] = self._deserialize("str", response.headers.get("ETag"))
-            response_headers["Content-MD5"] = self._deserialize("bytearray", response.headers.get("Content-MD5"))
-            response_headers["Content-Encoding"] = self._deserialize("str", response.headers.get("Content-Encoding"))
-            response_headers["Cache-Control"] = self._deserialize("str", response.headers.get("Cache-Control"))
-            response_headers["Content-Disposition"] = self._deserialize(
-                "str", response.headers.get("Content-Disposition")
-            )
-            response_headers["Content-Language"] = self._deserialize("str", response.headers.get("Content-Language"))
-            response_headers["x-ms-request-id"] = self._deserialize("str", response.headers.get("x-ms-request-id"))
-            response_headers["x-ms-version"] = self._deserialize("str", response.headers.get("x-ms-version"))
-            response_headers["Accept-Ranges"] = self._deserialize("str", response.headers.get("Accept-Ranges"))
-            response_headers["Date"] = self._deserialize("rfc-1123", response.headers.get("Date"))
-            response_headers["x-ms-copy-completion-time"] = self._deserialize(
-                "rfc-1123", response.headers.get("x-ms-copy-completion-time")
-            )
-            response_headers["x-ms-copy-status-description"] = self._deserialize(
-                "str", response.headers.get("x-ms-copy-status-description")
-            )
-            response_headers["x-ms-copy-id"] = self._deserialize("str", response.headers.get("x-ms-copy-id"))
-            response_headers["x-ms-copy-progress"] = self._deserialize(
-                "str", response.headers.get("x-ms-copy-progress")
-            )
-            response_headers["x-ms-copy-source"] = self._deserialize("str", response.headers.get("x-ms-copy-source"))
-            response_headers["x-ms-copy-status"] = self._deserialize("str", response.headers.get("x-ms-copy-status"))
-            response_headers["x-ms-content-md5"] = self._deserialize(
-                "bytearray", response.headers.get("x-ms-content-md5")
-            )
-            response_headers["x-ms-server-encrypted"] = self._deserialize(
-                "bool", response.headers.get("x-ms-server-encrypted")
-            )
-            response_headers["x-ms-file-attributes"] = self._deserialize(
-                "str", response.headers.get("x-ms-file-attributes")
-            )
-            response_headers["x-ms-file-creation-time"] = self._deserialize(
-                "str", response.headers.get("x-ms-file-creation-time")
-            )
-            response_headers["x-ms-file-last-write-time"] = self._deserialize(
-                "str", response.headers.get("x-ms-file-last-write-time")
-            )
-            response_headers["x-ms-file-change-time"] = self._deserialize(
-                "str", response.headers.get("x-ms-file-change-time")
-            )
-            response_headers["x-ms-file-permission-key"] = self._deserialize(
-                "str", response.headers.get("x-ms-file-permission-key")
-            )
-            response_headers["x-ms-file-id"] = self._deserialize("str", response.headers.get("x-ms-file-id"))
-            response_headers["x-ms-file-parent-id"] = self._deserialize(
-                "str", response.headers.get("x-ms-file-parent-id")
-            )
-            response_headers["x-ms-lease-duration"] = self._deserialize(
-                "str", response.headers.get("x-ms-lease-duration")
-            )
-            response_headers["x-ms-lease-state"] = self._deserialize("str", response.headers.get("x-ms-lease-state"))
-            response_headers["x-ms-lease-status"] = self._deserialize("str", response.headers.get("x-ms-lease-status"))
+        response_headers["Last-Modified"] = self._deserialize("rfc-1123", response.headers.get("Last-Modified"))
+        response_headers["x-ms-meta"] = self._deserialize("{str}", response.headers.get("x-ms-meta"))
+        response_headers["Content-Length"] = self._deserialize("int", response.headers.get("Content-Length"))
+        response_headers["Content-Type"] = self._deserialize("str", response.headers.get("Content-Type"))
+        response_headers["Content-Range"] = self._deserialize("str", response.headers.get("Content-Range"))
+        response_headers["ETag"] = self._deserialize("str", response.headers.get("ETag"))
+        response_headers["Content-MD5"] = self._deserialize("bytearray", response.headers.get("Content-MD5"))
+        response_headers["Content-Encoding"] = self._deserialize("str", response.headers.get("Content-Encoding"))
+        response_headers["Cache-Control"] = self._deserialize("str", response.headers.get("Cache-Control"))
+        response_headers["Content-Disposition"] = self._deserialize("str", response.headers.get("Content-Disposition"))
+        response_headers["Content-Language"] = self._deserialize("str", response.headers.get("Content-Language"))
+        response_headers["x-ms-request-id"] = self._deserialize("str", response.headers.get("x-ms-request-id"))
+        response_headers["x-ms-version"] = self._deserialize("str", response.headers.get("x-ms-version"))
+        response_headers["Accept-Ranges"] = self._deserialize("str", response.headers.get("Accept-Ranges"))
+        response_headers["Date"] = self._deserialize("rfc-1123", response.headers.get("Date"))
+        response_headers["x-ms-copy-completion-time"] = self._deserialize(
+            "rfc-1123", response.headers.get("x-ms-copy-completion-time")
+        )
+        response_headers["x-ms-copy-status-description"] = self._deserialize(
+            "str", response.headers.get("x-ms-copy-status-description")
+        )
+        response_headers["x-ms-copy-id"] = self._deserialize("str", response.headers.get("x-ms-copy-id"))
+        response_headers["x-ms-copy-progress"] = self._deserialize("str", response.headers.get("x-ms-copy-progress"))
+        response_headers["x-ms-copy-source"] = self._deserialize("str", response.headers.get("x-ms-copy-source"))
+        response_headers["x-ms-copy-status"] = self._deserialize("str", response.headers.get("x-ms-copy-status"))
+        response_headers["x-ms-content-md5"] = self._deserialize("bytearray", response.headers.get("x-ms-content-md5"))
+        response_headers["x-ms-server-encrypted"] = self._deserialize(
+            "bool", response.headers.get("x-ms-server-encrypted")
+        )
+        response_headers["x-ms-file-attributes"] = self._deserialize(
+            "str", response.headers.get("x-ms-file-attributes")
+        )
+        response_headers["x-ms-file-creation-time"] = self._deserialize(
+            "str", response.headers.get("x-ms-file-creation-time")
+        )
+        response_headers["x-ms-file-last-write-time"] = self._deserialize(
+            "str", response.headers.get("x-ms-file-last-write-time")
+        )
+        response_headers["x-ms-file-change-time"] = self._deserialize(
+            "str", response.headers.get("x-ms-file-change-time")
+        )
+        response_headers["x-ms-file-permission-key"] = self._deserialize(
+            "str", response.headers.get("x-ms-file-permission-key")
+        )
+        response_headers["x-ms-file-id"] = self._deserialize("str", response.headers.get("x-ms-file-id"))
+        response_headers["x-ms-file-parent-id"] = self._deserialize("str", response.headers.get("x-ms-file-parent-id"))
+        response_headers["x-ms-lease-duration"] = self._deserialize("str", response.headers.get("x-ms-lease-duration"))
+        response_headers["x-ms-lease-state"] = self._deserialize("str", response.headers.get("x-ms-lease-state"))
+        response_headers["x-ms-lease-status"] = self._deserialize("str", response.headers.get("x-ms-lease-status"))
+        response_headers["x-ms-structured-body"] = self._deserialize(
+            "str", response.headers.get("x-ms-structured-body")
+        )
+        response_headers["x-ms-structured-content-length"] = self._deserialize(
+            "int", response.headers.get("x-ms-structured-content-length")
+        )
+        response_headers["x-ms-mode"] = self._deserialize("str", response.headers.get("x-ms-mode"))
+        response_headers["x-ms-owner"] = self._deserialize("str", response.headers.get("x-ms-owner"))
+        response_headers["x-ms-group"] = self._deserialize("str", response.headers.get("x-ms-group"))
+        response_headers["x-ms-link-count"] = self._deserialize("int", response.headers.get("x-ms-link-count"))
 
-            deserialized = response.stream_download(self._client._pipeline)
-
-        if response.status_code == 206:
-            response_headers["Last-Modified"] = self._deserialize("rfc-1123", response.headers.get("Last-Modified"))
-            response_headers["x-ms-meta"] = self._deserialize("{str}", response.headers.get("x-ms-meta"))
-            response_headers["Content-Length"] = self._deserialize("int", response.headers.get("Content-Length"))
-            response_headers["Content-Type"] = self._deserialize("str", response.headers.get("Content-Type"))
-            response_headers["Content-Range"] = self._deserialize("str", response.headers.get("Content-Range"))
-            response_headers["ETag"] = self._deserialize("str", response.headers.get("ETag"))
-            response_headers["Content-MD5"] = self._deserialize("bytearray", response.headers.get("Content-MD5"))
-            response_headers["Content-Encoding"] = self._deserialize("str", response.headers.get("Content-Encoding"))
-            response_headers["Cache-Control"] = self._deserialize("str", response.headers.get("Cache-Control"))
-            response_headers["Content-Disposition"] = self._deserialize(
-                "str", response.headers.get("Content-Disposition")
-            )
-            response_headers["Content-Language"] = self._deserialize("str", response.headers.get("Content-Language"))
-            response_headers["x-ms-request-id"] = self._deserialize("str", response.headers.get("x-ms-request-id"))
-            response_headers["x-ms-version"] = self._deserialize("str", response.headers.get("x-ms-version"))
-            response_headers["Accept-Ranges"] = self._deserialize("str", response.headers.get("Accept-Ranges"))
-            response_headers["Date"] = self._deserialize("rfc-1123", response.headers.get("Date"))
-            response_headers["x-ms-copy-completion-time"] = self._deserialize(
-                "rfc-1123", response.headers.get("x-ms-copy-completion-time")
-            )
-            response_headers["x-ms-copy-status-description"] = self._deserialize(
-                "str", response.headers.get("x-ms-copy-status-description")
-            )
-            response_headers["x-ms-copy-id"] = self._deserialize("str", response.headers.get("x-ms-copy-id"))
-            response_headers["x-ms-copy-progress"] = self._deserialize(
-                "str", response.headers.get("x-ms-copy-progress")
-            )
-            response_headers["x-ms-copy-source"] = self._deserialize("str", response.headers.get("x-ms-copy-source"))
-            response_headers["x-ms-copy-status"] = self._deserialize("str", response.headers.get("x-ms-copy-status"))
-            response_headers["x-ms-content-md5"] = self._deserialize(
-                "bytearray", response.headers.get("x-ms-content-md5")
-            )
-            response_headers["x-ms-server-encrypted"] = self._deserialize(
-                "bool", response.headers.get("x-ms-server-encrypted")
-            )
-            response_headers["x-ms-file-attributes"] = self._deserialize(
-                "str", response.headers.get("x-ms-file-attributes")
-            )
-            response_headers["x-ms-file-creation-time"] = self._deserialize(
-                "str", response.headers.get("x-ms-file-creation-time")
-            )
-            response_headers["x-ms-file-last-write-time"] = self._deserialize(
-                "str", response.headers.get("x-ms-file-last-write-time")
-            )
-            response_headers["x-ms-file-change-time"] = self._deserialize(
-                "str", response.headers.get("x-ms-file-change-time")
-            )
-            response_headers["x-ms-file-permission-key"] = self._deserialize(
-                "str", response.headers.get("x-ms-file-permission-key")
-            )
-            response_headers["x-ms-file-id"] = self._deserialize("str", response.headers.get("x-ms-file-id"))
-            response_headers["x-ms-file-parent-id"] = self._deserialize(
-                "str", response.headers.get("x-ms-file-parent-id")
-            )
-            response_headers["x-ms-lease-duration"] = self._deserialize(
-                "str", response.headers.get("x-ms-lease-duration")
-            )
-            response_headers["x-ms-lease-state"] = self._deserialize("str", response.headers.get("x-ms-lease-state"))
-            response_headers["x-ms-lease-status"] = self._deserialize("str", response.headers.get("x-ms-lease-status"))
-
-            deserialized = response.stream_download(self._client._pipeline)
+        deserialized = response.stream_download(self._client._pipeline, decompress=_decompress)
 
         if cls:
             return cls(pipeline_response, deserialized, response_headers)  # type: ignore
 
         return deserialized  # type: ignore
-
-    download.metadata = {"url": "{url}"}
 
     @distributed_trace
     def get_properties(  # pylint: disable=inconsistent-return-statements
@@ -1475,6 +1666,7 @@ class FileOperations:
         lease_access_conditions: Optional[_models.LeaseAccessConditions] = None,
         **kwargs: Any
     ) -> None:
+        # pylint: disable=line-too-long
         """Returns all user-defined metadata, standard HTTP properties, and system properties for the
         file. It does not return the content of the file.
 
@@ -1488,12 +1680,11 @@ class FileOperations:
         :type timeout: int
         :param lease_access_conditions: Parameter group. Default value is None.
         :type lease_access_conditions: ~azure.storage.fileshare.models.LeaseAccessConditions
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: None or the result of cls(response)
         :rtype: None
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -1510,7 +1701,7 @@ class FileOperations:
         if lease_access_conditions is not None:
             _lease_id = lease_access_conditions.lease_id
 
-        request = build_get_properties_request(
+        _request = build_get_properties_request(
             url=self._config.url,
             sharesnapshot=sharesnapshot,
             timeout=timeout,
@@ -1518,16 +1709,14 @@ class FileOperations:
             allow_trailing_dot=self._config.allow_trailing_dot,
             file_request_intent=self._config.file_request_intent,
             version=self._config.version,
-            template_url=self.get_properties.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -1585,11 +1774,14 @@ class FileOperations:
         response_headers["x-ms-lease-duration"] = self._deserialize("str", response.headers.get("x-ms-lease-duration"))
         response_headers["x-ms-lease-state"] = self._deserialize("str", response.headers.get("x-ms-lease-state"))
         response_headers["x-ms-lease-status"] = self._deserialize("str", response.headers.get("x-ms-lease-status"))
+        response_headers["x-ms-mode"] = self._deserialize("str", response.headers.get("x-ms-mode"))
+        response_headers["x-ms-owner"] = self._deserialize("str", response.headers.get("x-ms-owner"))
+        response_headers["x-ms-group"] = self._deserialize("str", response.headers.get("x-ms-group"))
+        response_headers["x-ms-link-count"] = self._deserialize("int", response.headers.get("x-ms-link-count"))
+        response_headers["x-ms-file-file-type"] = self._deserialize("str", response.headers.get("x-ms-file-file-type"))
 
         if cls:
-            return cls(pipeline_response, None, response_headers)
-
-    get_properties.metadata = {"url": "{url}"}
+            return cls(pipeline_response, None, response_headers)  # type: ignore
 
     @distributed_trace
     def delete(  # pylint: disable=inconsistent-return-statements
@@ -1598,6 +1790,7 @@ class FileOperations:
         lease_access_conditions: Optional[_models.LeaseAccessConditions] = None,
         **kwargs: Any
     ) -> None:
+        # pylint: disable=line-too-long
         """removes the file from the storage account.
 
         :param timeout: The timeout parameter is expressed in seconds. For more information, see
@@ -1607,12 +1800,11 @@ class FileOperations:
         :type timeout: int
         :param lease_access_conditions: Parameter group. Default value is None.
         :type lease_access_conditions: ~azure.storage.fileshare.models.LeaseAccessConditions
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: None or the result of cls(response)
         :rtype: None
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -1629,23 +1821,21 @@ class FileOperations:
         if lease_access_conditions is not None:
             _lease_id = lease_access_conditions.lease_id
 
-        request = build_delete_request(
+        _request = build_delete_request(
             url=self._config.url,
             timeout=timeout,
             lease_id=_lease_id,
             allow_trailing_dot=self._config.allow_trailing_dot,
             file_request_intent=self._config.file_request_intent,
             version=self._config.version,
-            template_url=self.delete.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -1659,11 +1849,10 @@ class FileOperations:
         response_headers["x-ms-request-id"] = self._deserialize("str", response.headers.get("x-ms-request-id"))
         response_headers["x-ms-version"] = self._deserialize("str", response.headers.get("x-ms-version"))
         response_headers["Date"] = self._deserialize("rfc-1123", response.headers.get("Date"))
+        response_headers["x-ms-link-count"] = self._deserialize("int", response.headers.get("x-ms-link-count"))
 
         if cls:
-            return cls(pipeline_response, None, response_headers)
-
-    delete.metadata = {"url": "{url}"}
+            return cls(pipeline_response, None, response_headers)  # type: ignore
 
     @distributed_trace
     def set_http_headers(  # pylint: disable=inconsistent-return-statements
@@ -1671,15 +1860,20 @@ class FileOperations:
         timeout: Optional[int] = None,
         file_content_length: Optional[int] = None,
         file_permission: str = "inherit",
+        file_permission_format: Optional[Union[str, _models.FilePermissionFormat]] = None,
         file_permission_key: Optional[str] = None,
         file_attributes: str = "none",
         file_creation_time: str = "now",
         file_last_write_time: str = "now",
         file_change_time: Optional[str] = None,
+        owner: Optional[str] = None,
+        group: Optional[str] = None,
+        file_mode: Optional[str] = None,
         file_http_headers: Optional[_models.FileHTTPHeaders] = None,
         lease_access_conditions: Optional[_models.LeaseAccessConditions] = None,
         **kwargs: Any
     ) -> None:
+        # pylint: disable=line-too-long
         """Sets HTTP headers on the file.
 
         :param timeout: The timeout parameter is expressed in seconds. For more information, see
@@ -1697,6 +1891,13 @@ class FileOperations:
          input, it must have owner, group and dacl. Note: Only one of the x-ms-file-permission or
          x-ms-file-permission-key should be specified. Default value is "inherit".
         :type file_permission: str
+        :param file_permission_format: Optional. Available for version 2023-06-01 and later. Specifies
+         the format in which the permission is returned. Acceptable values are SDDL or binary. If
+         x-ms-file-permission-format is unspecified or explicitly set to SDDL, the permission is
+         returned in SDDL format. If x-ms-file-permission-format is explicitly set to binary, the
+         permission is returned as a base64 string representing the binary encoding of the permission.
+         Known values are: "Sddl" and "Binary". Default value is None.
+        :type file_permission_format: str or ~azure.storage.fileshare.models.FilePermissionFormat
         :param file_permission_key: Key of the permission to be set for the directory/file. Note: Only
          one of the x-ms-file-permission or x-ms-file-permission-key should be specified. Default value
          is None.
@@ -1714,19 +1915,23 @@ class FileOperations:
         :param file_change_time: Change time for the file/directory. Default value: Now. Default value
          is None.
         :type file_change_time: str
+        :param owner: Optional, NFS only. The owner of the file or directory. Default value is None.
+        :type owner: str
+        :param group: Optional, NFS only. The owning group of the file or directory. Default value is
+         None.
+        :type group: str
+        :param file_mode: Optional, NFS only. The file mode of the file or directory. Default value is
+         None.
+        :type file_mode: str
         :param file_http_headers: Parameter group. Default value is None.
         :type file_http_headers: ~azure.storage.fileshare.models.FileHTTPHeaders
         :param lease_access_conditions: Parameter group. Default value is None.
         :type lease_access_conditions: ~azure.storage.fileshare.models.LeaseAccessConditions
-        :keyword comp: comp. Default value is "properties". Note that overriding this default value may
-         result in unsupported behavior.
-        :paramtype comp: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: None or the result of cls(response)
         :rtype: None
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -1757,7 +1962,7 @@ class FileOperations:
         if lease_access_conditions is not None:
             _lease_id = lease_access_conditions.lease_id
 
-        request = build_set_http_headers_request(
+        _request = build_set_http_headers_request(
             url=self._config.url,
             timeout=timeout,
             file_content_length=file_content_length,
@@ -1768,26 +1973,28 @@ class FileOperations:
             file_content_md5=_file_content_md5,
             file_content_disposition=_file_content_disposition,
             file_permission=file_permission,
+            file_permission_format=file_permission_format,
             file_permission_key=file_permission_key,
             file_attributes=file_attributes,
             file_creation_time=file_creation_time,
             file_last_write_time=file_last_write_time,
             file_change_time=file_change_time,
             lease_id=_lease_id,
+            owner=owner,
+            group=group,
+            file_mode=file_mode,
             allow_trailing_dot=self._config.allow_trailing_dot,
             file_request_intent=self._config.file_request_intent,
             comp=comp,
             version=self._config.version,
-            template_url=self.set_http_headers.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -1823,11 +2030,13 @@ class FileOperations:
         )
         response_headers["x-ms-file-id"] = self._deserialize("str", response.headers.get("x-ms-file-id"))
         response_headers["x-ms-file-parent-id"] = self._deserialize("str", response.headers.get("x-ms-file-parent-id"))
+        response_headers["x-ms-mode"] = self._deserialize("str", response.headers.get("x-ms-mode"))
+        response_headers["x-ms-owner"] = self._deserialize("str", response.headers.get("x-ms-owner"))
+        response_headers["x-ms-group"] = self._deserialize("str", response.headers.get("x-ms-group"))
+        response_headers["x-ms-link-count"] = self._deserialize("int", response.headers.get("x-ms-link-count"))
 
         if cls:
-            return cls(pipeline_response, None, response_headers)
-
-    set_http_headers.metadata = {"url": "{url}"}
+            return cls(pipeline_response, None, response_headers)  # type: ignore
 
     @distributed_trace
     def set_metadata(  # pylint: disable=inconsistent-return-statements
@@ -1837,6 +2046,7 @@ class FileOperations:
         lease_access_conditions: Optional[_models.LeaseAccessConditions] = None,
         **kwargs: Any
     ) -> None:
+        # pylint: disable=line-too-long
         """Updates user-defined metadata for the specified file.
 
         :param timeout: The timeout parameter is expressed in seconds. For more information, see
@@ -1849,15 +2059,11 @@ class FileOperations:
         :type metadata: dict[str, str]
         :param lease_access_conditions: Parameter group. Default value is None.
         :type lease_access_conditions: ~azure.storage.fileshare.models.LeaseAccessConditions
-        :keyword comp: comp. Default value is "metadata". Note that overriding this default value may
-         result in unsupported behavior.
-        :paramtype comp: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: None or the result of cls(response)
         :rtype: None
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -1875,7 +2081,7 @@ class FileOperations:
         if lease_access_conditions is not None:
             _lease_id = lease_access_conditions.lease_id
 
-        request = build_set_metadata_request(
+        _request = build_set_metadata_request(
             url=self._config.url,
             timeout=timeout,
             metadata=metadata,
@@ -1884,16 +2090,14 @@ class FileOperations:
             file_request_intent=self._config.file_request_intent,
             comp=comp,
             version=self._config.version,
-            template_url=self.set_metadata.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -1913,9 +2117,7 @@ class FileOperations:
         )
 
         if cls:
-            return cls(pipeline_response, None, response_headers)
-
-    set_metadata.metadata = {"url": "{url}"}
+            return cls(pipeline_response, None, response_headers)  # type: ignore
 
     @distributed_trace
     def acquire_lease(  # pylint: disable=inconsistent-return-statements
@@ -1926,6 +2128,7 @@ class FileOperations:
         request_id_parameter: Optional[str] = None,
         **kwargs: Any
     ) -> None:
+        # pylint: disable=line-too-long
         """[Update] The Lease File operation establishes and manages a lock on a file for write and delete
         operations.
 
@@ -1946,18 +2149,11 @@ class FileOperations:
          limit that is recorded in the analytics logs when storage analytics logging is enabled. Default
          value is None.
         :type request_id_parameter: str
-        :keyword comp: comp. Default value is "lease". Note that overriding this default value may
-         result in unsupported behavior.
-        :paramtype comp: str
-        :keyword action: Describes what lease action to take. Default value is "acquire". Note that
-         overriding this default value may result in unsupported behavior.
-        :paramtype action: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: None or the result of cls(response)
         :rtype: None
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -1972,7 +2168,7 @@ class FileOperations:
         action: Literal["acquire"] = kwargs.pop("action", _headers.pop("x-ms-lease-action", "acquire"))
         cls: ClsType[None] = kwargs.pop("cls", None)
 
-        request = build_acquire_lease_request(
+        _request = build_acquire_lease_request(
             url=self._config.url,
             timeout=timeout,
             duration=duration,
@@ -1983,16 +2179,14 @@ class FileOperations:
             comp=comp,
             action=action,
             version=self._config.version,
-            template_url=self.acquire_lease.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -2014,14 +2208,13 @@ class FileOperations:
         response_headers["Date"] = self._deserialize("rfc-1123", response.headers.get("Date"))
 
         if cls:
-            return cls(pipeline_response, None, response_headers)
-
-    acquire_lease.metadata = {"url": "{url}"}
+            return cls(pipeline_response, None, response_headers)  # type: ignore
 
     @distributed_trace
     def release_lease(  # pylint: disable=inconsistent-return-statements
         self, lease_id: str, timeout: Optional[int] = None, request_id_parameter: Optional[str] = None, **kwargs: Any
     ) -> None:
+        # pylint: disable=line-too-long
         """[Update] The Lease File operation establishes and manages a lock on a file for write and delete
         operations.
 
@@ -2036,18 +2229,11 @@ class FileOperations:
          limit that is recorded in the analytics logs when storage analytics logging is enabled. Default
          value is None.
         :type request_id_parameter: str
-        :keyword comp: comp. Default value is "lease". Note that overriding this default value may
-         result in unsupported behavior.
-        :paramtype comp: str
-        :keyword action: Describes what lease action to take. Default value is "release". Note that
-         overriding this default value may result in unsupported behavior.
-        :paramtype action: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: None or the result of cls(response)
         :rtype: None
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -2062,7 +2248,7 @@ class FileOperations:
         action: Literal["release"] = kwargs.pop("action", _headers.pop("x-ms-lease-action", "release"))
         cls: ClsType[None] = kwargs.pop("cls", None)
 
-        request = build_release_lease_request(
+        _request = build_release_lease_request(
             url=self._config.url,
             lease_id=lease_id,
             timeout=timeout,
@@ -2072,16 +2258,14 @@ class FileOperations:
             comp=comp,
             action=action,
             version=self._config.version,
-            template_url=self.release_lease.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -2102,9 +2286,7 @@ class FileOperations:
         response_headers["Date"] = self._deserialize("rfc-1123", response.headers.get("Date"))
 
         if cls:
-            return cls(pipeline_response, None, response_headers)
-
-    release_lease.metadata = {"url": "{url}"}
+            return cls(pipeline_response, None, response_headers)  # type: ignore
 
     @distributed_trace
     def change_lease(  # pylint: disable=inconsistent-return-statements
@@ -2115,6 +2297,7 @@ class FileOperations:
         request_id_parameter: Optional[str] = None,
         **kwargs: Any
     ) -> None:
+        # pylint: disable=line-too-long
         """[Update] The Lease File operation establishes and manages a lock on a file for write and delete
         operations.
 
@@ -2133,18 +2316,11 @@ class FileOperations:
          limit that is recorded in the analytics logs when storage analytics logging is enabled. Default
          value is None.
         :type request_id_parameter: str
-        :keyword comp: comp. Default value is "lease". Note that overriding this default value may
-         result in unsupported behavior.
-        :paramtype comp: str
-        :keyword action: Describes what lease action to take. Default value is "change". Note that
-         overriding this default value may result in unsupported behavior.
-        :paramtype action: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: None or the result of cls(response)
         :rtype: None
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -2159,7 +2335,7 @@ class FileOperations:
         action: Literal["change"] = kwargs.pop("action", _headers.pop("x-ms-lease-action", "change"))
         cls: ClsType[None] = kwargs.pop("cls", None)
 
-        request = build_change_lease_request(
+        _request = build_change_lease_request(
             url=self._config.url,
             lease_id=lease_id,
             timeout=timeout,
@@ -2170,16 +2346,14 @@ class FileOperations:
             comp=comp,
             action=action,
             version=self._config.version,
-            template_url=self.change_lease.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -2201,9 +2375,7 @@ class FileOperations:
         response_headers["Date"] = self._deserialize("rfc-1123", response.headers.get("Date"))
 
         if cls:
-            return cls(pipeline_response, None, response_headers)
-
-    change_lease.metadata = {"url": "{url}"}
+            return cls(pipeline_response, None, response_headers)  # type: ignore
 
     @distributed_trace
     def break_lease(  # pylint: disable=inconsistent-return-statements
@@ -2213,6 +2385,7 @@ class FileOperations:
         lease_access_conditions: Optional[_models.LeaseAccessConditions] = None,
         **kwargs: Any
     ) -> None:
+        # pylint: disable=line-too-long
         """[Update] The Lease File operation establishes and manages a lock on a file for write and delete
         operations.
 
@@ -2227,18 +2400,11 @@ class FileOperations:
         :type request_id_parameter: str
         :param lease_access_conditions: Parameter group. Default value is None.
         :type lease_access_conditions: ~azure.storage.fileshare.models.LeaseAccessConditions
-        :keyword comp: comp. Default value is "lease". Note that overriding this default value may
-         result in unsupported behavior.
-        :paramtype comp: str
-        :keyword action: Describes what lease action to take. Default value is "break". Note that
-         overriding this default value may result in unsupported behavior.
-        :paramtype action: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: None or the result of cls(response)
         :rtype: None
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -2257,7 +2423,7 @@ class FileOperations:
         if lease_access_conditions is not None:
             _lease_id = lease_access_conditions.lease_id
 
-        request = build_break_lease_request(
+        _request = build_break_lease_request(
             url=self._config.url,
             timeout=timeout,
             lease_id=_lease_id,
@@ -2267,16 +2433,14 @@ class FileOperations:
             comp=comp,
             action=action,
             version=self._config.version,
-            template_url=self.break_lease.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -2298,9 +2462,7 @@ class FileOperations:
         response_headers["Date"] = self._deserialize("rfc-1123", response.headers.get("Date"))
 
         if cls:
-            return cls(pipeline_response, None, response_headers)
-
-    break_lease.metadata = {"url": "{url}"}
+            return cls(pipeline_response, None, response_headers)  # type: ignore
 
     @distributed_trace
     def upload_range(  # pylint: disable=inconsistent-return-statements
@@ -2311,10 +2473,13 @@ class FileOperations:
         file_range_write: Union[str, _models.FileRangeWriteType] = "update",
         content_md5: Optional[bytes] = None,
         file_last_written_mode: Optional[Union[str, _models.FileLastWrittenMode]] = None,
+        structured_body_type: Optional[str] = None,
+        structured_content_length: Optional[int] = None,
         lease_access_conditions: Optional[_models.LeaseAccessConditions] = None,
-        optionalbody: Optional[IO] = None,
+        optionalbody: Optional[IO[bytes]] = None,
         **kwargs: Any
     ) -> None:
+        # pylint: disable=line-too-long
         """Upload a range of bytes to a file.
 
         :param range: Specifies the range of bytes to be written. Both the start and end of the range
@@ -2347,19 +2512,22 @@ class FileOperations:
         :param file_last_written_mode: If the file last write time should be preserved or overwritten.
          Known values are: "Now" and "Preserve". Default value is None.
         :type file_last_written_mode: str or ~azure.storage.fileshare.models.FileLastWrittenMode
+        :param structured_body_type: Required if the request body is a structured message. Specifies
+         the message schema version and properties. Default value is None.
+        :type structured_body_type: str
+        :param structured_content_length: Required if the request body is a structured message.
+         Specifies the length of the blob/file content inside the message body. Will always be smaller
+         than Content-Length. Default value is None.
+        :type structured_content_length: int
         :param lease_access_conditions: Parameter group. Default value is None.
         :type lease_access_conditions: ~azure.storage.fileshare.models.LeaseAccessConditions
         :param optionalbody: Initial data. Default value is None.
-        :type optionalbody: IO
-        :keyword comp: comp. Default value is "range". Note that overriding this default value may
-         result in unsupported behavior.
-        :paramtype comp: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
+        :type optionalbody: IO[bytes]
         :return: None or the result of cls(response)
         :rtype: None
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -2379,7 +2547,7 @@ class FileOperations:
             _lease_id = lease_access_conditions.lease_id
         _content = optionalbody
 
-        request = build_upload_range_request(
+        _request = build_upload_range_request(
             url=self._config.url,
             range=range,
             content_length=content_length,
@@ -2388,22 +2556,22 @@ class FileOperations:
             content_md5=content_md5,
             lease_id=_lease_id,
             file_last_written_mode=file_last_written_mode,
+            structured_body_type=structured_body_type,
+            structured_content_length=structured_content_length,
             allow_trailing_dot=self._config.allow_trailing_dot,
             file_request_intent=self._config.file_request_intent,
             comp=comp,
             content_type=content_type,
             version=self._config.version,
             content=_content,
-            template_url=self.upload_range.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -2426,11 +2594,12 @@ class FileOperations:
         response_headers["x-ms-file-last-write-time"] = self._deserialize(
             "str", response.headers.get("x-ms-file-last-write-time")
         )
+        response_headers["x-ms-structured-body"] = self._deserialize(
+            "str", response.headers.get("x-ms-structured-body")
+        )
 
         if cls:
-            return cls(pipeline_response, None, response_headers)
-
-    upload_range.metadata = {"url": "{url}"}
+            return cls(pipeline_response, None, response_headers)  # type: ignore
 
     @distributed_trace
     def upload_range_from_url(  # pylint: disable=inconsistent-return-statements
@@ -2447,6 +2616,7 @@ class FileOperations:
         lease_access_conditions: Optional[_models.LeaseAccessConditions] = None,
         **kwargs: Any
     ) -> None:
+        # pylint: disable=line-too-long
         """Upload a range of bytes to a file where the contents are read from a URL.
 
         :param range: Writes data to the specified byte range in the file. Required.
@@ -2484,15 +2654,11 @@ class FileOperations:
          ~azure.storage.fileshare.models.SourceModifiedAccessConditions
         :param lease_access_conditions: Parameter group. Default value is None.
         :type lease_access_conditions: ~azure.storage.fileshare.models.LeaseAccessConditions
-        :keyword comp: comp. Default value is "range". Note that overriding this default value may
-         result in unsupported behavior.
-        :paramtype comp: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: None or the result of cls(response)
         :rtype: None
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -2515,7 +2681,7 @@ class FileOperations:
         if lease_access_conditions is not None:
             _lease_id = lease_access_conditions.lease_id
 
-        request = build_upload_range_from_url_request(
+        _request = build_upload_range_from_url_request(
             url=self._config.url,
             range=range,
             copy_source=copy_source,
@@ -2530,19 +2696,18 @@ class FileOperations:
             file_last_written_mode=file_last_written_mode,
             allow_trailing_dot=self._config.allow_trailing_dot,
             allow_source_trailing_dot=self._config.allow_source_trailing_dot,
+            file_request_intent=self._config.file_request_intent,
             comp=comp,
             file_range_write_from_url=self._config.file_range_write_from_url,
             version=self._config.version,
-            template_url=self.upload_range_from_url.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -2569,9 +2734,7 @@ class FileOperations:
         )
 
         if cls:
-            return cls(pipeline_response, None, response_headers)
-
-    upload_range_from_url.metadata = {"url": "{url}"}
+            return cls(pipeline_response, None, response_headers)  # type: ignore
 
     @distributed_trace
     def get_range_list(
@@ -2580,9 +2743,11 @@ class FileOperations:
         prevsharesnapshot: Optional[str] = None,
         timeout: Optional[int] = None,
         range: Optional[str] = None,
+        support_rename: Optional[bool] = None,
         lease_access_conditions: Optional[_models.LeaseAccessConditions] = None,
         **kwargs: Any
     ) -> _models.ShareFileRangeList:
+        # pylint: disable=line-too-long
         """Returns the list of valid ranges for a file.
 
         :param sharesnapshot: The snapshot parameter is an opaque DateTime value that, when present,
@@ -2599,17 +2764,20 @@ class FileOperations:
         :param range: Specifies the range of bytes over which to list ranges, inclusively. Default
          value is None.
         :type range: str
+        :param support_rename: This header is allowed only when PrevShareSnapshot query parameter is
+         set. Determines whether the changed ranges for a file that has been renamed or moved between
+         the target snapshot (or the live file) and the previous snapshot should be listed. If the value
+         is true, the valid changed ranges for the file will be returned. If the value is false, the
+         operation will result in a failure with 409 (Conflict) response. The default value is false.
+         Default value is None.
+        :type support_rename: bool
         :param lease_access_conditions: Parameter group. Default value is None.
         :type lease_access_conditions: ~azure.storage.fileshare.models.LeaseAccessConditions
-        :keyword comp: comp. Default value is "rangelist". Note that overriding this default value may
-         result in unsupported behavior.
-        :paramtype comp: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: ShareFileRangeList or the result of cls(response)
         :rtype: ~azure.storage.fileshare.models.ShareFileRangeList
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -2627,27 +2795,26 @@ class FileOperations:
         if lease_access_conditions is not None:
             _lease_id = lease_access_conditions.lease_id
 
-        request = build_get_range_list_request(
+        _request = build_get_range_list_request(
             url=self._config.url,
             sharesnapshot=sharesnapshot,
             prevsharesnapshot=prevsharesnapshot,
             timeout=timeout,
             range=range,
             lease_id=_lease_id,
+            support_rename=support_rename,
             allow_trailing_dot=self._config.allow_trailing_dot,
             file_request_intent=self._config.file_request_intent,
             comp=comp,
             version=self._config.version,
-            template_url=self.get_range_list.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -2665,14 +2832,12 @@ class FileOperations:
         response_headers["x-ms-version"] = self._deserialize("str", response.headers.get("x-ms-version"))
         response_headers["Date"] = self._deserialize("rfc-1123", response.headers.get("Date"))
 
-        deserialized = self._deserialize("ShareFileRangeList", pipeline_response)
+        deserialized = self._deserialize("ShareFileRangeList", pipeline_response.http_response)
 
         if cls:
-            return cls(pipeline_response, deserialized, response_headers)
+            return cls(pipeline_response, deserialized, response_headers)  # type: ignore
 
-        return deserialized
-
-    get_range_list.metadata = {"url": "{url}"}
+        return deserialized  # type: ignore
 
     @distributed_trace
     def start_copy(  # pylint: disable=inconsistent-return-statements
@@ -2681,11 +2846,18 @@ class FileOperations:
         timeout: Optional[int] = None,
         metadata: Optional[Dict[str, str]] = None,
         file_permission: str = "inherit",
+        file_permission_format: Optional[Union[str, _models.FilePermissionFormat]] = None,
         file_permission_key: Optional[str] = None,
+        owner: Optional[str] = None,
+        group: Optional[str] = None,
+        file_mode: Optional[str] = None,
+        file_mode_copy_mode: Optional[Union[str, _models.ModeCopyMode]] = None,
+        file_owner_copy_mode: Optional[Union[str, _models.OwnerCopyMode]] = None,
         copy_file_smb_info: Optional[_models.CopyFileSmbInfo] = None,
         lease_access_conditions: Optional[_models.LeaseAccessConditions] = None,
         **kwargs: Any
     ) -> None:
+        # pylint: disable=line-too-long
         """Copies a blob or file to a destination file within the storage account.
 
         :param copy_source: Specifies the URL of the source file or blob, up to 2 KB in length. To copy
@@ -2710,20 +2882,46 @@ class FileOperations:
          input, it must have owner, group and dacl. Note: Only one of the x-ms-file-permission or
          x-ms-file-permission-key should be specified. Default value is "inherit".
         :type file_permission: str
+        :param file_permission_format: Optional. Available for version 2023-06-01 and later. Specifies
+         the format in which the permission is returned. Acceptable values are SDDL or binary. If
+         x-ms-file-permission-format is unspecified or explicitly set to SDDL, the permission is
+         returned in SDDL format. If x-ms-file-permission-format is explicitly set to binary, the
+         permission is returned as a base64 string representing the binary encoding of the permission.
+         Known values are: "Sddl" and "Binary". Default value is None.
+        :type file_permission_format: str or ~azure.storage.fileshare.models.FilePermissionFormat
         :param file_permission_key: Key of the permission to be set for the directory/file. Note: Only
          one of the x-ms-file-permission or x-ms-file-permission-key should be specified. Default value
          is None.
         :type file_permission_key: str
+        :param owner: Optional, NFS only. The owner of the file or directory. Default value is None.
+        :type owner: str
+        :param group: Optional, NFS only. The owning group of the file or directory. Default value is
+         None.
+        :type group: str
+        :param file_mode: Optional, NFS only. The file mode of the file or directory. Default value is
+         None.
+        :type file_mode: str
+        :param file_mode_copy_mode: NFS only. Applicable only when the copy source is a File.
+         Determines the copy behavior of the mode bits of the file. source: The mode on the destination
+         file is copied from the source file. override: The mode on the destination file is determined
+         via the x-ms-mode header. Known values are: "source" and "override". Default value is None.
+        :type file_mode_copy_mode: str or ~azure.storage.fileshare.models.ModeCopyMode
+        :param file_owner_copy_mode: NFS only. Determines the copy behavior of the owner user
+         identifier (UID) and group identifier (GID) of the file. source: The owner user identifier
+         (UID) and group identifier (GID) on the destination file is copied from the source file.
+         override: The owner user identifier (UID) and group identifier (GID) on the destination file is
+         determined via the x-ms-owner and x-ms-group  headers. Known values are: "source" and
+         "override". Default value is None.
+        :type file_owner_copy_mode: str or ~azure.storage.fileshare.models.OwnerCopyMode
         :param copy_file_smb_info: Parameter group. Default value is None.
         :type copy_file_smb_info: ~azure.storage.fileshare.models.CopyFileSmbInfo
         :param lease_access_conditions: Parameter group. Default value is None.
         :type lease_access_conditions: ~azure.storage.fileshare.models.LeaseAccessConditions
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: None or the result of cls(response)
         :rtype: None
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -2755,12 +2953,13 @@ class FileOperations:
         if lease_access_conditions is not None:
             _lease_id = lease_access_conditions.lease_id
 
-        request = build_start_copy_request(
+        _request = build_start_copy_request(
             url=self._config.url,
             copy_source=copy_source,
             timeout=timeout,
             metadata=metadata,
             file_permission=file_permission,
+            file_permission_format=file_permission_format,
             file_permission_key=file_permission_key,
             file_permission_copy_mode=_file_permission_copy_mode,
             ignore_read_only=_ignore_read_only,
@@ -2770,20 +2969,23 @@ class FileOperations:
             file_change_time=_file_change_time,
             set_archive_attribute=_set_archive_attribute,
             lease_id=_lease_id,
+            owner=owner,
+            group=group,
+            file_mode=file_mode,
+            file_mode_copy_mode=file_mode_copy_mode,
+            file_owner_copy_mode=file_owner_copy_mode,
             allow_trailing_dot=self._config.allow_trailing_dot,
             allow_source_trailing_dot=self._config.allow_source_trailing_dot,
             file_request_intent=self._config.file_request_intent,
             version=self._config.version,
-            template_url=self.start_copy.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -2803,9 +3005,7 @@ class FileOperations:
         response_headers["x-ms-copy-status"] = self._deserialize("str", response.headers.get("x-ms-copy-status"))
 
         if cls:
-            return cls(pipeline_response, None, response_headers)
-
-    start_copy.metadata = {"url": "{url}"}
+            return cls(pipeline_response, None, response_headers)  # type: ignore
 
     @distributed_trace
     def abort_copy(  # pylint: disable=inconsistent-return-statements
@@ -2815,6 +3015,7 @@ class FileOperations:
         lease_access_conditions: Optional[_models.LeaseAccessConditions] = None,
         **kwargs: Any
     ) -> None:
+        # pylint: disable=line-too-long
         """Aborts a pending Copy File operation, and leaves a destination file with zero length and full
         metadata.
 
@@ -2828,18 +3029,11 @@ class FileOperations:
         :type timeout: int
         :param lease_access_conditions: Parameter group. Default value is None.
         :type lease_access_conditions: ~azure.storage.fileshare.models.LeaseAccessConditions
-        :keyword comp: comp. Default value is "copy". Note that overriding this default value may
-         result in unsupported behavior.
-        :paramtype comp: str
-        :keyword copy_action_abort_constant: Abort. Default value is "abort". Note that overriding this
-         default value may result in unsupported behavior.
-        :paramtype copy_action_abort_constant: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: None or the result of cls(response)
         :rtype: None
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -2860,7 +3054,7 @@ class FileOperations:
         if lease_access_conditions is not None:
             _lease_id = lease_access_conditions.lease_id
 
-        request = build_abort_copy_request(
+        _request = build_abort_copy_request(
             url=self._config.url,
             copy_id=copy_id,
             timeout=timeout,
@@ -2870,16 +3064,14 @@ class FileOperations:
             comp=comp,
             copy_action_abort_constant=copy_action_abort_constant,
             version=self._config.version,
-            template_url=self.abort_copy.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -2895,9 +3087,7 @@ class FileOperations:
         response_headers["Date"] = self._deserialize("rfc-1123", response.headers.get("Date"))
 
         if cls:
-            return cls(pipeline_response, None, response_headers)
-
-    abort_copy.metadata = {"url": "{url}"}
+            return cls(pipeline_response, None, response_headers)  # type: ignore
 
     @distributed_trace
     def list_handles(
@@ -2908,6 +3098,7 @@ class FileOperations:
         sharesnapshot: Optional[str] = None,
         **kwargs: Any
     ) -> _models.ListHandlesResponse:
+        # pylint: disable=line-too-long
         """Lists handles for file.
 
         :param marker: A string value that identifies the portion of the list to be returned with the
@@ -2927,15 +3118,11 @@ class FileOperations:
         :param sharesnapshot: The snapshot parameter is an opaque DateTime value that, when present,
          specifies the share snapshot to query. Default value is None.
         :type sharesnapshot: str
-        :keyword comp: comp. Default value is "listhandles". Note that overriding this default value
-         may result in unsupported behavior.
-        :paramtype comp: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: ListHandlesResponse or the result of cls(response)
         :rtype: ~azure.storage.fileshare.models.ListHandlesResponse
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -2949,7 +3136,7 @@ class FileOperations:
         comp: Literal["listhandles"] = kwargs.pop("comp", _params.pop("comp", "listhandles"))
         cls: ClsType[_models.ListHandlesResponse] = kwargs.pop("cls", None)
 
-        request = build_list_handles_request(
+        _request = build_list_handles_request(
             url=self._config.url,
             marker=marker,
             maxresults=maxresults,
@@ -2959,16 +3146,14 @@ class FileOperations:
             file_request_intent=self._config.file_request_intent,
             comp=comp,
             version=self._config.version,
-            template_url=self.list_handles.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -2984,14 +3169,12 @@ class FileOperations:
         response_headers["x-ms-version"] = self._deserialize("str", response.headers.get("x-ms-version"))
         response_headers["Date"] = self._deserialize("rfc-1123", response.headers.get("Date"))
 
-        deserialized = self._deserialize("ListHandlesResponse", pipeline_response)
+        deserialized = self._deserialize("ListHandlesResponse", pipeline_response.http_response)
 
         if cls:
-            return cls(pipeline_response, deserialized, response_headers)
+            return cls(pipeline_response, deserialized, response_headers)  # type: ignore
 
-        return deserialized
-
-    list_handles.metadata = {"url": "{url}"}
+        return deserialized  # type: ignore
 
     @distributed_trace
     def force_close_handles(  # pylint: disable=inconsistent-return-statements
@@ -3002,6 +3185,7 @@ class FileOperations:
         sharesnapshot: Optional[str] = None,
         **kwargs: Any
     ) -> None:
+        # pylint: disable=line-too-long
         """Closes all handles open for given file.
 
         :param handle_id: Specifies handle ID opened on the file or directory to be closed. Asterisk
@@ -3020,15 +3204,11 @@ class FileOperations:
         :param sharesnapshot: The snapshot parameter is an opaque DateTime value that, when present,
          specifies the share snapshot to query. Default value is None.
         :type sharesnapshot: str
-        :keyword comp: comp. Default value is "forceclosehandles". Note that overriding this default
-         value may result in unsupported behavior.
-        :paramtype comp: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: None or the result of cls(response)
         :rtype: None
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -3042,7 +3222,7 @@ class FileOperations:
         comp: Literal["forceclosehandles"] = kwargs.pop("comp", _params.pop("comp", "forceclosehandles"))
         cls: ClsType[None] = kwargs.pop("cls", None)
 
-        request = build_force_close_handles_request(
+        _request = build_force_close_handles_request(
             url=self._config.url,
             handle_id=handle_id,
             timeout=timeout,
@@ -3052,16 +3232,14 @@ class FileOperations:
             file_request_intent=self._config.file_request_intent,
             comp=comp,
             version=self._config.version,
-            template_url=self.force_close_handles.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -3084,9 +3262,7 @@ class FileOperations:
         )
 
         if cls:
-            return cls(pipeline_response, None, response_headers)
-
-    force_close_handles.metadata = {"url": "{url}"}
+            return cls(pipeline_response, None, response_headers)  # type: ignore
 
     @distributed_trace
     def rename(  # pylint: disable=inconsistent-return-statements
@@ -3096,6 +3272,7 @@ class FileOperations:
         replace_if_exists: Optional[bool] = None,
         ignore_read_only: Optional[bool] = None,
         file_permission: str = "inherit",
+        file_permission_format: Optional[Union[str, _models.FilePermissionFormat]] = None,
         file_permission_key: Optional[str] = None,
         metadata: Optional[Dict[str, str]] = None,
         source_lease_access_conditions: Optional[_models.SourceLeaseAccessConditions] = None,
@@ -3104,6 +3281,7 @@ class FileOperations:
         file_http_headers: Optional[_models.FileHTTPHeaders] = None,
         **kwargs: Any
     ) -> None:
+        # pylint: disable=line-too-long
         """Renames a file.
 
         :param rename_source: Required. Specifies the URI-style path of the source file, up to 2 KB in
@@ -3132,6 +3310,13 @@ class FileOperations:
          input, it must have owner, group and dacl. Note: Only one of the x-ms-file-permission or
          x-ms-file-permission-key should be specified. Default value is "inherit".
         :type file_permission: str
+        :param file_permission_format: Optional. Available for version 2023-06-01 and later. Specifies
+         the format in which the permission is returned. Acceptable values are SDDL or binary. If
+         x-ms-file-permission-format is unspecified or explicitly set to SDDL, the permission is
+         returned in SDDL format. If x-ms-file-permission-format is explicitly set to binary, the
+         permission is returned as a base64 string representing the binary encoding of the permission.
+         Known values are: "Sddl" and "Binary". Default value is None.
+        :type file_permission_format: str or ~azure.storage.fileshare.models.FilePermissionFormat
         :param file_permission_key: Key of the permission to be set for the directory/file. Note: Only
          one of the x-ms-file-permission or x-ms-file-permission-key should be specified. Default value
          is None.
@@ -3149,15 +3334,11 @@ class FileOperations:
         :type copy_file_smb_info: ~azure.storage.fileshare.models.CopyFileSmbInfo
         :param file_http_headers: Parameter group. Default value is None.
         :type file_http_headers: ~azure.storage.fileshare.models.FileHTTPHeaders
-        :keyword comp: comp. Default value is "rename". Note that overriding this default value may
-         result in unsupported behavior.
-        :paramtype comp: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: None or the result of cls(response)
         :rtype: None
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -3190,7 +3371,7 @@ class FileOperations:
         if file_http_headers is not None:
             _file_content_type = file_http_headers.file_content_type
 
-        request = build_rename_request(
+        _request = build_rename_request(
             url=self._config.url,
             rename_source=rename_source,
             timeout=timeout,
@@ -3203,6 +3384,7 @@ class FileOperations:
             file_last_write_time=_file_last_write_time,
             file_change_time=_file_change_time,
             file_permission=file_permission,
+            file_permission_format=file_permission_format,
             file_permission_key=file_permission_key,
             metadata=metadata,
             file_content_type=_file_content_type,
@@ -3211,16 +3393,14 @@ class FileOperations:
             file_request_intent=self._config.file_request_intent,
             comp=comp,
             version=self._config.version,
-            template_url=self.rename.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -3258,6 +3438,318 @@ class FileOperations:
         response_headers["x-ms-file-parent-id"] = self._deserialize("str", response.headers.get("x-ms-file-parent-id"))
 
         if cls:
-            return cls(pipeline_response, None, response_headers)
+            return cls(pipeline_response, None, response_headers)  # type: ignore
 
-    rename.metadata = {"url": "{url}"}
+    @distributed_trace
+    def create_symbolic_link(  # pylint: disable=inconsistent-return-statements
+        self,
+        link_text: str,
+        timeout: Optional[int] = None,
+        metadata: Optional[Dict[str, str]] = None,
+        file_creation_time: str = "now",
+        file_last_write_time: str = "now",
+        request_id_parameter: Optional[str] = None,
+        owner: Optional[str] = None,
+        group: Optional[str] = None,
+        lease_access_conditions: Optional[_models.LeaseAccessConditions] = None,
+        **kwargs: Any
+    ) -> None:
+        # pylint: disable=line-too-long
+        """Creates a symbolic link.
+
+        :param link_text: NFS only. Required. The path to the original file, the symbolic link is
+         pointing to. The path is of type string which is not resolved and is stored as is. The path can
+         be absolute path or the relative path depending on the content stored in the symbolic link
+         file. Required.
+        :type link_text: str
+        :param timeout: The timeout parameter is expressed in seconds. For more information, see
+         :code:`<a
+         href="https://docs.microsoft.com/en-us/rest/api/storageservices/Setting-Timeouts-for-File-Service-Operations?redirectedfrom=MSDN">Setting
+         Timeouts for File Service Operations.</a>`. Default value is None.
+        :type timeout: int
+        :param metadata: A name-value pair to associate with a file storage object. Default value is
+         None.
+        :type metadata: dict[str, str]
+        :param file_creation_time: Creation time for the file/directory. Default value: Now. Default
+         value is "now".
+        :type file_creation_time: str
+        :param file_last_write_time: Last write time for the file/directory. Default value: Now.
+         Default value is "now".
+        :type file_last_write_time: str
+        :param request_id_parameter: Provides a client-generated, opaque value with a 1 KB character
+         limit that is recorded in the analytics logs when storage analytics logging is enabled. Default
+         value is None.
+        :type request_id_parameter: str
+        :param owner: Optional, NFS only. The owner of the file or directory. Default value is None.
+        :type owner: str
+        :param group: Optional, NFS only. The owning group of the file or directory. Default value is
+         None.
+        :type group: str
+        :param lease_access_conditions: Parameter group. Default value is None.
+        :type lease_access_conditions: ~azure.storage.fileshare.models.LeaseAccessConditions
+        :return: None or the result of cls(response)
+        :rtype: None
+        :raises ~azure.core.exceptions.HttpResponseError:
+        """
+        error_map: MutableMapping = {
+            401: ClientAuthenticationError,
+            404: ResourceNotFoundError,
+            409: ResourceExistsError,
+            304: ResourceNotModifiedError,
+        }
+        error_map.update(kwargs.pop("error_map", {}) or {})
+
+        _headers = kwargs.pop("headers", {}) or {}
+        _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
+
+        restype: Literal["symboliclink"] = kwargs.pop("restype", _params.pop("restype", "symboliclink"))
+        cls: ClsType[None] = kwargs.pop("cls", None)
+
+        _lease_id = None
+        if lease_access_conditions is not None:
+            _lease_id = lease_access_conditions.lease_id
+
+        _request = build_create_symbolic_link_request(
+            url=self._config.url,
+            link_text=link_text,
+            timeout=timeout,
+            metadata=metadata,
+            file_creation_time=file_creation_time,
+            file_last_write_time=file_last_write_time,
+            request_id_parameter=request_id_parameter,
+            lease_id=_lease_id,
+            owner=owner,
+            group=group,
+            file_request_intent=self._config.file_request_intent,
+            restype=restype,
+            version=self._config.version,
+            headers=_headers,
+            params=_params,
+        )
+        _request.url = self._client.format_url(_request.url)
+
+        _stream = False
+        pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
+            _request, stream=_stream, **kwargs
+        )
+
+        response = pipeline_response.http_response
+
+        if response.status_code not in [201]:
+            map_error(status_code=response.status_code, response=response, error_map=error_map)
+            error = self._deserialize.failsafe_deserialize(_models.StorageError, pipeline_response)
+            raise HttpResponseError(response=response, model=error)
+
+        response_headers = {}
+        response_headers["ETag"] = self._deserialize("str", response.headers.get("ETag"))
+        response_headers["Last-Modified"] = self._deserialize("rfc-1123", response.headers.get("Last-Modified"))
+        response_headers["x-ms-request-id"] = self._deserialize("str", response.headers.get("x-ms-request-id"))
+        response_headers["x-ms-version"] = self._deserialize("str", response.headers.get("x-ms-version"))
+        response_headers["Date"] = self._deserialize("rfc-1123", response.headers.get("Date"))
+        response_headers["x-ms-file-creation-time"] = self._deserialize(
+            "str", response.headers.get("x-ms-file-creation-time")
+        )
+        response_headers["x-ms-file-last-write-time"] = self._deserialize(
+            "str", response.headers.get("x-ms-file-last-write-time")
+        )
+        response_headers["x-ms-file-change-time"] = self._deserialize(
+            "str", response.headers.get("x-ms-file-change-time")
+        )
+        response_headers["x-ms-file-id"] = self._deserialize("str", response.headers.get("x-ms-file-id"))
+        response_headers["x-ms-file-parent-id"] = self._deserialize("str", response.headers.get("x-ms-file-parent-id"))
+        response_headers["x-ms-client-request-id"] = self._deserialize(
+            "str", response.headers.get("x-ms-client-request-id")
+        )
+        response_headers["x-ms-mode"] = self._deserialize("str", response.headers.get("x-ms-mode"))
+        response_headers["x-ms-owner"] = self._deserialize("str", response.headers.get("x-ms-owner"))
+        response_headers["x-ms-group"] = self._deserialize("str", response.headers.get("x-ms-group"))
+        response_headers["x-ms-file-file-type"] = self._deserialize("str", response.headers.get("x-ms-file-file-type"))
+
+        if cls:
+            return cls(pipeline_response, None, response_headers)  # type: ignore
+
+    @distributed_trace
+    def get_symbolic_link(  # pylint: disable=inconsistent-return-statements
+        self,
+        timeout: Optional[int] = None,
+        sharesnapshot: Optional[str] = None,
+        request_id_parameter: Optional[str] = None,
+        **kwargs: Any
+    ) -> None:
+        # pylint: disable=line-too-long
+        """get_symbolic_link.
+
+        :param timeout: The timeout parameter is expressed in seconds. For more information, see
+         :code:`<a
+         href="https://docs.microsoft.com/en-us/rest/api/storageservices/Setting-Timeouts-for-File-Service-Operations?redirectedfrom=MSDN">Setting
+         Timeouts for File Service Operations.</a>`. Default value is None.
+        :type timeout: int
+        :param sharesnapshot: The snapshot parameter is an opaque DateTime value that, when present,
+         specifies the share snapshot to query. Default value is None.
+        :type sharesnapshot: str
+        :param request_id_parameter: Provides a client-generated, opaque value with a 1 KB character
+         limit that is recorded in the analytics logs when storage analytics logging is enabled. Default
+         value is None.
+        :type request_id_parameter: str
+        :return: None or the result of cls(response)
+        :rtype: None
+        :raises ~azure.core.exceptions.HttpResponseError:
+        """
+        error_map: MutableMapping = {
+            401: ClientAuthenticationError,
+            404: ResourceNotFoundError,
+            409: ResourceExistsError,
+            304: ResourceNotModifiedError,
+        }
+        error_map.update(kwargs.pop("error_map", {}) or {})
+
+        _headers = kwargs.pop("headers", {}) or {}
+        _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
+
+        restype: Literal["symboliclink"] = kwargs.pop("restype", _params.pop("restype", "symboliclink"))
+        cls: ClsType[None] = kwargs.pop("cls", None)
+
+        _request = build_get_symbolic_link_request(
+            url=self._config.url,
+            timeout=timeout,
+            sharesnapshot=sharesnapshot,
+            request_id_parameter=request_id_parameter,
+            file_request_intent=self._config.file_request_intent,
+            restype=restype,
+            version=self._config.version,
+            headers=_headers,
+            params=_params,
+        )
+        _request.url = self._client.format_url(_request.url)
+
+        _stream = False
+        pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
+            _request, stream=_stream, **kwargs
+        )
+
+        response = pipeline_response.http_response
+
+        if response.status_code not in [200]:
+            map_error(status_code=response.status_code, response=response, error_map=error_map)
+            error = self._deserialize.failsafe_deserialize(_models.StorageError, pipeline_response)
+            raise HttpResponseError(response=response, model=error)
+
+        response_headers = {}
+        response_headers["ETag"] = self._deserialize("str", response.headers.get("ETag"))
+        response_headers["Last-Modified"] = self._deserialize("rfc-1123", response.headers.get("Last-Modified"))
+        response_headers["x-ms-request-id"] = self._deserialize("str", response.headers.get("x-ms-request-id"))
+        response_headers["x-ms-version"] = self._deserialize("str", response.headers.get("x-ms-version"))
+        response_headers["Date"] = self._deserialize("rfc-1123", response.headers.get("Date"))
+        response_headers["x-ms-link-text"] = self._deserialize("str", response.headers.get("x-ms-link-text"))
+        response_headers["x-ms-client-request-id"] = self._deserialize(
+            "str", response.headers.get("x-ms-client-request-id")
+        )
+
+        if cls:
+            return cls(pipeline_response, None, response_headers)  # type: ignore
+
+    @distributed_trace
+    def create_hard_link(  # pylint: disable=inconsistent-return-statements
+        self,
+        target_file: str,
+        timeout: Optional[int] = None,
+        request_id_parameter: Optional[str] = None,
+        lease_access_conditions: Optional[_models.LeaseAccessConditions] = None,
+        **kwargs: Any
+    ) -> None:
+        # pylint: disable=line-too-long
+        """Creates a hard link.
+
+        :param target_file: NFS only. Required. Specifies the path of the target file to which the link
+         will be created, up to 2 KiB in length. It should be full path of the target from the root.The
+         target file must be in the same share and hence the same storage account. Required.
+        :type target_file: str
+        :param timeout: The timeout parameter is expressed in seconds. For more information, see
+         :code:`<a
+         href="https://docs.microsoft.com/en-us/rest/api/storageservices/Setting-Timeouts-for-File-Service-Operations?redirectedfrom=MSDN">Setting
+         Timeouts for File Service Operations.</a>`. Default value is None.
+        :type timeout: int
+        :param request_id_parameter: Provides a client-generated, opaque value with a 1 KB character
+         limit that is recorded in the analytics logs when storage analytics logging is enabled. Default
+         value is None.
+        :type request_id_parameter: str
+        :param lease_access_conditions: Parameter group. Default value is None.
+        :type lease_access_conditions: ~azure.storage.fileshare.models.LeaseAccessConditions
+        :return: None or the result of cls(response)
+        :rtype: None
+        :raises ~azure.core.exceptions.HttpResponseError:
+        """
+        error_map: MutableMapping = {
+            401: ClientAuthenticationError,
+            404: ResourceNotFoundError,
+            409: ResourceExistsError,
+            304: ResourceNotModifiedError,
+        }
+        error_map.update(kwargs.pop("error_map", {}) or {})
+
+        _headers = case_insensitive_dict(kwargs.pop("headers", {}) or {})
+        _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
+
+        restype: Literal["hardlink"] = kwargs.pop("restype", _params.pop("restype", "hardlink"))
+        file_type_constant: Literal["file"] = kwargs.pop("file_type_constant", _headers.pop("x-ms-type", "file"))
+        cls: ClsType[None] = kwargs.pop("cls", None)
+
+        _lease_id = None
+        if lease_access_conditions is not None:
+            _lease_id = lease_access_conditions.lease_id
+
+        _request = build_create_hard_link_request(
+            url=self._config.url,
+            target_file=target_file,
+            timeout=timeout,
+            request_id_parameter=request_id_parameter,
+            lease_id=_lease_id,
+            file_request_intent=self._config.file_request_intent,
+            restype=restype,
+            file_type_constant=file_type_constant,
+            version=self._config.version,
+            headers=_headers,
+            params=_params,
+        )
+        _request.url = self._client.format_url(_request.url)
+
+        _stream = False
+        pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
+            _request, stream=_stream, **kwargs
+        )
+
+        response = pipeline_response.http_response
+
+        if response.status_code not in [201]:
+            map_error(status_code=response.status_code, response=response, error_map=error_map)
+            error = self._deserialize.failsafe_deserialize(_models.StorageError, pipeline_response)
+            raise HttpResponseError(response=response, model=error)
+
+        response_headers = {}
+        response_headers["ETag"] = self._deserialize("str", response.headers.get("ETag"))
+        response_headers["Last-Modified"] = self._deserialize("rfc-1123", response.headers.get("Last-Modified"))
+        response_headers["x-ms-request-id"] = self._deserialize("str", response.headers.get("x-ms-request-id"))
+        response_headers["x-ms-version"] = self._deserialize("str", response.headers.get("x-ms-version"))
+        response_headers["Date"] = self._deserialize("rfc-1123", response.headers.get("Date"))
+        response_headers["x-ms-file-creation-time"] = self._deserialize(
+            "str", response.headers.get("x-ms-file-creation-time")
+        )
+        response_headers["x-ms-file-last-write-time"] = self._deserialize(
+            "str", response.headers.get("x-ms-file-last-write-time")
+        )
+        response_headers["x-ms-file-change-time"] = self._deserialize(
+            "str", response.headers.get("x-ms-file-change-time")
+        )
+        response_headers["x-ms-file-id"] = self._deserialize("str", response.headers.get("x-ms-file-id"))
+        response_headers["x-ms-file-parent-id"] = self._deserialize("str", response.headers.get("x-ms-file-parent-id"))
+        response_headers["x-ms-client-request-id"] = self._deserialize(
+            "str", response.headers.get("x-ms-client-request-id")
+        )
+        response_headers["x-ms-link-count"] = self._deserialize("int", response.headers.get("x-ms-link-count"))
+        response_headers["x-ms-mode"] = self._deserialize("str", response.headers.get("x-ms-mode"))
+        response_headers["x-ms-owner"] = self._deserialize("str", response.headers.get("x-ms-owner"))
+        response_headers["x-ms-group"] = self._deserialize("str", response.headers.get("x-ms-group"))
+        response_headers["x-ms-file-file-type"] = self._deserialize("str", response.headers.get("x-ms-file-file-type"))
+
+        if cls:
+            return cls(pipeline_response, None, response_headers)  # type: ignore

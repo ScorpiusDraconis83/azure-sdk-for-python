@@ -8,10 +8,25 @@ from typing import NoReturn, TYPE_CHECKING
 from xml.etree.ElementTree import Element
 
 from azure.core.pipeline.policies import ContentDecodePolicy
-from azure.core.exceptions import HttpResponseError, DecodeError, ResourceModifiedError, ClientAuthenticationError, \
-    ResourceNotFoundError, ResourceExistsError
-from ._models import FileProperties, DirectoryProperties, LeaseProperties, DeletedPathProperties, StaticWebsite, \
-    RetentionPolicy, Metrics, AnalyticsLogging, PathProperties  # pylint: disable=protected-access
+from azure.core.exceptions import (
+    HttpResponseError,
+    DecodeError,
+    ResourceModifiedError,
+    ClientAuthenticationError,
+    ResourceNotFoundError,
+    ResourceExistsError
+)
+from ._models import (
+    FileProperties,
+    DirectoryProperties,
+    LeaseProperties,
+    DeletedPathProperties,
+    StaticWebsite,
+    RetentionPolicy,
+    Metrics,
+    AnalyticsLogging,
+    PathProperties
+)
 from ._shared.models import StorageErrorCode
 from ._shared.response_handlers import deserialize_metadata
 
@@ -28,6 +43,7 @@ def deserialize_dir_properties(response, obj, headers):
         owner=response.headers.get('x-ms-owner'),
         group=response.headers.get('x-ms-group'),
         permissions=response.headers.get('x-ms-permissions'),
+        acl=response.headers.get('x-ms-acl'),
         **headers
     )
     return dir_properties
@@ -42,6 +58,7 @@ def deserialize_file_properties(response, obj, headers):
         owner=response.headers.get('x-ms-owner'),
         group=response.headers.get('x-ms-group'),
         permissions=response.headers.get('x-ms-permissions'),
+        acl=response.headers.get('x-ms-acl'),
         **headers
     )
     if 'Content-Range' in headers:
@@ -108,6 +125,7 @@ def from_blob_properties(blob_properties, **additional_args):
     file_props.owner = additional_args.pop('owner', None)
     file_props.group = additional_args.pop('group', None)
     file_props.permissions = additional_args.pop('permissions', None)
+    file_props.acl = additional_args.pop('acl', None)
 
     return file_props
 
@@ -146,7 +164,7 @@ def process_storage_error(storage_error) -> NoReturn:  # pylint:disable=too-many
             error_dict = error_body.get('error', {})
         elif not error_code:
             _LOGGER.warning(
-                'Unexpected return type % from ContentDecodePolicy.deserialize_from_http_generics.', type(error_body))
+                'Unexpected return type %s from ContentDecodePolicy.deserialize_from_http_generics.', type(error_body))
             error_dict = {'message': str(error_body)}
 
         # If we extracted from a Json or XML response

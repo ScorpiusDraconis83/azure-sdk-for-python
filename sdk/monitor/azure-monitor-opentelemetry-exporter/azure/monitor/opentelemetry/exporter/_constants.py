@@ -2,17 +2,28 @@
 # Licensed under the MIT License.
 # cSpell:disable
 
+from opentelemetry.semconv.metrics import MetricInstruments
+
 # Environment variables
 
 _APPLICATIONINSIGHTS_STATSBEAT_DISABLED_ALL = "APPLICATIONINSIGHTS_STATSBEAT_DISABLED_ALL"
-_APPLICATIONINSIGHTS_OPENTELEMETRY_RESOURCE_METRIC_DISABLED = \
+_APPLICATIONINSIGHTS_OPENTELEMETRY_RESOURCE_METRIC_DISABLED = (
     "APPLICATIONINSIGHTS_OPENTELEMETRY_RESOURCE_METRIC_DISABLED"
+)
+_APPLICATIONINSIGHTS_METRIC_NAMESPACE_OPT_IN = "APPLICATIONINSIGHTS_METRIC_NAMESPACE_OPT_IN"
+
+# RPs
+
+_WEBSITE_SITE_NAME = "WEBSITE_SITE_NAME"
+_WEBSITE_HOME_STAMPNAME = "WEBSITE_HOME_STAMPNAME"
+_WEBSITE_HOSTNAME = "WEBSITE_HOSTNAME"
+_FUNCTIONS_WORKER_RUNTIME = "FUNCTIONS_WORKER_RUNTIME"
+_PYTHON_ENABLE_OPENTELEMETRY = "PYTHON_ENABLE_OPENTELEMETRY"
+_AKS_ARM_NAMESPACE_ID = "AKS_ARM_NAMESPACE_ID"
 
 # Network
 
-_INVALID_STATUS_CODES = (
-    400, # Invalid Instrumentation Key/data
-)
+_INVALID_STATUS_CODES = (400,)  # Invalid Instrumentation Key/data
 
 _REDIRECT_STATUS_CODES = (
     307,  # Temporary redirect
@@ -20,7 +31,6 @@ _REDIRECT_STATUS_CODES = (
 )
 
 _RETRYABLE_STATUS_CODES = (
-    206,  # Partial success
     401,  # Unauthorized
     403,  # Forbidden
     408,  # Request Timeout
@@ -74,6 +84,28 @@ _STATSBEAT_METRIC_NAME_MAPPINGS = dict(
         _REQ_THROTTLE_NAME,
     ]
 )
+_APPLICATIONINSIGHTS_STATS_CONNECTION_STRING_ENV_NAME = "APPLICATIONINSIGHTS_STATS_CONNECTION_STRING"
+_APPLICATIONINSIGHTS_STATS_SHORT_EXPORT_INTERVAL_ENV_NAME = "APPLICATIONINSIGHTS_STATS_SHORT_EXPORT_INTERVAL"
+_APPLICATIONINSIGHTS_STATS_LONG_EXPORT_INTERVAL_ENV_NAME = "APPLICATIONINSIGHTS_STATS_LONG_EXPORT_INTERVAL"
+# pylint: disable=line-too-long
+_DEFAULT_NON_EU_STATS_CONNECTION_STRING = "InstrumentationKey=c4a29126-a7cb-47e5-b348-11414998b11e;IngestionEndpoint=https://westus-0.in.applicationinsights.azure.com/"
+_DEFAULT_EU_STATS_CONNECTION_STRING = "InstrumentationKey=7dc56bab-3c0c-4e9f-9ebb-d1acadee8d0f;IngestionEndpoint=https://westeurope-5.in.applicationinsights.azure.com/"
+_DEFAULT_STATS_SHORT_EXPORT_INTERVAL = 900  # 15 minutes
+_DEFAULT_STATS_LONG_EXPORT_INTERVAL = 86400  # 24 hours
+_EU_ENDPOINTS = [
+    "westeurope",
+    "northeurope",
+    "francecentral",
+    "francesouth",
+    "germanywestcentral",
+    "norwayeast",
+    "norwaywest",
+    "swedencentral",
+    "switzerlandnorth",
+    "switzerlandwest",
+    "uksouth",
+    "ukwest",
+]
 
 # Instrumentations
 
@@ -123,8 +155,15 @@ _INSTRUMENTATIONS_LIST = [
     "urllib",
     "urllib3",
     _AZURE_SDK_OPENTELEMETRY_NAME,
+    # Instrumentations below this line have not been added to statsbeat report yet
     "cassandra",
     "tortoiseorm",
+    "aiohttp-server",
+    "asyncio",
+    "mysqlclient",
+    "psycopg",
+    "threading",
+    "wsgi",
 ]
 
 _INSTRUMENTATIONS_BIT_MAP = {_INSTRUMENTATIONS_LIST[i]: _BASE**i for i in range(len(_INSTRUMENTATIONS_LIST))}
@@ -132,19 +171,19 @@ _INSTRUMENTATIONS_BIT_MAP = {_INSTRUMENTATIONS_LIST[i]: _BASE**i for i in range(
 # Standard metrics
 
 # List of metric instrument names that are autocollected from instrumentations
-# TODO: switch to semconv constants
 _AUTOCOLLECTED_INSTRUMENT_NAMES = (
-    "http.server.duration",
-    "http.server.request.size",
-    "http.server.response.size",
-    "http.server.active_requests",
-    "http.client.duration",
-    "http.client.request.size",
-    "http.client.response.size",
+    MetricInstruments.HTTP_SERVER_DURATION,
+    MetricInstruments.HTTP_SERVER_REQUEST_SIZE,
+    MetricInstruments.HTTP_SERVER_RESPONSE_SIZE,
+    MetricInstruments.HTTP_SERVER_ACTIVE_REQUESTS,
+    MetricInstruments.HTTP_CLIENT_DURATION,
+    MetricInstruments.HTTP_CLIENT_REQUEST_SIZE,
+    MetricInstruments.HTTP_CLIENT_RESPONSE_SIZE,
 )
 
 # Temporary solution for checking which instrumentations support metric collection
 _INSTRUMENTATION_SUPPORTING_METRICS_LIST = (
+    "opentelemetry.instrumentation.asgi",
     "opentelemetry.instrumentation.django",
     "opentelemetry.instrumentation.falcon",
     "opentelemetry.instrumentation.fastapi",
@@ -162,5 +201,9 @@ _INSTRUMENTATION_SUPPORTING_METRICS_LIST = (
 # sampleRate
 
 _SAMPLE_RATE_KEY = "_MS.sampleRate"
+
+# AAD Auth
+
+_DEFAULT_AAD_SCOPE = "https://monitor.azure.com//.default"
 
 # cSpell:disable

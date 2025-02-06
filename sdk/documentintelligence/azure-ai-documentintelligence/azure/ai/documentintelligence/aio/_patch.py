@@ -15,9 +15,10 @@ from ._client import (
     DocumentIntelligenceClient as DIClientGenerated,
     DocumentIntelligenceAdministrationClient as DIAClientGenerated,
 )
+from ..aio._operations._patch import AsyncAnalyzeDocumentLROPoller
 
 
-class DocumentIntelligenceClient(DIClientGenerated):  # pylint: disable=client-accepts-api-version-keyword
+class DocumentIntelligenceClient(DIClientGenerated):
     """DocumentIntelligenceClient.
 
     :param endpoint: The Document Intelligence service endpoint. Required.
@@ -27,7 +28,7 @@ class DocumentIntelligenceClient(DIClientGenerated):  # pylint: disable=client-a
     :type credential: ~azure.core.credentials.AzureKeyCredential or
      ~azure.core.credentials_async.AsyncTokenCredential
     :keyword api_version: The API version to use for this operation. Default value is
-     "2023-10-31-preview". Note that overriding this default value may result in unsupported
+     "2024-11-30". Note that overriding this default value may result in unsupported
      behavior.
     :paramtype api_version: str
     """
@@ -38,8 +39,8 @@ class DocumentIntelligenceClient(DIClientGenerated):  # pylint: disable=client-a
         credential: Union[AzureKeyCredential, AsyncTokenCredential],
         **kwargs: Any,
     ) -> None:
-        # The default polling interval should be 5 seconds.
-        polling_interval = kwargs.pop("polling_interval", 5)
+        # Patch the default polling interval to be 1s.
+        polling_interval = kwargs.pop("polling_interval", 1)
         super().__init__(
             endpoint=endpoint,
             credential=credential,
@@ -48,9 +49,7 @@ class DocumentIntelligenceClient(DIClientGenerated):  # pylint: disable=client-a
         )
 
 
-class DocumentIntelligenceAdministrationClient(
-    DIAClientGenerated
-):  # pylint: disable=client-accepts-api-version-keyword
+class DocumentIntelligenceAdministrationClient(DIAClientGenerated):
     """DocumentIntelligenceAdministrationClient.
 
     :param endpoint: The Document Intelligence service endpoint. Required.
@@ -60,7 +59,7 @@ class DocumentIntelligenceAdministrationClient(
     :type credential: ~azure.core.credentials.AzureKeyCredential or
      ~azure.core.credentials_async.AsyncTokenCredential
     :keyword api_version: The API version to use for this operation. Default value is
-     "2023-10-31-preview". Note that overriding this default value may result in unsupported
+     "2024-11-30". Note that overriding this default value may result in unsupported
      behavior.
     :paramtype api_version: str
     """
@@ -71,8 +70,8 @@ class DocumentIntelligenceAdministrationClient(
         credential: Union[AzureKeyCredential, AsyncTokenCredential],
         **kwargs: Any,
     ) -> None:
-        # The default polling interval should be 5 seconds.
-        polling_interval = kwargs.pop("polling_interval", 5)
+        # Patch the default polling interval to be 1s.
+        polling_interval = kwargs.pop("polling_interval", 1)
         super().__init__(
             endpoint=endpoint,
             credential=credential,
@@ -84,6 +83,7 @@ class DocumentIntelligenceAdministrationClient(
 __all__: List[str] = [
     "DocumentIntelligenceClient",
     "DocumentIntelligenceAdministrationClient",
+    "AsyncAnalyzeDocumentLROPoller",
 ]  # Add all objects you want publicly available to users at this package level
 
 

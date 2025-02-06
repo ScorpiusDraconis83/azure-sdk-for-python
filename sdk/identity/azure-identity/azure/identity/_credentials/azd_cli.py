@@ -5,6 +5,7 @@
 
 from datetime import datetime
 import json
+import logging
 import os
 import re
 import shutil
@@ -12,19 +13,22 @@ import subprocess
 import sys
 from typing import Any, Dict, List, Optional
 
-from azure.core.credentials import AccessToken
+from azure.core.credentials import AccessToken, AccessTokenInfo, TokenRequestOptions
 from azure.core.exceptions import ClientAuthenticationError
 
 from .. import CredentialUnavailableError
 from .._internal import resolve_tenant, within_dac, validate_tenant_id, validate_scope
 from .._internal.decorators import log_get_token
 
+
+_LOGGER = logging.getLogger(__name__)
+
 CLI_NOT_FOUND = (
     "Azure Developer CLI could not be found. "
     "Please visit https://aka.ms/azure-dev for installation instructions and then,"
     "once installed, authenticate to your Azure account using 'azd auth login'."
 )
-COMMAND_LINE = "azd auth token --output json --scope {}"
+COMMAND_LINE = ["auth", "token", "--output", "json"]
 EXECUTABLE_NAME = "azd"
 NOT_LOGGED_IN = "Please run 'azd auth login' from a command prompt to authenticate before using this credential."
 
@@ -35,7 +39,7 @@ class AzureDeveloperCliCredential:
     Azure Developer CLI is a command-line interface tool that allows developers to create, manage, and deploy
     resources in Azure. It's built on top of the Azure CLI and provides additional functionality specific
     to Azure developers. It allows users to authenticate as a user and/or a service principal against
-    `Microsoft Entra ID <"https://learn.microsoft.com/azure/active-directory/fundamentals/">`__.
+    `Microsoft Entra ID <"https://learn.microsoft.com/entra/fundamentals/">`__.
     The AzureDeveloperCliCredential authenticates in a development environment and acquires a token on behalf of
     the logged-in user or service principal in Azure Developer CLI. It acts as the Azure Developer CLI logged-in user
     or service principal and executes an Azure CLI command underneath to authenticate the application against
@@ -91,7 +95,7 @@ class AzureDeveloperCliCredential:
     def close(self) -> None:
         """Calling this method is unnecessary."""
 
-    @log_get_token("AzureDeveloperCliCredential")
+    @log_get_token
     def get_token(
         self,
         *scopes: str,
@@ -106,7 +110,7 @@ class AzureDeveloperCliCredential:
 
         :param str scopes: desired scope for the access token. This credential allows only one scope per request.
             For more information about scopes, see
-            https://learn.microsoft.com/azure/active-directory/develop/scopes-oidc.
+            https://learn.microsoft.com/entra/identity-platform/scopes-oidc.
         :keyword str claims: not used by this credential; any value provided will be ignored.
         :keyword str tenant_id: optional tenant to include in the token request.
 
@@ -118,17 +122,51 @@ class AzureDeveloperCliCredential:
         :raises ~azure.core.exceptions.ClientAuthenticationError: the credential invoked
           the Azure Developer CLI but didn't receive an access token.
         """
+        options: TokenRequestOptions = {}
+        if tenant_id:
+            options["tenant_id"] = tenant_id
 
+        token_info = self._get_token_base(*scopes, options=options, **kwargs)
+        return AccessToken(token_info.token, token_info.expires_on)
+
+    @log_get_token
+    def get_token_info(self, *scopes: str, options: Optional[TokenRequestOptions] = None) -> AccessTokenInfo:
+        """Request an access token for `scopes`.
+
+        This is an alternative to `get_token` to enable certain scenarios that require additional properties
+        on the token. This method is called automatically by Azure SDK clients. Applications calling this method
+        directly must also handle token caching because this credential doesn't cache the tokens it acquires.
+
+        :param str scopes: desired scopes for the access token. This method requires at least one scope.
+            For more information about scopes, see https://learn.microsoft.com/entra/identity-platform/scopes-oidc.
+        :keyword options: A dictionary of options for the token request. Unknown options will be ignored. Optional.
+        :paramtype options: ~azure.core.credentials.TokenRequestOptions
+
+        :rtype: AccessTokenInfo
+        :return: An AccessTokenInfo instance containing information about the token.
+
+        :raises ~azure.identity.CredentialUnavailableError: the credential was unable to invoke
+          the Azure Developer CLI.
+        :raises ~azure.core.exceptions.ClientAuthenticationError: the credential invoked
+          the Azure Developer CLI but didn't receive an access token.
+        """
+        return self._get_token_base(*scopes, options=options)
+
+    def _get_token_base(
+        self, *scopes: str, options: Optional[TokenRequestOptions] = None, **kwargs: Any
+    ) -> AccessTokenInfo:
         if not scopes:
             raise ValueError("Missing scope in request. \n")
 
+        tenant_id = options.get("tenant_id") if options else None
         if tenant_id:
             validate_tenant_id(tenant_id)
         for scope in scopes:
             validate_scope(scope)
 
-        commandString = " --scope ".join(scopes)
-        command = COMMAND_LINE.format(commandString)
+        command_args = COMMAND_LINE.copy()
+        for scope in scopes:
+            command_args += ["--scope", scope]
         tenant = resolve_tenant(
             default_tenant=self.tenant_id,
             tenant_id=tenant_id,
@@ -136,8 +174,8 @@ class AzureDeveloperCliCredential:
             **kwargs,
         )
         if tenant:
-            command += " --tenant-id " + tenant
-        output = _run_command(command, self._process_timeout)
+            command_args += ["--tenant-id", tenant]
+        output = _run_command(command_args, self._process_timeout)
 
         token = parse_token(output)
         if not token:
@@ -154,7 +192,7 @@ class AzureDeveloperCliCredential:
         return token
 
 
-def parse_token(output: str) -> Optional[AccessToken]:
+def parse_token(output: str) -> Optional[AccessTokenInfo]:
     """Parse to an AccessToken.
 
     In particular, convert the "expiresOn" value to epoch seconds. This value is a naive local datetime as returned by
@@ -169,7 +207,7 @@ def parse_token(output: str) -> Optional[AccessToken]:
         dt = datetime.strptime(token["expiresOn"], "%Y-%m-%dT%H:%M:%SZ")
         expires_on = dt.timestamp()
 
-        return AccessToken(token["token"], int(expires_on))
+        return AccessTokenInfo(token["token"], int(expires_on))
     except (KeyError, ValueError):
         return None
 
@@ -203,15 +241,13 @@ def sanitize_output(output: str) -> str:
     return re.sub(r"\"token\": \"(.*?)(\"|$)", "****", output)
 
 
-def _run_command(command: str, timeout: int) -> str:
+def _run_command(command_args: List[str], timeout: int) -> str:
     # Ensure executable exists in PATH first. This avoids a subprocess call that would fail anyway.
-    if shutil.which(EXECUTABLE_NAME) is None:
+    azd_path = shutil.which(EXECUTABLE_NAME)
+    if not azd_path:
         raise CredentialUnavailableError(message=CLI_NOT_FOUND)
 
-    if sys.platform.startswith("win"):
-        args = ["cmd", "/c", command]
-    else:
-        args = ["/bin/sh", "-c", command]
+    args = [azd_path] + command_args
     try:
         working_directory = get_safe_working_dir()
 
@@ -224,13 +260,16 @@ def _run_command(command: str, timeout: int) -> str:
             "timeout": timeout,
         }
 
+        _LOGGER.debug("Executing subprocess with the following arguments %s", args)
         return subprocess.check_output(args, **kwargs)
     except subprocess.CalledProcessError as ex:
         # non-zero return from shell
         # Fallback check in case the executable is not found while executing subprocess.
-        if ex.returncode == 127 or ex.stderr.startswith("'azd' is not recognized"):
+        if ex.returncode == 127 or (ex.stderr is not None and ex.stderr.startswith("'azd' is not recognized")):
             raise CredentialUnavailableError(message=CLI_NOT_FOUND) from ex
-        if "not logged in, run `azd auth login` to login" in ex.stderr and "AADSTS" not in ex.stderr:
+        if ex.stderr is not None and (
+            "not logged in, run `azd auth login` to login" in ex.stderr and "AADSTS" not in ex.stderr
+        ):
             raise CredentialUnavailableError(message=NOT_LOGGED_IN) from ex
 
         # return code is from the CLI -> propagate its output
@@ -245,7 +284,7 @@ def _run_command(command: str, timeout: int) -> str:
         # failed to execute 'cmd' or '/bin/sh'
         error = CredentialUnavailableError(message="Failed to execute '{}'".format(args[0]))
         raise error from ex
-    except Exception as ex:  # pylint:disable=broad-except
+    except Exception as ex:
         # could be a timeout, for example
         error = CredentialUnavailableError(message="Failed to invoke the Azure Developer CLI")
         raise error from ex

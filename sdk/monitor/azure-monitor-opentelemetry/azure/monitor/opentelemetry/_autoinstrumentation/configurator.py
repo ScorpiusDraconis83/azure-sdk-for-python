@@ -5,13 +5,28 @@
 # --------------------------------------------------------------------------
 
 
+from os import environ
 from warnings import warn
 
+from opentelemetry.environment_variables import (
+    OTEL_LOGS_EXPORTER,
+    OTEL_METRICS_EXPORTER,
+    OTEL_TRACES_EXPORTER,
+)
 from opentelemetry.sdk._configuration import _OTelSDKConfigurator
 
-from azure.monitor.opentelemetry._constants import (
+from azure.monitor.opentelemetry.exporter import (  # pylint: disable=import-error,no-name-in-module
+    ApplicationInsightsSampler,
+)
+from azure.monitor.opentelemetry.exporter._utils import (  # pylint: disable=import-error,no-name-in-module
     _is_attach_enabled,
+)
+from azure.monitor.opentelemetry._constants import (
     _PREVIEW_ENTRY_POINT_WARNING,
+    LOG_EXPORTER_NAMES_ARG,
+    METRIC_EXPORTER_NAMES_ARG,
+    SAMPLER_ARG,
+    TRACE_EXPORTER_NAMES_ARG,
 )
 from azure.monitor.opentelemetry._diagnostics.diagnostic_logging import (
     AzureDiagnosticLogging,
@@ -28,14 +43,25 @@ class AzureMonitorConfigurator(_OTelSDKConfigurator):
         if not _is_attach_enabled():
             warn(_PREVIEW_ENTRY_POINT_WARNING)
         try:
+            if environ.get(OTEL_TRACES_EXPORTER, "").lower().strip() != "none":
+                kwargs.setdefault(TRACE_EXPORTER_NAMES_ARG, ["azure_monitor_opentelemetry_exporter"])
+                try:
+                    sample_rate = float(environ.get("OTEL_TRACES_SAMPLER_ARG", 1.0))
+                except ValueError:
+                    sample_rate = 1.0
+                kwargs.setdefault(SAMPLER_ARG, ApplicationInsightsSampler(sample_rate))
+            if environ.get(OTEL_METRICS_EXPORTER, "").lower().strip() != "none":
+                kwargs.setdefault(METRIC_EXPORTER_NAMES_ARG, ["azure_monitor_opentelemetry_exporter"])
+            if environ.get(OTEL_LOGS_EXPORTER, "").lower().strip() != "none":
+                kwargs.setdefault(LOG_EXPORTER_NAMES_ARG, ["azure_monitor_opentelemetry_exporter"])
+            # As of OTel SDK 1.25.0, exporters passed as kwargs will be added to those specified in env vars.
             super()._configure(**kwargs)
             AzureStatusLogger.log_status(True)
             AzureDiagnosticLogging.info(
-                "Azure Monitor Configurator configured successfully.",
-                _ATTACH_SUCCESS_CONFIGURATOR
+                "Azure Monitor Configurator configured successfully.", _ATTACH_SUCCESS_CONFIGURATOR
             )
         except Exception as e:
-            AzureDiagnosticLogging.error(
+            AzureDiagnosticLogging.error(  # pylint: disable=C
                 "Azure Monitor Configurator failed during configuration: %s" % str(e),
                 _ATTACH_FAILURE_CONFIGURATOR,
             )

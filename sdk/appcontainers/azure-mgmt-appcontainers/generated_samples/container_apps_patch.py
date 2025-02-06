@@ -7,6 +7,7 @@
 # --------------------------------------------------------------------------
 
 from azure.identity import DefaultAzureCredential
+
 from azure.mgmt.appcontainers import ContainerAppsAPIClient
 
 """
@@ -78,6 +79,18 @@ def main():
                         "traffic": [{"label": "production", "revisionName": "testcontainerApp0-ab1234", "weight": 100}],
                     },
                     "maxInactiveRevisions": 10,
+                    "runtime": {
+                        "dotnet": {"autoConfigureDataProtection": True},
+                        "java": {
+                            "enableMetrics": True,
+                            "javaAgent": {
+                                "enabled": True,
+                                "logging": {
+                                    "loggerSettings": [{"level": "debug", "logger": "org.springframework.boot"}]
+                                },
+                            },
+                        },
+                    },
                     "service": {"type": "redis"},
                 },
                 "template": {
@@ -107,8 +120,10 @@ def main():
                         }
                     ],
                     "scale": {
+                        "cooldownPeriod": 350,
                         "maxReplicas": 5,
                         "minReplicas": 1,
+                        "pollingInterval": 35,
                         "rules": [
                             {
                                 "custom": {"metadata": {"concurrentRequests": "50"}, "type": "http"},
@@ -118,6 +133,8 @@ def main():
                     },
                     "serviceBinds": [
                         {
+                            "clientType": "dotnet",
+                            "customizedKeys": {"DesiredKey": "defaultKey"},
                             "name": "service",
                             "serviceId": "/subscriptions/34adfa4f-cedf-4dc0-ba29-b6d1a69ab345/resourceGroups/rg/providers/Microsoft.App/containerApps/service",
                         }
@@ -130,6 +147,6 @@ def main():
     print(response)
 
 
-# x-ms-original-file: specification/app/resource-manager/Microsoft.App/stable/2023-05-01/examples/ContainerApps_Patch.json
+# x-ms-original-file: specification/app/resource-manager/Microsoft.App/preview/2024-08-02-preview/examples/ContainerApps_Patch.json
 if __name__ == "__main__":
     main()

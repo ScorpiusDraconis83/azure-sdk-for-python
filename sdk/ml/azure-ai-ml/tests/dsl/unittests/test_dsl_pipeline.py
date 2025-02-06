@@ -8,6 +8,9 @@ from unittest.mock import patch
 
 import pydash
 import pytest
+from test_configs.dsl_pipeline import data_binding_expression
+from test_utilities.utils import assert_job_cancel, omit_with_wildcard, prepare_dsl_curated
+
 from azure.ai.ml import (
     AmlTokenConfiguration,
     Input,
@@ -50,8 +53,6 @@ from azure.ai.ml.exceptions import (
     UserErrorException,
     ValidationException,
 )
-from test_configs.dsl_pipeline import data_binding_expression
-from test_utilities.utils import assert_job_cancel, omit_with_wildcard, prepare_dsl_curated
 
 from .._util import _DSL_TIMEOUT_SECOND, get_predecessors
 
@@ -920,7 +921,6 @@ class TestDSLPipeline:
         omit_fields = ["componentId", "properties"]
         assert pydash.omit(component_from_dsl._to_rest_object(), *omit_fields) == expected_component
         assert pydash.omit(component_from_sdk._to_rest_object(), *omit_fields) == expected_component
-        expected_component.update({"_source": "REMOTE.WORKSPACE.COMPONENT"})
         assert pydash.omit(component_from_rest._to_rest_object(), *omit_fields) == expected_component
         expected_component.update({"_source": "YAML.JOB"})
         assert pydash.omit(component_from_yaml._to_rest_object(), *omit_fields) == expected_component
@@ -959,7 +959,7 @@ class TestDSLPipeline:
             side_effect=mock_arm_id,
         ):
             with mock.patch(
-                "azure.ai.ml._restclient.v2022_10_01.operations.ComponentVersionsOperations.create_or_update",
+                "azure.ai.ml._restclient.v2024_01_01_preview.operations.ComponentVersionsOperations.create_or_update",
                 side_effect=mock_create,
             ):
                 with mock.patch.object(Component, "_from_rest_object", side_effect=mock_from_rest):
@@ -1982,7 +1982,7 @@ class TestDSLPipeline:
 
         assert actual_dict["jobs"] == {
             "node1": {
-                "identity": {"type": "aml_token"},
+                "identity": {"identity_type": "AMLToken"},
                 "inputs": {
                     "component_in_number": {"job_input_type": "literal", "value": "1"},
                     "component_in_path": {"job_input_type": "literal", "value": "${{parent.inputs.component_in_path}}"},
@@ -1991,7 +1991,7 @@ class TestDSLPipeline:
                 "type": "command",
             },
             "node2": {
-                "identity": {"type": "user_identity"},
+                "identity": {"identity_type": "UserIdentity"},
                 "inputs": {
                     "component_in_number": {"job_input_type": "literal", "value": "1"},
                     "component_in_path": {"job_input_type": "literal", "value": "${{parent.inputs.component_in_path}}"},
@@ -2000,7 +2000,7 @@ class TestDSLPipeline:
                 "type": "command",
             },
             "node3": {
-                "identity": {"type": "managed_identity"},
+                "identity": {"identity_type": "Managed"},
                 "inputs": {
                     "component_in_number": {"job_input_type": "literal", "value": "1"},
                     "component_in_path": {"job_input_type": "literal", "value": "${{parent.inputs.component_in_path}}"},
@@ -2267,9 +2267,9 @@ class TestDSLPipeline:
         @dsl.pipeline(description="submit a pipeline with spark job")
         def spark_pipeline_from_yaml(iris_data):
             add_greeting_column = add_greeting_column_func(file_input=iris_data)
-            add_greeting_column.resources = {"instance_type": "Standard_E8S_V3", "runtime_version": "3.2.0"}
+            add_greeting_column.resources = {"instance_type": "Standard_E8S_V3", "runtime_version": "3.3.0"}
             count_by_row = count_by_row_func(file_input=iris_data)
-            count_by_row.resources = {"instance_type": "Standard_E8S_V3", "runtime_version": "3.2.0"}
+            count_by_row.resources = {"instance_type": "Standard_E8S_V3", "runtime_version": "3.3.0"}
             count_by_row.identity = {"type": "managed"}
 
             return {"output": count_by_row.outputs.output}
@@ -2319,7 +2319,7 @@ class TestDSLPipeline:
             "jobs": {
                 "add_greeting_column": {
                     "type": "spark",
-                    "resources": {"instance_type": "Standard_E8S_V3", "runtime_version": "3.2.0"},
+                    "resources": {"instance_type": "Standard_E8S_V3", "runtime_version": "3.3.0"},
                     "entry": {"file": "add_greeting_column.py", "spark_job_entry_type": "SparkJobPythonEntry"},
                     "py_files": ["utils.zip"],
                     "files": ["my_files.txt"],
@@ -2355,7 +2355,7 @@ class TestDSLPipeline:
                     "jars": ["scalaproj.jar"],
                     "name": "count_by_row",
                     "outputs": {"output": {"type": "literal", "value": "${{parent.outputs.output}}"}},
-                    "resources": {"instance_type": "Standard_E8S_V3", "runtime_version": "3.2.0"},
+                    "resources": {"instance_type": "Standard_E8S_V3", "runtime_version": "3.3.0"},
                     "type": "spark",
                 },
             },

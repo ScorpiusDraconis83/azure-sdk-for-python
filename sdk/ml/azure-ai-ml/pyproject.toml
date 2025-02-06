@@ -2,23 +2,16 @@
 mypy = true
 pyright = false
 type_check_samples = false
-verifytypes = false
 pylint = true
-
-[tool.interrogate]
-fail-under = 75
-verbose = 2
-ignore-module = true
-exclude = ["setup.py", "tests", "azure/ai/ml/_restclient", "scripts", "samples"]
-ignore-init-method = true  # constructor docstrings are placed in the class docstring, not the init docstring 
-ignore-private = true
-ignore-semiprivate = true
-ignore-magic = true
+mindependency = false
+latestdependency = false
+black = true
 
 [tool.isort]
 profile = "black"
 line_length = 120
 known_first_party = ["azure"]
+filter_files=true
 extend_skip_glob = [
   "*/_vendor/*",
   "*/_generated/*",
@@ -27,7 +20,7 @@ extend_skip_glob = [
   "*/.tox/*",
 ]
 
-[tool.mypy] 
+[tool.mypy]
 python_version = "3.10"
 exclude = [
   "azure/ai/ml/_restclient",
@@ -35,29 +28,13 @@ exclude = [
   "azure/ai/ml/_schema/",
   "azure/ai/ml/_arm_deployments/",
   "tests",
+  "downloaded",
   "setup.py",
-  "samples",
-  "azure/ai/ml/_artifacts/",
-  "azure/ai/ml/_file_utils/",
-  "azure/ai/ml/_local_endpoints/",
-  "azure/ai/ml/_logging/",
-  "azure/ai/ml/_telemetry/",
   "azure/ai/ml/_utils",
-  "azure/ai/ml/constants/",
-  "azure/ai/ml/data_transfer/",
-  "azure/ai/ml/dsl",
-  "azure/ai/ml/entities/",
-  "azure/ai/ml/identity/",
-  "azure/ai/ml/operations/",
-  "azure/ai/ml/parallel/",
-  "azure/ai/ml/sweep/",
-  "azure/ai/ml/_azure_environments.py",
   "azure/ai/ml/exceptions.py",
-  "azure/ai/ml/_scope_dependent_operations.py",
-  "azure/ai/ml/_ml_client.py",
   "azure/ai/ml/_exception_helper.py",
-]   
-warn_unused_configs = true 
+]
+warn_unused_configs = true
 follow_imports = "skip"
 ignore_missing_imports = true
 follow_imports_for_stubs = false

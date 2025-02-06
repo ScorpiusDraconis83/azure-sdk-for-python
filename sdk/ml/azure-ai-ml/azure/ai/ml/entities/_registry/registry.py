@@ -2,11 +2,11 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # ---------------------------------------------------------
 
-# pylint: disable=too-many-instance-attributes,protected-access
+# pylint: disable=protected-access
 
 from os import PathLike
 from pathlib import Path
-from typing import IO, AnyStr, Dict, List, Optional, Union
+from typing import IO, Any, AnyStr, Dict, List, Optional, Union
 
 from azure.ai.ml._restclient.v2022_10_01_preview.models import ManagedServiceIdentity as RestManagedServiceIdentity
 from azure.ai.ml._restclient.v2022_10_01_preview.models import (
@@ -41,8 +41,8 @@ class Registry(Resource):
         intellectual_property: Optional[IntellectualProperty] = None,
         managed_resource_group: Optional[str] = None,
         mlflow_registry_uri: Optional[str] = None,
-        replication_locations: List[RegistryRegionDetails],
-        **kwargs,
+        replication_locations: Optional[List[RegistryRegionDetails]],
+        **kwargs: Any,
     ):
         """Azure ML registry.
 
@@ -86,7 +86,7 @@ class Registry(Resource):
     def dump(
         self,
         dest: Union[str, PathLike, IO[AnyStr]],
-        **kwargs,  # pylint: disable=unused-argument
+        **kwargs: Any,
     ) -> None:
         """Dump the registry spec into a file in yaml format.
 
@@ -103,7 +103,6 @@ class Registry(Resource):
         # JIT import to avoid experimental warnings on unrelated calls
         from azure.ai.ml._schema.registry.registry import RegistrySchema
 
-        # pylint: disable=no-member
         schema = RegistrySchema(context={BASE_PATH_CONTEXT_KEY: "./"})
 
         # Grab the first acr account of the first region and set that
@@ -115,9 +114,10 @@ class Registry(Resource):
         # limited, and would probably just confuse most users.
         if self.replication_locations and len(self.replication_locations) > 0:
             if self.replication_locations[0].acr_config and len(self.replication_locations[0].acr_config) > 0:
-                self.container_registry = self.replication_locations[0].acr_config[0]
+                self.container_registry = self.replication_locations[0].acr_config[0]  # type: ignore[assignment]
 
-        return schema.dump(self)
+        res: dict = schema.dump(self)
+        return res
 
     @classmethod
     def _load(
@@ -125,7 +125,7 @@ class Registry(Resource):
         data: Optional[Dict] = None,
         yaml_path: Optional[Union[PathLike, str]] = None,
         params_override: Optional[list] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> "Registry":
         data = data or {}
         params_override = params_override or []
@@ -141,7 +141,7 @@ class Registry(Resource):
         return Registry(**loaded_schema)
 
     @classmethod
-    def _from_rest_object(cls, rest_obj: RestRegistry) -> "Registry":
+    def _from_rest_object(cls, rest_obj: RestRegistry) -> Optional["Registry"]:
         if not rest_obj:
             return None
         real_registry = rest_obj.properties
@@ -150,8 +150,7 @@ class Registry(Resource):
         replication_locations = []
         if real_registry and real_registry.region_details:
             replication_locations = [
-                RegistryRegionDetails._from_rest_object(details)
-                for details in real_registry.region_details  # pylint: disable=protected-access
+                RegistryRegionDetails._from_rest_object(details) for details in real_registry.region_details
             ]
         identity = None
         if rest_obj.identity and isinstance(rest_obj.identity, RestManagedServiceIdentity):
@@ -164,12 +163,14 @@ class Registry(Resource):
             location=rest_obj.location,
             public_network_access=real_registry.public_network_access,
             discovery_url=real_registry.discovery_url,
-            intellectual_property=IntellectualProperty(publisher=real_registry.intellectual_property_publisher)
-            if real_registry.intellectual_property_publisher
-            else None,
+            intellectual_property=(
+                IntellectualProperty(publisher=real_registry.intellectual_property_publisher)
+                if real_registry.intellectual_property_publisher
+                else None
+            ),
             managed_resource_group=real_registry.managed_resource_group,
             mlflow_registry_uri=real_registry.ml_flow_registry_uri,
-            replication_locations=replication_locations,
+            replication_locations=replication_locations,  # type: ignore[arg-type]
         )
 
     # There are differences between what our registry validation schema
@@ -182,7 +183,7 @@ class Registry(Resource):
     def _convert_yaml_dict_to_entity_input(
         cls,
         input: Dict,  # pylint: disable=redefined-builtin
-    ):
+    ) -> None:
         # pop container_registry value.
         global_acr_exists = False
         if CONTAINER_REGISTRY in input:
@@ -192,7 +193,7 @@ class Registry(Resource):
             # Apply container_registry as acr_config of each region detail
             if global_acr_exists:
                 if not hasattr(region_detail, "acr_details") or len(region_detail.acr_details) == 0:
-                    region_detail.acr_config = [acr_input]
+                    region_detail.acr_config = [acr_input]  # pylint: disable=(possibly-used-before-assignment
 
     def _to_rest_object(self) -> RestRegistry:
         """Build current parameterized schedule instance to a registry object before submission.
@@ -219,9 +220,9 @@ class Registry(Resource):
             properties=RegistryProperties(
                 public_network_access=self.public_network_access,
                 discovery_url=self.discovery_url,
-                intellectual_property_publisher=(self.intellectual_property.publisher)
-                if self.intellectual_property
-                else None,
+                intellectual_property_publisher=(
+                    (self.intellectual_property.publisher) if self.intellectual_property else None
+                ),
                 managed_resource_group=self.managed_resource_group,
                 ml_flow_registry_uri=self.mlflow_registry_uri,
                 region_details=replication_locations,

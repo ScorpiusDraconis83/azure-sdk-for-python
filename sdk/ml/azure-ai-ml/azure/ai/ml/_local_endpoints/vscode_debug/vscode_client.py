@@ -1,8 +1,6 @@
 # ---------------------------------------------------------
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # ---------------------------------------------------------
-# pylint: disable=missing-client-constructor-parameter-credential,missing-client-constructor-parameter-kwargs
-# pylint: disable=client-accepts-api-version-keyword
 import binascii
 import re
 
@@ -27,11 +25,11 @@ class VSCodeClient(object):
         devcontainer = DevContainerResolver(
             image=image_name,
             environment=environment,
-            mounts=volumes,
+            mounts=volumes,  # type: ignore[arg-type]
             labels=labels,
         )
         devcontainer.write_file(build_directory)
-        return devcontainer.local_path
+        return str(devcontainer.local_path)
 
     def invoke_dev_container(self, devcontainer_path: str, app_path: str) -> None:
         hex_encoded_devcontainer_path = _encode_hex(devcontainer_path)
@@ -43,10 +41,11 @@ class VSCodeClient(object):
         try:
             run_cli_command(command)
         except Exception as e:
-            output = e.output.decode(encoding="UTF-8")  # pylint: disable=no-member
+            # pylint: disable=no-member
+            output = e.output.decode(encoding="UTF-8")  # type: ignore[attr-defined]
             raise VSCodeCommandNotFound(output) from e
 
 
 def _encode_hex(path: str):
-    vscode_path = re.sub("\\s+", "", path)  # pylint: disable=specify-parameter-names-in-call
+    vscode_path = re.sub("\\s+", "", path)
     return binascii.hexlify(vscode_path.encode()).decode("ascii")

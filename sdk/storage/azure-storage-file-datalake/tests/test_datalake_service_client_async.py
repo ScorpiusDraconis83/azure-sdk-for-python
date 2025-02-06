@@ -46,7 +46,7 @@ class TestDatalakeServiceAsync(AsyncStorageRecordedTestCase):
         self._assert_logging_equal(prop['analytics_logging'], AnalyticsLogging())
         self._assert_metrics_equal(prop['hour_metrics'], Metrics())
         self._assert_metrics_equal(prop['minute_metrics'], Metrics())
-        self._assert_cors_equal(prop['cors'], list())
+        self._assert_cors_equal(prop['cors'], [])
 
     def _assert_logging_equal(self, log1, log2):
         if log1 is None or log2 is None:
@@ -127,7 +127,7 @@ class TestDatalakeServiceAsync(AsyncStorageRecordedTestCase):
             analytics_logging=AnalyticsLogging(),
             hour_metrics=Metrics(),
             minute_metrics=Metrics(),
-            cors=list(),
+            cors=[],
             target_version='2014-02-14'
         )
 
@@ -466,7 +466,7 @@ class TestDatalakeServiceAsync(AsyncStorageRecordedTestCase):
         await self.dsc.create_file_system(file_system_name)
 
         # Act
-        token_credential = self.generate_oauth_token()
+        token_credential = self.get_credential(DataLakeServiceClient, is_async=True)
         dsc = DataLakeServiceClient(
             self.account_url(datalake_storage_account_name, "blob"),
             credential=token_credential,
@@ -490,14 +490,13 @@ class TestDatalakeServiceAsync(AsyncStorageRecordedTestCase):
         await self.dsc.create_file_system(file_system_name)
 
         # Act
-        token_credential = self.generate_oauth_token()
+        token_credential = self.get_credential(DataLakeServiceClient, is_async=True)
         dsc = DataLakeServiceClient(
             self.account_url(datalake_storage_account_name, "blob"),
             credential=token_credential,
             audience=f'https://badaudience.blob.core.windows.net/'
         )
 
-        # Assert
-        with pytest.raises(ClientAuthenticationError):
-            dsc.list_file_systems()
-            await dsc.create_file_system(file_system_name + '1')
+        # Will not raise ClientAuthenticationError despite bad audience due to Bearer Challenge
+        dsc.list_file_systems()
+        await dsc.create_file_system(file_system_name + '1')

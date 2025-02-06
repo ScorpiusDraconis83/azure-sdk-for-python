@@ -14,6 +14,8 @@ from opentelemetry.sdk.resources import Resource
 
 from azure.monitor.opentelemetry.exporter._constants import (
     _ATTACH_METRIC_NAME,
+    _DEFAULT_EU_STATS_CONNECTION_STRING,
+    _DEFAULT_NON_EU_STATS_CONNECTION_STRING,
     _FEATURE_METRIC_NAME,
     _REQ_DURATION_NAME,
     _REQ_EXCEPTION_NAME,
@@ -28,9 +30,12 @@ from azure.monitor.opentelemetry.exporter.statsbeat._state import (
     _REQUESTS_MAP,
     _STATSBEAT_STATE,
 )
-from azure.monitor.opentelemetry.exporter.statsbeat._statsbeat import (
+from azure.monitor.opentelemetry.exporter._constants import (
+    _APPLICATIONINSIGHTS_STATS_CONNECTION_STRING_ENV_NAME,
     _DEFAULT_STATS_LONG_EXPORT_INTERVAL,
     _DEFAULT_STATS_SHORT_EXPORT_INTERVAL,
+    _APPLICATIONINSIGHTS_STATS_SHORT_EXPORT_INTERVAL_ENV_NAME,
+    _APPLICATIONINSIGHTS_STATS_LONG_EXPORT_INTERVAL_ENV_NAME,
 )
 from azure.monitor.opentelemetry.exporter.statsbeat._statsbeat_metrics import (
     _shorten_host,
@@ -38,8 +43,9 @@ from azure.monitor.opentelemetry.exporter.statsbeat._statsbeat_metrics import (
     _StatsbeatFeature,
     _StatsbeatMetrics,
     _AttachTypes,
-    _RP_NAMES,
+    _RP_Names,
 )
+
 
 class MockResponse(object):
     def __init__(self, status_code, text):
@@ -56,21 +62,17 @@ def throw(exc_type, *args, **kwargs):
 
 # cSpell:disable
 
+
 # pylint: disable=protected-access
 class TestStatsbeat(unittest.TestCase):
     def setUp(self):
         _statsbeat._STATSBEAT_METRICS = None
         _STATSBEAT_STATE["SHUTDOWN"] = False
 
-    @mock.patch.object(MeterProvider, 'shutdown')
-    @mock.patch.object(MeterProvider, 'force_flush')
-    @mock.patch.object(_StatsbeatMetrics, 'init_non_initial_metrics')
-    def test_collect_statsbeat_metrics(
-        self,
-        non_init_mock,
-        flush_mock,
-        shutdown_mock
-    ):
+    @mock.patch.object(MeterProvider, "shutdown")
+    @mock.patch.object(MeterProvider, "force_flush")
+    @mock.patch.object(_StatsbeatMetrics, "init_non_initial_metrics")
+    def test_collect_statsbeat_metrics(self, non_init_mock, flush_mock, shutdown_mock):
         exporter = mock.Mock()
         exporter._endpoint = "test endpoint"
         exporter._instrumentation_key = "test ikey"
@@ -95,75 +97,64 @@ class TestStatsbeat(unittest.TestCase):
         _statsbeat.collect_statsbeat_metrics(exporter)
         self.assertEqual(_statsbeat._STATSBEAT_METRICS, mock_metrics)
 
-    @mock.patch.object(MeterProvider, 'shutdown')
-    @mock.patch.object(MeterProvider, 'force_flush')
-    @mock.patch.object(_StatsbeatMetrics, 'init_non_initial_metrics')
-    def test_collect_statsbeat_metrics_non_eu(
-        self,
-        non_init_mock,
-        flush_mock,
-        shutdown_mock
-    ):
+    @mock.patch.object(MeterProvider, "shutdown")
+    @mock.patch.object(MeterProvider, "force_flush")
+    @mock.patch.object(_StatsbeatMetrics, "init_non_initial_metrics")
+    def test_collect_statsbeat_metrics_non_eu(self, non_init_mock, flush_mock, shutdown_mock):
         exporter = mock.Mock()
         exporter._instrumentation_key = "1aa11111-bbbb-1ccc-8ddd-eeeeffff3333"
         exporter._endpoint = "https://westus-0.in.applicationinsights.azure.com/"
         self.assertIsNone(_statsbeat._STATSBEAT_METRICS)
         with mock.patch.dict(
-            os.environ, {
-                "APPLICATION_INSIGHTS_STATS_CONNECTION_STRING": "",
-            }):
+            os.environ,
+            {
+                _APPLICATIONINSIGHTS_STATS_CONNECTION_STRING_ENV_NAME: "",
+            },
+        ):
             _statsbeat.collect_statsbeat_metrics(exporter)
         self.assertIsNotNone(_statsbeat._STATSBEAT_METRICS)
         mp = _statsbeat._STATSBEAT_METRICS._meter_provider
         mr = mp._sdk_config.metric_readers[0]
         stats_exporter = mr._exporter
         self.assertEqual(
-            stats_exporter._instrumentation_key,
-            _statsbeat._DEFAULT_NON_EU_STATS_CONNECTION_STRING.split(";")[0].split("=")[1]
+            stats_exporter._instrumentation_key, _DEFAULT_NON_EU_STATS_CONNECTION_STRING.split(";")[0].split("=")[1]
         )
         self.assertEqual(
-            stats_exporter._endpoint,
-            _statsbeat._DEFAULT_NON_EU_STATS_CONNECTION_STRING.split(";")[1].split("=")[1]   # noqa: E501
+            stats_exporter._endpoint, _DEFAULT_NON_EU_STATS_CONNECTION_STRING.split(";")[1].split("=")[1]  # noqa: E501
         )
 
-    @mock.patch.object(MeterProvider, 'shutdown')
-    @mock.patch.object(MeterProvider, 'force_flush')
-    @mock.patch.object(_StatsbeatMetrics, 'init_non_initial_metrics')
-    def test_collect_statsbeat_metrics_eu(
-        self,
-        non_init_mock,
-        flush_mock,
-        shutdown_mock
-    ):
+    @mock.patch.object(MeterProvider, "shutdown")
+    @mock.patch.object(MeterProvider, "force_flush")
+    @mock.patch.object(_StatsbeatMetrics, "init_non_initial_metrics")
+    def test_collect_statsbeat_metrics_eu(self, non_init_mock, flush_mock, shutdown_mock):
         exporter = mock.Mock()
         exporter._instrumentation_key = "1aa11111-bbbb-1ccc-8ddd-eeeeffff3333"
         exporter._endpoint = "https://northeurope-0.in.applicationinsights.azure.com/"
         self.assertIsNone(_statsbeat._STATSBEAT_METRICS)
         with mock.patch.dict(
-            os.environ, {
-                "APPLICATION_INSIGHTS_STATS_CONNECTION_STRING": "",
-            }):
+            os.environ,
+            {
+                _APPLICATIONINSIGHTS_STATS_CONNECTION_STRING_ENV_NAME: "",
+            },
+        ):
             _statsbeat.collect_statsbeat_metrics(exporter)
         self.assertIsNotNone(_statsbeat._STATSBEAT_METRICS)
         mp = _statsbeat._STATSBEAT_METRICS._meter_provider
         mr = mp._sdk_config.metric_readers[0]
         stats_exporter = mr._exporter
         self.assertEqual(
-            stats_exporter._instrumentation_key,
-            _statsbeat._DEFAULT_EU_STATS_CONNECTION_STRING.split(";")[0].split("=")[1]
+            stats_exporter._instrumentation_key, _DEFAULT_EU_STATS_CONNECTION_STRING.split(";")[0].split("=")[1]
         )
         self.assertEqual(
-            stats_exporter._endpoint,
-            _statsbeat._DEFAULT_EU_STATS_CONNECTION_STRING.split(";")[1].split("=")[1]   # noqa: E501
+            stats_exporter._endpoint, _DEFAULT_EU_STATS_CONNECTION_STRING.split(";")[1].split("=")[1]  # noqa: E501
         )
 
-
-    @mock.patch('azure.monitor.opentelemetry.exporter.statsbeat._statsbeat._StatsbeatMetrics')
+    @mock.patch("azure.monitor.opentelemetry.exporter.statsbeat._statsbeat._StatsbeatMetrics")
     @mock.patch.dict(
         "os.environ",
         {
-            "APPLICATION_INSIGHTS_STATS_SHORT_EXPORT_INTERVAL": "",
-            "APPLICATION_INSIGHTS_STATS_LONG_EXPORT_INTERVAL": "",
+            _APPLICATIONINSIGHTS_STATS_SHORT_EXPORT_INTERVAL_ENV_NAME: "",
+            _APPLICATIONINSIGHTS_STATS_LONG_EXPORT_INTERVAL_ENV_NAME: "",
         },
     )
     def test_collect_statsbeat_metrics_aad(
@@ -190,13 +181,12 @@ class TestStatsbeat(unittest.TestCase):
             "",
         )
 
-
-    @mock.patch('azure.monitor.opentelemetry.exporter.statsbeat._statsbeat._StatsbeatMetrics')
+    @mock.patch("azure.monitor.opentelemetry.exporter.statsbeat._statsbeat._StatsbeatMetrics")
     @mock.patch.dict(
         "os.environ",
         {
-            "APPLICATION_INSIGHTS_STATS_SHORT_EXPORT_INTERVAL": "",
-            "APPLICATION_INSIGHTS_STATS_LONG_EXPORT_INTERVAL": "",
+            _APPLICATIONINSIGHTS_STATS_SHORT_EXPORT_INTERVAL_ENV_NAME: "",
+            _APPLICATIONINSIGHTS_STATS_LONG_EXPORT_INTERVAL_ENV_NAME: "",
         },
     )
     def test_collect_statsbeat_metrics_no_aad(
@@ -223,12 +213,12 @@ class TestStatsbeat(unittest.TestCase):
             "",
         )
 
-    @mock.patch('azure.monitor.opentelemetry.exporter.statsbeat._statsbeat._StatsbeatMetrics')
+    @mock.patch("azure.monitor.opentelemetry.exporter.statsbeat._statsbeat._StatsbeatMetrics")
     @mock.patch.dict(
         "os.environ",
         {
-            "APPLICATION_INSIGHTS_STATS_SHORT_EXPORT_INTERVAL": "",
-            "APPLICATION_INSIGHTS_STATS_LONG_EXPORT_INTERVAL": "",
+            _APPLICATIONINSIGHTS_STATS_SHORT_EXPORT_INTERVAL_ENV_NAME: "",
+            _APPLICATIONINSIGHTS_STATS_LONG_EXPORT_INTERVAL_ENV_NAME: "",
         },
     )
     def test_collect_statsbeat_metrics_distro_version(
@@ -267,18 +257,10 @@ class TestStatsbeat(unittest.TestCase):
         self.assertTrue(_STATSBEAT_STATE["SHUTDOWN"])
 
 
-_StatsbeatMetrics_COMMON_ATTRS = dict(
-    _StatsbeatMetrics._COMMON_ATTRIBUTES
-)
-_StatsbeatMetrics_NETWORK_ATTRS = dict(
-    _StatsbeatMetrics._NETWORK_ATTRIBUTES
-)
-_StatsbeatMetrics_FEATURE_ATTRIBUTES = dict(
-    _StatsbeatMetrics._FEATURE_ATTRIBUTES
-)
-_StatsbeatMetrics_INSTRUMENTATION_ATTRIBUTES = dict(
-    _StatsbeatMetrics._INSTRUMENTATION_ATTRIBUTES
-)
+_StatsbeatMetrics_COMMON_ATTRS = dict(_StatsbeatMetrics._COMMON_ATTRIBUTES)
+_StatsbeatMetrics_NETWORK_ATTRS = dict(_StatsbeatMetrics._NETWORK_ATTRIBUTES)
+_StatsbeatMetrics_FEATURE_ATTRIBUTES = dict(_StatsbeatMetrics._FEATURE_ATTRIBUTES)
+_StatsbeatMetrics_INSTRUMENTATION_ATTRIBUTES = dict(_StatsbeatMetrics._INSTRUMENTATION_ATTRIBUTES)
 
 
 # pylint: disable=protected-access
@@ -300,24 +282,16 @@ class TestStatsbeatMetrics(unittest.TestCase):
 
     def setUp(self):
         _statsbeat._STATSBEAT_METRICS = None
-        _StatsbeatMetrics._COMMON_ATTRIBUTES = dict(
-            _StatsbeatMetrics_COMMON_ATTRS
-        )
-        _StatsbeatMetrics._NETWORK_ATTRIBUTES = dict(
-            _StatsbeatMetrics_NETWORK_ATTRS
-        )
-        _StatsbeatMetrics._FEATURE_ATTRIBUTES = dict(
-            _StatsbeatMetrics_FEATURE_ATTRIBUTES
-        )
-        _StatsbeatMetrics._INSTRUMENTATION_ATTRIBUTES = dict(
-            _StatsbeatMetrics_INSTRUMENTATION_ATTRIBUTES
-        )
+        _StatsbeatMetrics._COMMON_ATTRIBUTES = dict(_StatsbeatMetrics_COMMON_ATTRS)
+        _StatsbeatMetrics._NETWORK_ATTRIBUTES = dict(_StatsbeatMetrics_NETWORK_ATTRS)
+        _StatsbeatMetrics._FEATURE_ATTRIBUTES = dict(_StatsbeatMetrics_FEATURE_ATTRIBUTES)
+        _StatsbeatMetrics._INSTRUMENTATION_ATTRIBUTES = dict(_StatsbeatMetrics_INSTRUMENTATION_ATTRIBUTES)
         _REQUESTS_MAP.clear()
         _STATSBEAT_STATE["INITIAL_FAILURE_COUNT"] = 0
         _STATSBEAT_STATE["INITIAL_SUCCESS"] = False
         _STATSBEAT_STATE["SHUTDOWN"] = False
         _STATSBEAT_STATE["CUSTOM_EVENTS_FEATURE_SET"] = False
-
+        _STATSBEAT_STATE["LIVE_METRICS_FEATURE_SET"] = False
 
     def test_statsbeat_metric_init(self):
         mp = MeterProvider()
@@ -334,7 +308,7 @@ class TestStatsbeatMetrics(unittest.TestCase):
         self.assertEqual(_StatsbeatMetrics._COMMON_ATTRIBUTES["cikey"], ikey)
         self.assertEqual(_StatsbeatMetrics._COMMON_ATTRIBUTES["attach"], _AttachTypes.MANUAL)
         self.assertEqual(_StatsbeatMetrics._NETWORK_ATTRIBUTES["host"], "westus-1")
-        self.assertEqual(_StatsbeatMetrics._COMMON_ATTRIBUTES["rp"], _RP_NAMES[3])
+        self.assertEqual(_StatsbeatMetrics._COMMON_ATTRIBUTES["rp"], _RP_Names.UNKNOWN.value)
         self.assertEqual(_StatsbeatMetrics._FEATURE_ATTRIBUTES["feature"], 1)
         self.assertEqual(_StatsbeatMetrics._FEATURE_ATTRIBUTES["type"], _FEATURE_TYPES.FEATURE)
         self.assertEqual(metric._meter_provider, mp)
@@ -368,7 +342,7 @@ class TestStatsbeatMetrics(unittest.TestCase):
         self.assertEqual(_StatsbeatMetrics._COMMON_ATTRIBUTES["cikey"], ikey)
         self.assertEqual(_StatsbeatMetrics._COMMON_ATTRIBUTES["attach"], _AttachTypes.INTEGRATED)
         self.assertEqual(_StatsbeatMetrics._NETWORK_ATTRIBUTES["host"], "westus-1")
-        self.assertEqual(_StatsbeatMetrics._COMMON_ATTRIBUTES["rp"], _RP_NAMES[3])
+        self.assertEqual(_StatsbeatMetrics._COMMON_ATTRIBUTES["rp"], _RP_Names.UNKNOWN.value)
         self.assertEqual(_StatsbeatMetrics._FEATURE_ATTRIBUTES["feature"], 1)
         self.assertEqual(_StatsbeatMetrics._FEATURE_ATTRIBUTES["type"], _FEATURE_TYPES.FEATURE)
         self.assertEqual(metric._meter_provider, mp)
@@ -428,18 +402,22 @@ class TestStatsbeatMetrics(unittest.TestCase):
         {
             "WEBSITE_SITE_NAME": "site_name",
             "WEBSITE_HOME_STAMPNAME": "stamp_name",
-        }
+        },
     )
-    def test_get_attach_metric_appsvc(self):
+    @mock.patch(
+        "azure.monitor.opentelemetry.exporter.statsbeat._statsbeat_metrics._StatsbeatMetrics._get_azure_compute_metadata",
+        return_value=False,
+    )
+    def test_get_attach_metric_appsvc(self, metadata_mock):
         attributes = dict(_StatsbeatMetrics._COMMON_ATTRIBUTES)
-        self.assertEqual(attributes["rp"], _RP_NAMES[3])
-        attributes["rp"] = _RP_NAMES[0]
+        self.assertEqual(attributes["rp"], _RP_Names.UNKNOWN.value)
+        attributes["rp"] = _RP_Names.APP_SERVICE.value
         attributes["rpId"] = "site_name/stamp_name"
         observations = self._metric._get_attach_metric(options=None)
         for obs in observations:
             self.assertEqual(obs.value, 1)
             self.assertEqual(obs.attributes, attributes)
-        self.assertEqual(_StatsbeatMetrics._COMMON_ATTRIBUTES["rp"], _RP_NAMES[0])
+        self.assertEqual(_StatsbeatMetrics._COMMON_ATTRIBUTES["rp"], _RP_Names.APP_SERVICE.value)
 
     # pylint: disable=protected-access
     @mock.patch.dict(
@@ -447,20 +425,45 @@ class TestStatsbeatMetrics(unittest.TestCase):
         {
             "FUNCTIONS_WORKER_RUNTIME": "runtime",
             "WEBSITE_HOSTNAME": "host_name",
-        }
+        },
     )
-    def test_get_attach_metric_functions(self):
+    @mock.patch(
+        "azure.monitor.opentelemetry.exporter.statsbeat._statsbeat_metrics._StatsbeatMetrics._get_azure_compute_metadata",
+        return_value=False,
+    )
+    def test_get_attach_metric_functions(self, metadata_mock):
         attributes = dict(_StatsbeatMetrics._COMMON_ATTRIBUTES)
-        self.assertEqual(attributes["rp"], _RP_NAMES[3])
-        attributes["rp"] = _RP_NAMES[1]
+        self.assertEqual(attributes["rp"], _RP_Names.UNKNOWN.value)
+        attributes["rp"] = _RP_Names.FUNCTIONS.value
         attributes["rpId"] = "host_name"
         observations = self._metric._get_attach_metric(options=None)
         for obs in observations:
             self.assertEqual(obs.value, 1)
             self.assertEqual(obs.attributes, attributes)
-        self.assertEqual(_StatsbeatMetrics._COMMON_ATTRIBUTES["rp"], _RP_NAMES[1])
+        self.assertEqual(_StatsbeatMetrics._COMMON_ATTRIBUTES["rp"], _RP_Names.FUNCTIONS.value)
 
-    def test_get_attach_metric_vm(self):
+    # pylint: disable=protected-access
+    @mock.patch.dict(
+        os.environ,
+        {
+            "AKS_ARM_NAMESPACE_ID": "namespace_id",
+        },
+    )
+    def test_get_attach_metric_aks(self):
+        attributes = dict(_StatsbeatMetrics._COMMON_ATTRIBUTES)
+        self.assertEqual(attributes["rp"], _RP_Names.UNKNOWN.value)
+        attributes["rp"] = _RP_Names.AKS.value
+        attributes["rpId"] = "namespace_id"
+        observations = self._metric._get_attach_metric(options=None)
+        for obs in observations:
+            self.assertEqual(obs.value, 1)
+            self.assertEqual(obs.attributes, attributes)
+        self.assertEqual(_StatsbeatMetrics._COMMON_ATTRIBUTES["rp"], _RP_Names.AKS.value)
+
+    @mock.patch(
+        "azure.monitor.opentelemetry.exporter.statsbeat._statsbeat_metrics._StatsbeatMetrics._get_azure_compute_metadata"
+    )
+    def test_get_attach_metric_vm(self, metadata_mock):
         mp = MeterProvider()
         ikey = "1aa11111-bbbb-1ccc-8ddd-eeeeffff3334"
         endpoint = "https://westus-1.in.applicationinsights.azure.com/"
@@ -478,23 +481,25 @@ class TestStatsbeatMetrics(unittest.TestCase):
         _vm_data["osType"] = "test_os"
         metric._vm_data = _vm_data
         metric._vm_retry = True
-        metadata_mock = mock.Mock()
         metadata_mock.return_value = True
-        metric._get_azure_compute_metadata = metadata_mock
         attributes = dict(_StatsbeatMetrics._COMMON_ATTRIBUTES)
-        self.assertEqual(attributes["rp"], _RP_NAMES[3])
+        self.assertEqual(attributes["rp"], _RP_Names.UNKNOWN.value)
         self.assertEqual(attributes["os"], platform.system())
-        attributes["rp"] = _RP_NAMES[2]
+        attributes["rp"] = _RP_Names.VM.value
         attributes["rpId"] = "123/sub123"
         attributes["os"] = "test_os"
         observations = metric._get_attach_metric(options=None)
         for obs in observations:
             self.assertEqual(obs.value, 1)
             self.assertEqual(obs.attributes, attributes)
-        self.assertEqual(_StatsbeatMetrics._COMMON_ATTRIBUTES["rp"], _RP_NAMES[2])
+        self.assertEqual(_StatsbeatMetrics._COMMON_ATTRIBUTES["rp"], _RP_Names.VM.value)
         self.assertEqual(_StatsbeatMetrics._COMMON_ATTRIBUTES["os"], "test_os")
 
-    def test_get_attach_metric_vm_no_os(self):
+    @mock.patch(
+        "azure.monitor.opentelemetry.exporter.statsbeat._statsbeat_metrics._StatsbeatMetrics._get_azure_compute_metadata",
+        return_value=False,
+    )
+    def test_get_attach_metric_vm_no_os(self, metadata_mock):
         mp = MeterProvider()
         ikey = "1aa11111-bbbb-1ccc-8ddd-eeeeffff3334"
         endpoint = "https://westus-1.in.applicationinsights.azure.com/"
@@ -512,10 +517,8 @@ class TestStatsbeatMetrics(unittest.TestCase):
         _vm_data["osType"] = None
         metric._vm_data = _vm_data
         metric._vm_retry = True
-        metadata_mock = mock.Mock()
         metadata_mock.return_value = True
         self.assertEqual(_StatsbeatMetrics._COMMON_ATTRIBUTES["os"], platform.system())
-        metric._get_azure_compute_metadata = metadata_mock
         observations = metric._get_attach_metric(options=None)
         for obs in observations:
             self.assertEqual(obs.value, 1)
@@ -536,11 +539,11 @@ class TestStatsbeatMetrics(unittest.TestCase):
         )
         metric._vm_retry = False
         attributes = dict(_StatsbeatMetrics._COMMON_ATTRIBUTES)
-        self.assertEqual(attributes["rp"], _RP_NAMES[3])
+        self.assertEqual(attributes["rp"], _RP_Names.UNKNOWN.value)
         observations = metric._get_attach_metric(options=None)
         for obs in observations:
             self.assertEqual(obs.value, 1)
-            self.assertEqual(obs.attributes["rp"], _RP_NAMES[3])
+            self.assertEqual(obs.attributes["rp"], _RP_Names.UNKNOWN.value)
 
     def test_get_azure_compute_metadata(self):
         mp = MeterProvider()
@@ -554,17 +557,8 @@ class TestStatsbeatMetrics(unittest.TestCase):
             0,
             False,
         )
-        with mock.patch('requests.get') as get:
-            get.return_value = MockResponse(
-                200,
-                json.dumps(
-                    {
-                        'vmId': 5,
-                        'subscriptionId': 3,
-                        'osType': 'Linux'
-                    }
-                )
-            )
+        with mock.patch("requests.get") as get:
+            get.return_value = MockResponse(200, json.dumps({"vmId": 5, "subscriptionId": 3, "osType": "Linux"}))
             vm_result = metric._get_azure_compute_metadata()
             self.assertTrue(vm_result)
             self.assertEqual(metric._vm_data["vmId"], 5)
@@ -584,10 +578,7 @@ class TestStatsbeatMetrics(unittest.TestCase):
             0,
             False,
         )
-        with mock.patch(
-            'requests.get',
-            throw(requests.exceptions.ConnectionError)
-        ):
+        with mock.patch("requests.get", throw(requests.exceptions.ConnectionError)):
             vm_result = metric._get_azure_compute_metadata()
             self.assertFalse(vm_result)
             self.assertEqual(len(metric._vm_data), 0)
@@ -605,10 +596,7 @@ class TestStatsbeatMetrics(unittest.TestCase):
             0,
             False,
         )
-        with mock.patch(
-            'requests.get',
-            throw(requests.Timeout)
-        ):
+        with mock.patch("requests.get", throw(requests.Timeout)):
             vm_result = metric._get_azure_compute_metadata()
             self.assertFalse(vm_result)
             self.assertEqual(len(metric._vm_data), 0)
@@ -626,10 +614,7 @@ class TestStatsbeatMetrics(unittest.TestCase):
             0,
             False,
         )
-        with mock.patch(
-            'requests.get',
-            throw(requests.exceptions.RequestException)
-        ):
+        with mock.patch("requests.get", throw(requests.exceptions.RequestException)):
             vm_result = metric._get_azure_compute_metadata()
             self.assertFalse(vm_result)
             self.assertEqual(len(metric._vm_data), 0)
@@ -716,25 +701,21 @@ class TestStatsbeatMetrics(unittest.TestCase):
         mp = MeterProvider()
         ikey = "1aa11111-bbbb-1ccc-8ddd-eeeeffff3334"
         endpoint = "https://westus-1.in.applicationinsights.azure.com/"
-        metric = _StatsbeatMetrics(
-            mp,
-            ikey,
-            endpoint,
-            True,
-            0,
-            True
-        )
+        metric = _StatsbeatMetrics(mp, ikey, endpoint, True, 0, True)
         self.assertEqual(_StatsbeatMetrics._FEATURE_ATTRIBUTES["feature"], _StatsbeatFeature.AAD)
         observations = metric._get_feature_metric(options=None)
         self.assertEqual(len(observations), 1)
         self.assertEqual(_StatsbeatMetrics._FEATURE_ATTRIBUTES["feature"], _StatsbeatFeature.AAD)
 
     # pylint: disable=protected-access
-    def test_get_feature_metric_custom_events_init(self):
+    @mock.patch(
+        "azure.monitor.opentelemetry.exporter.statsbeat._statsbeat_metrics.get_statsbeat_custom_events_feature_set"
+    )
+    def test_get_feature_metric_custom_events(self, feature_mock):
+        feature_mock.return_value = True
         mp = MeterProvider()
         ikey = "1aa11111-bbbb-1ccc-8ddd-eeeeffff3334"
         endpoint = "https://westus-1.in.applicationinsights.azure.com/"
-        _STATSBEAT_STATE["CUSTOM_EVENTS_FEATURE_SET"] = True
         metric = _StatsbeatMetrics(
             mp,
             ikey,
@@ -757,6 +738,7 @@ class TestStatsbeatMetrics(unittest.TestCase):
         mp = MeterProvider()
         ikey = "1aa11111-bbbb-1ccc-8ddd-eeeeffff3334"
         endpoint = "https://westus-1.in.applicationinsights.azure.com/"
+        _STATSBEAT_STATE["CUSTOM_EVENTS_FEATURE_SET"] = False
         metric = _StatsbeatMetrics(
             mp,
             ikey,
@@ -765,21 +747,26 @@ class TestStatsbeatMetrics(unittest.TestCase):
             0,
             False,
         )
+        self.assertTrue((metric._feature >> 2) & 1 == 0)
         attributes = dict(_StatsbeatMetrics._COMMON_ATTRIBUTES)
         attributes.update(_StatsbeatMetrics._FEATURE_ATTRIBUTES)
         self.assertEqual(attributes["feature"], 0)
         self.assertEqual(attributes["type"], _FEATURE_TYPES.FEATURE)
         _STATSBEAT_STATE["CUSTOM_EVENTS_FEATURE_SET"] = True
         observations = metric._get_feature_metric(options=None)
-        attributes.update(_StatsbeatMetrics._FEATURE_ATTRIBUTES)
-        self.assertEqual(attributes["feature"], 4)
-        self.assertEqual(metric._feature, 4)
+        attributes["feature"] = _StatsbeatMetrics._FEATURE_ATTRIBUTES["feature"]
         for obs in observations:
             self.assertEqual(obs.value, 1)
             self.assertEqual(obs.attributes, attributes)
+        self.assertTrue((_StatsbeatMetrics._FEATURE_ATTRIBUTES["feature"] >> 2) & 1 == 1)
+        _STATSBEAT_STATE["CUSTOM_EVENTS_FEATURE_SET"] = False
 
     # pylint: disable=protected-access
-    def test_get_feature_metric_distro(self):
+    @mock.patch(
+        "azure.monitor.opentelemetry.exporter.statsbeat._statsbeat_metrics.get_statsbeat_live_metrics_feature_set"
+    )
+    def test_get_feature_metric_live_metrics(self, feature_mock):
+        feature_mock.return_value = True
         mp = MeterProvider()
         ikey = "1aa11111-bbbb-1ccc-8ddd-eeeeffff3334"
         endpoint = "https://westus-1.in.applicationinsights.azure.com/"
@@ -790,8 +777,50 @@ class TestStatsbeatMetrics(unittest.TestCase):
             True,
             0,
             False,
-            "1.0.0"
         )
+        attributes = dict(_StatsbeatMetrics._COMMON_ATTRIBUTES)
+        attributes.update(_StatsbeatMetrics._FEATURE_ATTRIBUTES)
+        self.assertEqual(attributes["feature"], 16)
+        self.assertEqual(attributes["type"], _FEATURE_TYPES.FEATURE)
+        observations = metric._get_feature_metric(options=None)
+        for obs in observations:
+            self.assertEqual(obs.value, 1)
+            self.assertEqual(obs.attributes, attributes)
+
+    # pylint: disable=protected-access
+    def test_get_feature_metric_live_metrics_runtime(self):
+        mp = MeterProvider()
+        ikey = "1aa11111-bbbb-1ccc-8ddd-eeeeffff3334"
+        endpoint = "https://westus-1.in.applicationinsights.azure.com/"
+        _STATSBEAT_STATE["LIVE_METRICS_FEATURE_SET"] = False
+        metric = _StatsbeatMetrics(
+            mp,
+            ikey,
+            endpoint,
+            True,
+            0,
+            False,
+        )
+        self.assertTrue((metric._feature >> 4) & 1 == 0)
+        attributes = dict(_StatsbeatMetrics._COMMON_ATTRIBUTES)
+        attributes.update(_StatsbeatMetrics._FEATURE_ATTRIBUTES)
+        self.assertEqual(attributes["feature"], 0)
+        self.assertEqual(attributes["type"], _FEATURE_TYPES.FEATURE)
+        _STATSBEAT_STATE["LIVE_METRICS_FEATURE_SET"] = True
+        observations = metric._get_feature_metric(options=None)
+        attributes["feature"] = _StatsbeatMetrics._FEATURE_ATTRIBUTES["feature"]
+        for obs in observations:
+            self.assertEqual(obs.value, 1)
+            self.assertEqual(obs.attributes, attributes)
+        self.assertTrue((_StatsbeatMetrics._FEATURE_ATTRIBUTES["feature"] >> 4) & 1 == 1)
+        _STATSBEAT_STATE["LIVE_METRICS_FEATURE_SET"] = False
+
+    # pylint: disable=protected-access
+    def test_get_feature_metric_distro(self):
+        mp = MeterProvider()
+        ikey = "1aa11111-bbbb-1ccc-8ddd-eeeeffff3334"
+        endpoint = "https://westus-1.in.applicationinsights.azure.com/"
+        metric = _StatsbeatMetrics(mp, ikey, endpoint, True, 0, False, "1.0.0")
         self.assertEqual(_StatsbeatMetrics._FEATURE_ATTRIBUTES["feature"], _StatsbeatFeature.DISTRO)
         observations = metric._get_feature_metric(options=None)
         self.assertEqual(len(observations), 1)
@@ -815,9 +844,7 @@ class TestStatsbeatMetrics(unittest.TestCase):
         attributes.update(_StatsbeatMetrics._INSTRUMENTATION_ATTRIBUTES)
         self.assertEqual(attributes["type"], _FEATURE_TYPES.INSTRUMENTATION)
         self.assertEqual(attributes["feature"], 0)
-        with mock.patch(
-            "azure.monitor.opentelemetry.exporter._utils.get_instrumentations"
-        ) as instrumentations:
+        with mock.patch("azure.monitor.opentelemetry.exporter._utils.get_instrumentations") as instrumentations:
             instrumentations.return_value = 1026
             observations = metric._get_feature_metric(options=None)
         self.assertEqual(
@@ -845,9 +872,7 @@ class TestStatsbeatMetrics(unittest.TestCase):
         )
         metric._feature = _StatsbeatFeature.NONE
         self.assertEqual(_StatsbeatMetrics._INSTRUMENTATION_ATTRIBUTES["feature"], 0)
-        with mock.patch(
-            "azure.monitor.opentelemetry.exporter._utils.get_instrumentations"
-        ) as instrumentations:
+        with mock.patch("azure.monitor.opentelemetry.exporter._utils.get_instrumentations") as instrumentations:
             instrumentations.return_value = 0
             observations = metric._get_feature_metric(options=None)
         self.assertEqual(len(observations), 0)
@@ -878,7 +903,7 @@ class TestStatsbeatMetrics(unittest.TestCase):
         self.assertEqual(metric._throttle_count.name, _REQ_THROTTLE_NAME[0])
         self.assertEqual(metric._exception_count.name, _REQ_EXCEPTION_NAME[0])
         self.assertEqual(metric._average_duration.name, _REQ_DURATION_NAME[0])
-        
+
     def test_get_success_count(self):
         mp = MeterProvider()
         ikey = "1aa11111-bbbb-1ccc-8ddd-eeeeffff3334"
@@ -1049,5 +1074,6 @@ class TestStatsbeatMetrics(unittest.TestCase):
         self.assertEqual(_shorten_host(url), "fakehost")
         url = "http://fakehost-5/"
         self.assertEqual(_shorten_host(url), "fakehost-5")
+
 
 # cSpell:enable

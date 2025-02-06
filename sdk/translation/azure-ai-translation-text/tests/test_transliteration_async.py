@@ -4,7 +4,6 @@
 # ------------------------------------
 
 from devtools_testutils.aio import recorded_by_proxy_async
-from azure.ai.translation.text.models import InputTextItem
 from preparer import TextTranslationPreparer
 from test_helper import TestHelper
 from testcase import TextTranslationTest
@@ -19,10 +18,13 @@ class TestTransliterationAsync(TextTranslationTest, TestHelper):
         region = kwargs.get("text_translation_region")
         client = self.create_async_client(endpoint, apikey, region)
 
-        input_text_elements = [InputTextItem(text="这里怎么一回事?")]
+        input_text_elements = ["这里怎么一回事?"]
         async with client:
             response = await client.transliterate(
-                request_body=input_text_elements, language="zh-Hans", from_script="Hans", to_script="Latn"
+                body=input_text_elements,
+                language="zh-Hans",
+                from_script="Hans",
+                to_script="Latn",
             )
 
         assert response is not None
@@ -36,10 +38,13 @@ class TestTransliterationAsync(TextTranslationTest, TestHelper):
         region = kwargs.get("text_translation_region")
         client = self.create_async_client(endpoint, apikey, region)
 
-        input_text_elements = [InputTextItem(text="यहएककसौटीहैयहएककसौटीहै"), InputTextItem(text="यहएककसौटीहै")]
+        input_text_elements = ["यहएककसौटीहैयहएककसौटीहै", "यहएककसौटीहै"]
         async with client:
             response = await client.transliterate(
-                request_body=input_text_elements, language="hi", from_script="Deva", to_script="Latn"
+                body=input_text_elements,
+                language="hi",
+                from_script="Deva",
+                to_script="Latn",
             )
 
         assert response is not None
@@ -55,13 +60,16 @@ class TestTransliterationAsync(TextTranslationTest, TestHelper):
         client = self.create_async_client(endpoint, apikey, region)
 
         input_text_elements = [
-            InputTextItem(text="gujarat"),
-            InputTextItem(text="hadman"),
-            InputTextItem(text="hukkabar"),
+            "gujarat",
+            "hadman",
+            "hukkabar",
         ]
         async with client:
             response = await client.transliterate(
-                request_body=input_text_elements, language="gu", from_script="Latn", to_script="Gujr"
+                body=input_text_elements,
+                language="gu",
+                from_script="Latn",
+                to_script="Gujr",
             )
 
         assert response is not None

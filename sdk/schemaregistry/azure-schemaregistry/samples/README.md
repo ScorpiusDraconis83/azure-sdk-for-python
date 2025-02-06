@@ -40,7 +40,7 @@ If you do not have an existing Azure account, you may sign up for a free trial o
 1. Install the Azure Schema Registry client library and Azure Identity client library for Python with [pip](https://pypi.org/project/pip/):
 
 ```bash
-pip install azure-schemaregistry==1.3.0b2
+pip install azure-schemaregistry
 ```
 
 To run samples utilizing the Azure Active Directory for authentication, please install the azure-identity library:
@@ -52,7 +52,7 @@ pip install azure-identity
 To use the built-in `jsonschema` validation for the JSON Schema Encoder, install the Azure Schema Registry client library with `jsonencoder` extras installed:
 
 ```bash
-pip install azure-schemaregistry[jsonencoder]==1.3.0b2 azure-identity
+pip install azure-schemaregistry[jsonencoder] azure-identity
 ```
 
 Additionally, if using with `azure.eventhub.EventData`, install `azure-eventhub>=5.9.0`:
@@ -82,4 +82,4 @@ what you can do with the Azure Schema Registry client library.
 [eventhub_receive_integration_sample]:  https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/schemaregistry/azure-schemaregistry/samples/sync_samples/jsonencoder/eventhub_receive_integration.py
 [eventhub_send_integration_async_sample]:  https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/schemaregistry/azure-schemaregistry/samples/async_samples/jsonencoder/eventhub_send_integration_async.py
 [eventhub_receive_integration_async_sample]:  https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/schemaregistry/azure-schemaregistry/samples/async_samples/jsonencoder/eventhub_receive_integration_async.py
-[api_reference]: https://docs.microsoft.com/python/api/overview/azure/schemaregistry-readme
+[api_reference]: https://learn.microsoft.com/python/api/overview/azure/schemaregistry-readme

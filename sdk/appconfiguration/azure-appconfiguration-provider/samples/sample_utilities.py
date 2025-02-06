@@ -13,10 +13,8 @@ DESCRIPTION:
     - get_credential(): get credential of the ConfigurationClient
     It is not a file expected to run independently.
 """
-
-import os
-from azure.identity import AzureAuthorityHosts, ClientSecretCredential
-from azure.identity.aio import ClientSecretCredential as AsyncClientSecretCredential
+from azure.identity import AzureAuthorityHosts, DefaultAzureCredential
+from azure.identity.aio import DefaultAzureCredential as AsyncDefaultAzureCredential
 
 
 def get_authority(endpoint):
@@ -27,6 +25,8 @@ def get_authority(endpoint):
         return AzureAuthorityHosts.AZURE_CHINA
     if ".azconfig.azure.us" in endpoint:
         return AzureAuthorityHosts.AZURE_GOVERNMENT
+    if ".azconfig-test.io" in endpoint:
+        return "login.azure-test.net"
     raise ValueError(f"Endpoint ({endpoint}) could not be understood")
 
 
@@ -37,21 +37,19 @@ def get_audience(authority):
         return "https://management.chinacloudapi.cn"
     if authority == AzureAuthorityHosts.AZURE_GOVERNMENT:
         return "https://management.usgovcloudapi.net"
+    if authority == "login.azure-test.net":
+        return "https://management.azure-test.net"
 
 
 def get_credential(authority, **kwargs):
     if kwargs.pop("is_async", False):
-        return AsyncClientSecretCredential(
-            tenant_id=os.environ.get("APPCONFIGURATION_TENANT_ID"),
-            client_id=os.environ.get("APPCONFIGURATION_CLIENT_ID"),
-            client_secret=os.environ.get("APPCONFIGURATION_CLIENT_SECRET"),
+        return AsyncDefaultAzureCredential(
             authority=authority,
+            validate_authority=False,
         )
-    return ClientSecretCredential(
-        tenant_id=os.environ.get("APPCONFIGURATION_TENANT_ID"),
-        client_id=os.environ.get("APPCONFIGURATION_CLIENT_ID"),
-        client_secret=os.environ.get("APPCONFIGURATION_CLIENT_SECRET"),
+    return DefaultAzureCredential(
         authority=authority,
+        validate_authority=False,
     )
 
 

@@ -112,14 +112,14 @@ This is the most useful skip, but the following skip variables are also supporte
   - Omit checking that a package's dependencies are on PyPI before releasing.
 - `Skip.KeywordCheck`
   - Omit checking that a package's keywords are correctly formulated before releasing.
+- `Skip.Black`
+  - Omit checking `black` in the `analyze` job.
 
 ## The pyproject.toml
 
 Starting with [this pr](https://github.com/Azure/azure-sdk-for-python/pull/28345), which checks apply to which packages are now **established** in a `pyproject.toml`, right next to each package's `setup.py`. This not only allows devs to fine-tune which checks that are applied at a package-level, but also seriously reduces confusion as to which checks apply when.
 
 We default to **enabling** most of our checks like `pylint`, `mypy`, etc. Due to that, most `pyproject.toml` settings will likely be **disabling** checks.
-
-There is also an additional setting to turn on strict sphinx validation, for docstring validation.
 
 Here's an example:
 
@@ -133,7 +133,7 @@ verifytypes = false
 pyright = false
 pylint = false
 black = false
-strict_sphinx = false
+sphinx = false
 ```
 
 If a package does not yet have a `pyproject.toml`, creating one with just the section `[tool.azure-sdk-build]` will do no harm to the release of the package in question.
@@ -174,7 +174,7 @@ You can enable test logging in a pipeline by setting the queue time variable `PY
 
 `PYTEST_LOG_LEVEL=INFO`
 
-This also works locally with tox by setting the `PYTEST_LOG_LEVEL` environment variable. 
+This also works locally with tox by setting the `PYTEST_LOG_LEVEL` environment variable.
 
 Note that if you want DEBUG level logging with sensitive information unredacted in the test logs, then you still must pass `logging_enable=True` into the client(s) being used in tests.
 
@@ -216,14 +216,11 @@ Note that the `pylint` environment is configured to run against the **earliest s
 
 ### Sphinx and docstring checker
 
-[`Sphinx`](https://www.sphinx-doc.org/en/master/) is the preferred documentation builder for Python libraries. The documentation is always built and attached to each PR builds. Sphinx can be configured to
+[`Sphinx`](https://www.sphinx-doc.org/en/master/) is the preferred documentation builder for Python libraries. The documentation is always built and attached to each PR builds. Sphinx is configured to
 fail if docstring are invalid, helping to ensure the resulting documentation will be of high quality. Following are the steps to run `sphinx` locally for a specific package with strict docstring checking:
 
 1. Go to root of the package.
-2. Make sure the `pyproject.toml` file contains `strict_sphinx = true`
-3. Execute following command: `tox run -e sphinx -c ../../../eng/tox/tox.ini --root .`
-
-Note: While as of now the default value is `False`, it will become `True` by mid 2024.
+2. Execute following command: `tox run -e sphinx -c ../../../eng/tox/tox.ini --root .`
 
 ### Bandit
 
@@ -242,23 +239,23 @@ Note: While as of now the default value is `False`, it will become `True` by mid
 
 #### Opt-in to formatting validation
 
-Make the following change to your projects `ci.yml`:
+Ensure that `black = true` is present within your `pyproject.toml`:
 
 ```yml
-extends:
-    template: ../../eng/pipelines/templates/stages/archetype-sdk-client.yml
-    parameters:
-        ...
-        ValidateFormatting: true
-        ...
+[tool.azure-sdk-build]
+...other checks enabled/disabled
+black = true
+...other checks enabled/disabled
 ```
+
+to opt into the black invocation.
 
 #### Running locally
 
 1. Go to package root directory.
-2. Execute command: `tox run -e black -c ../../../eng/tox/tox.ini -- .`
+2. Execute command: `tox run -e black -c ../../../eng/tox/tox.ini --root . -- .`
 
-**Tip**: You can provide any arguments that `black` accepts after the `--`. Example: `tox run -e black -c ../../../eng/tox/tox.ini -- path/to/file.py`
+**Tip**: You can provide any arguments that `black` accepts after the `--`. Example: `tox run -e black -c ../../../eng/tox/tox.ini --root . -- path/to/file.py`
 
 ### Change log verification
 

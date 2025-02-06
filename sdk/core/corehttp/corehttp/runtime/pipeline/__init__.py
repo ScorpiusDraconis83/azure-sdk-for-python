@@ -51,9 +51,7 @@ class PipelineContext(Dict[str, Any]):
 
     _PICKLE_CONTEXT = {"deserialized_data"}
 
-    def __init__(
-        self, transport: Optional["TransportType"], **kwargs: Any
-    ) -> None:  # pylint: disable=super-init-not-called
+    def __init__(self, transport: Optional["TransportType"], **kwargs: Any) -> None:
         self.transport: Optional["TransportType"] = transport
         self.options = kwargs
         self._protected = ["transport", "options"]
@@ -113,12 +111,10 @@ class PipelineContext(Dict[str, Any]):
         raise TypeError("Context objects cannot be updated.")
 
     @overload
-    def pop(self, __key: str) -> Any:
-        ...
+    def pop(self, __key: str) -> Any: ...
 
     @overload
-    def pop(self, __key: str, __default: Optional[Any]) -> Any:
-        ...
+    def pop(self, __key: str, __default: Optional[Any]) -> Any: ...
 
     def pop(self, *args: Any) -> Any:
         """Removes specified key and returns the value.

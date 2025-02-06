@@ -409,8 +409,9 @@ class CodeModel:
         for m in models_and_enums:
             if hasattr(m.generated_class, "from_dict"):
                 self.models[m.name] = m
-            else:
+            elif m.name != "TYPE_CHECKING":
                 self.enums.append(m)
+
         self._sort_models()
 
     def _sort_models(self) -> None:
@@ -520,7 +521,11 @@ class Serializer:
                     ):
                         imports_to_add.append(i)
                 elif i not in imports_splitlines:
-                    imports_to_add.append(i)
+                    error_name = i.strip(" ,\n")
+                    if error_name in ("StreamClosedError", "StreamConsumedError"):
+                        imports_to_add.append(f"from azure.core.exceptions import {error_name}")
+                    else:
+                        imports_to_add.append(i)
 
         imports += "\n".join(imports_to_add)
         try:

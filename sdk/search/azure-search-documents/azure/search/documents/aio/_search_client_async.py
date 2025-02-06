@@ -5,11 +5,12 @@
 # --------------------------------------------------------------------------
 from typing import cast, List, Union, Any, Optional, Dict
 
+from azure.core.rest import HttpRequest, AsyncHttpResponse
 from azure.core.credentials import AzureKeyCredential
 from azure.core.credentials_async import AsyncTokenCredential
 from azure.core.tracing.decorator_async import distributed_trace_async
 from ._paging import AsyncSearchItemPaged, AsyncSearchPageIterator
-from .._utils import get_authentication_policy
+from .._utils import get_authentication_policy, get_answer_query, get_rewrites_query
 from .._generated.aio import SearchIndexClient
 from .._generated.models import (
     AutocompleteMode,
@@ -27,8 +28,10 @@ from .._generated.models import (
     VectorFilterMode,
     VectorQuery,
     SemanticErrorMode,
+    QueryRewritesType,
     QueryDebugMode,
     SuggestRequest,
+    HybridSearch,
 )
 from .._search_documents_error import RequestEntityTooLargeError
 from .._index_documents_batch import IndexDocumentsBatch
@@ -100,6 +103,7 @@ class SearchClient(HeadersMixin):
 
     async def close(self) -> None:
         """Close the session.
+
         :return: None
         :rtype: None
         """
@@ -176,7 +180,10 @@ class SearchClient(HeadersMixin):
         vector_filter_mode: Optional[Union[str, VectorFilterMode]] = None,
         semantic_error_mode: Optional[Union[str, SemanticErrorMode]] = None,
         semantic_max_wait_in_milliseconds: Optional[int] = None,
+        query_rewrites: Optional[Union[str, QueryRewritesType]] = None,
+        query_rewrites_count: Optional[int] = None,
         debug: Optional[Union[str, QueryDebugMode]] = None,
+        hybrid_search: Optional[HybridSearch] = None,
         **kwargs
     ) -> AsyncSearchItemPaged[Dict]:
         # pylint:disable=too-many-locals, disable=redefined-builtin
@@ -286,6 +293,15 @@ class SearchClient(HeadersMixin):
         :paramtype semantic_error_mode: str or ~azure.search.documents.models.SemanticErrorMode
         :keyword int semantic_max_wait_in_milliseconds: Allows the user to set an upper bound on the amount of
             time it takes for semantic enrichment to finish processing before the request fails.
+        :keyword query_rewrites: When QueryRewrites is set to ``generative``\\ , the query terms are sent
+            to a generate model which will produce 10 (default) rewrites to help increase the recall of the
+            request. The requested count can be configured by appending the pipe character ``|`` followed
+            by the ``count-<number of rewrites>`` option, such as ``generative|count-3``. Defaults to
+            ``None``. This parameter is only valid if the query type is ``semantic``. Known values are:
+            "none" and "generative".
+        :paramtype query_rewrites: str or ~azure.search.documents.models.QueryRewritesType
+        :keyword int query_rewrites_count: This parameter is only valid if the query rewrites type is 'generative'.
+            Configures the number of rewrites returned. Default count is 10.
         :keyword debug: Enables a debugging tool that can be used to further explore your Semantic search
             results. Known values are: "disabled", "speller", "semantic", and "all".
         :paramtype debug: str or ~azure.search.documents.models.QueryDebugMode
@@ -294,7 +310,10 @@ class SearchClient(HeadersMixin):
         :keyword vector_filter_mode: Determines whether or not filters are applied before or after the
              vector search is performed. Default is 'preFilter'. Known values are: "postFilter" and "preFilter".
         :paramtype vector_filter_mode: str or VectorFilterMode
+        :keyword hybrid_search: The query parameters to configure hybrid search behaviors.
+        :paramtype hybrid_search: ~azure.search.documents.models.HybridSearch
         :return: A list of documents (dicts) matching the specified search criteria.
+        :return: List of search results.
         :rtype:  AsyncSearchItemPaged[dict]
 
         .. admonition:: Example:
@@ -327,8 +346,8 @@ class SearchClient(HeadersMixin):
         include_total_result_count = include_total_count
         filter_arg = filter
         search_fields_str = ",".join(search_fields) if search_fields else None
-        answers = query_answer if not query_answer_count else "{}|count-{}".format(query_answer, query_answer_count)
-        answers = answers if not query_answer_threshold else "{}|threshold-{}".format(answers, query_answer_threshold)
+        answers = get_answer_query(query_answer, query_answer_count, query_answer_threshold)
+        rewrites = get_rewrites_query(query_rewrites, query_rewrites_count)
         captions = (
             query_caption
             if not query_caption_highlight_enabled
@@ -367,7 +386,9 @@ class SearchClient(HeadersMixin):
             vector_filter_mode=vector_filter_mode,
             semantic_error_handling=semantic_error_mode,
             semantic_max_wait_in_milliseconds=semantic_max_wait_in_milliseconds,
+            query_rewrites=rewrites,
             debug=debug,
+            hybrid_search=hybrid_search,
         )
         if isinstance(select, list):
             query.select(select)
@@ -426,7 +447,7 @@ class SearchClient(HeadersMixin):
             included in the results.
         :keyword int top: The number of suggestions to retrieve. The value must be a number between 1 and
             100. The default is 5.
-        :return: List of documents.
+        :return: List of suggestion results.
         :rtype:  list[dict]
 
         .. admonition:: Example:
@@ -471,6 +492,7 @@ class SearchClient(HeadersMixin):
         suggester_name: str,
         *,
         mode: Optional[Union[str, AutocompleteMode]] = None,
+        filter: Optional[str] = None,
         use_fuzzy_matching: Optional[bool] = None,
         highlight_post_tag: Optional[str] = None,
         highlight_pre_tag: Optional[str] = None,
@@ -507,6 +529,7 @@ class SearchClient(HeadersMixin):
             terms. Target fields must be included in the specified suggester.
         :keyword int top: The number of auto-completed terms to retrieve. This must be a value between 1 and
             100. The default is 5.
+        :return: List of auto-completion results.
         :rtype:  list[Dict]
 
         .. admonition:: Example:
@@ -519,7 +542,7 @@ class SearchClient(HeadersMixin):
                 :caption: Get a auto-completions.
         """
         autocomplete_mode = mode
-        filter_arg = kwargs.pop("filter", None)
+        filter_arg = filter
         search_fields_str = ",".join(search_fields) if search_fields else None
         query = AutocompleteQuery(
             search_text=search_text,
@@ -664,7 +687,7 @@ class SearchClient(HeadersMixin):
         :return: List of IndexingResult
         :rtype:  list[IndexingResult]
 
-        :raises ~azure.search.documents.RequestEntityTooLargeError
+        :raises ~azure.search.documents.RequestEntityTooLargeError: The request is too large.
         """
         return await self._index_documents_actions(actions=batch.actions, **kwargs)
 
@@ -703,3 +726,16 @@ class SearchClient(HeadersMixin):
 
     async def __aexit__(self, *args) -> None:
         await self._client.__aexit__(*args)
+
+    @distributed_trace_async
+    async def send_request(self, request: HttpRequest, *, stream: bool = False, **kwargs) -> AsyncHttpResponse:
+        """Runs a network request using the client's existing pipeline.
+
+        :param request: The network request you want to make.
+        :type request: ~azure.core.rest.HttpRequest
+        :keyword bool stream: Whether the response payload will be streamed. Defaults to False.
+        :return: The response of your network call. Does not do error handling on your response.
+        :rtype: ~azure.core.rest.AsyncHttpResponse
+        """
+        request.headers = self._merge_client_headers(request.headers)
+        return await self._client._send_request(request, stream=stream, **kwargs)  # pylint:disable=protected-access

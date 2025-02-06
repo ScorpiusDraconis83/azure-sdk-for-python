@@ -7,17 +7,21 @@ from __future__ import annotations
 import functools
 from typing import TYPE_CHECKING, Optional, Any, Callable, Union, AsyncIterator, cast
 import time
+import math
+import random
 
 from ..._pyamqp import constants
 from ..._pyamqp.message import BatchMessage
-from ..._pyamqp.utils import amqp_string_value
+from ..._pyamqp.utils import amqp_string_value, amqp_uint_value
 from ..._pyamqp.aio import SendClientAsync, ReceiveClientAsync
 from ..._pyamqp.aio._authentication_async import JWTTokenAuthAsync
 from ..._pyamqp.aio._connection_async import Connection as ConnectionAsync
 from ..._pyamqp.error import (
     AMQPConnectionError,
     AMQPError,
+    AMQPException,
     MessageException,
+    ErrorCondition,
 )
 
 from ._base_async import AmqpTransportAsync
@@ -35,10 +39,13 @@ from ..._common.constants import (
     MESSAGE_DEFER,
     MESSAGE_DEAD_LETTER,
     ServiceBusReceiveMode,
+    OPERATION_TIMEOUT,
+    NEXT_AVAILABLE_SESSION,
 )
 from ..._transport._pyamqp_transport import PyamqpTransport
 from ...exceptions import (
-    OperationTimeoutError
+    OperationTimeoutError,
+    ServiceBusConnectionError,
 )
 
 if TYPE_CHECKING:
@@ -50,6 +57,7 @@ if TYPE_CHECKING:
     from ..._pyamqp.performatives import AttachFrame
     from ..._pyamqp.message import Message
     from ..._pyamqp.aio._client_async import AMQPClientAsync
+
 
 class PyamqpTransportAsync(PyamqpTransport, AmqpTransportAsync):
     """
@@ -68,12 +76,7 @@ class PyamqpTransportAsync(PyamqpTransport, AmqpTransportAsync):
         :return: An instance of an asynchronous pyamqp Connection.
         :rtype: ~pyamqp.aio.ConnectionAsync
         """
-        return ConnectionAsync(
-            endpoint=host,
-            sasl_credential=auth.sasl,
-            network_trace=network_trace,
-            **kwargs
-        )
+        return ConnectionAsync(endpoint=host, sasl_credential=auth.sasl, network_trace=network_trace, **kwargs)
 
     @staticmethod
     async def close_connection_async(connection: "ConnectionAsync") -> None:
@@ -84,9 +87,7 @@ class PyamqpTransportAsync(PyamqpTransport, AmqpTransportAsync):
         await connection.close()
 
     @staticmethod
-    def create_send_client_async(
-        config: "Configuration", **kwargs: Any
-    ) -> "SendClientAsync":
+    def create_send_client_async(config: "Configuration", **kwargs: Any) -> "SendClientAsync": # pylint:disable=docstring-keyword-should-match-keyword-only
         """
         Creates and returns the pyamqp SendClient.
         :param Configuration config: The configuration.
@@ -111,9 +112,11 @@ class PyamqpTransportAsync(PyamqpTransport, AmqpTransportAsync):
             keep_alive_interval=config.keep_alive,
             custom_endpoint_address=config.custom_endpoint_address,
             connection_verify=config.connection_verify,
+            ssl_context=config.ssl_context,
             transport_type=config.transport_type,
             http_proxy=config.http_proxy,
             socket_timeout=config.socket_timeout,
+            use_tls=config.use_tls,
             **kwargs,
         )
 
@@ -123,8 +126,8 @@ class PyamqpTransportAsync(PyamqpTransport, AmqpTransportAsync):
         message: Union["ServiceBusMessage", "ServiceBusMessageBatch"],
         logger: "Logger",
         timeout: int,
-        last_exception: Optional[Exception]
-    ) -> None:  # pylint: disable=unused-argument
+        last_exception: Optional[Exception],
+    ) -> None:
         """
         Handles sending of service bus messages.
         :param ~azure.servicebus.ServiceBusSender sender: The sender with handler to send messages.
@@ -139,10 +142,7 @@ class PyamqpTransportAsync(PyamqpTransport, AmqpTransportAsync):
             if isinstance(message._message, list):
                 await sender._handler.send_message_async(BatchMessage(*message._message), timeout=timeout)
             else:
-                await sender._handler.send_message_async(
-                    message._message,
-                    timeout=timeout
-                )
+                await sender._handler.send_message_async(message._message, timeout=timeout)
 
         except TimeoutError as exc:
             raise OperationTimeoutError(message="Send operation timed out") from exc
@@ -150,9 +150,9 @@ class PyamqpTransportAsync(PyamqpTransport, AmqpTransportAsync):
             raise PyamqpTransportAsync.create_servicebus_exception(logger, e)
 
     @staticmethod
-    def create_receive_client_async(
+    def create_receive_client_async( # pylint: disable=docstring-keyword-should-match-keyword-only
         receiver: "ServiceBusReceiver", **kwargs: Any
-    ) -> "ReceiveClientAsync":  # pylint:disable=unused-argument
+    ) -> "ReceiveClientAsync":
         """
         Creates and returns the receive client.
         :param ~azure.servicebus.aio.ServiceBusReceiver receiver: The receiver.
@@ -176,9 +176,33 @@ class PyamqpTransportAsync(PyamqpTransport, AmqpTransportAsync):
         :returns: A ReceiveClientAsync.
         :rtype: ~pyamqp.aio.ReceiveClientAsync
         """
-        config = receiver._config   # pylint: disable=protected-access
+        config = receiver._config  # pylint: disable=protected-access
         source = kwargs.pop("source")
         receive_mode = kwargs.pop("receive_mode")
+        link_properties = kwargs.pop("link_properties")
+
+        # When NEXT_AVAILABLE_SESSION is set, the default time to wait to connect to a session is 65 seconds.
+        # If there are no messages in the topic/queue the client will wait for 65 seconds for an AttachFrame
+        # frame from the service before raising an OperationTimeoutError due to failure to connect.
+        # max_wait_time, if specified, will allow the user to wait for fewer or more than 65 seconds to
+        # connect to a session.
+        if (
+            receiver._session_id == NEXT_AVAILABLE_SESSION  # pylint: disable=protected-access
+            and receiver._max_wait_time  # pylint: disable=protected-access
+        ):
+            timeout_in_ms = receiver._max_wait_time * 1000  # pylint: disable=protected-access
+            open_receive_link_base_jitter_in_ms = 100
+            open_recieve_link_buffer_in_ms = 20
+            open_receive_link_buffer_threshold_in_ms = 1000
+            jitter_base_in_ms = min(timeout_in_ms * 0.01, open_receive_link_base_jitter_in_ms)
+            timeout_in_ms = math.floor(timeout_in_ms - jitter_base_in_ms * random.random())
+            if timeout_in_ms >= open_receive_link_buffer_threshold_in_ms:
+                timeout_in_ms -= open_recieve_link_buffer_in_ms
+
+            # If we have specified a client-side timeout, assure that it is encoded as an uint
+            link_properties[OPERATION_TIMEOUT] = amqp_uint_value(timeout_in_ms)
+
+        kwargs["link_properties"] = link_properties
 
         return ReceiveClientAsync(
             config.hostname,
@@ -187,15 +211,16 @@ class PyamqpTransportAsync(PyamqpTransport, AmqpTransportAsync):
             transport_type=config.transport_type,
             custom_endpoint_address=config.custom_endpoint_address,
             connection_verify=config.connection_verify,
+            ssl_context=config.ssl_context,
             receive_settle_mode=PyamqpTransportAsync.ServiceBusToAMQPReceiveModeMap[receive_mode],
-            send_settle_mode=constants.SenderSettleMode.Settled
-            if receive_mode == ServiceBusReceiveMode.RECEIVE_AND_DELETE
-            else constants.SenderSettleMode.Unsettled,
-            on_attach=functools.partial(
-                PyamqpTransportAsync.on_attach_async,
-                receiver
+            send_settle_mode=(
+                constants.SenderSettleMode.Settled
+                if receive_mode == ServiceBusReceiveMode.RECEIVE_AND_DELETE
+                else constants.SenderSettleMode.Unsettled
             ),
+            on_attach=functools.partial(PyamqpTransportAsync.on_attach_async, receiver),
             socket_timeout=config.socket_timeout,
+            use_tls=config.use_tls,
             **kwargs,
         )
 
@@ -237,9 +262,7 @@ class PyamqpTransportAsync(PyamqpTransport, AmqpTransportAsync):
 
     @staticmethod
     async def enhanced_message_received_async(
-        receiver: "ServiceBusReceiver",
-        frame: "AttachFrame",
-        message: "Message"
+        receiver: "ServiceBusReceiver", frame: "AttachFrame", message: "Message"
     ) -> None:
         """Callback run on receipt of every message.
 
@@ -258,28 +281,25 @@ class PyamqpTransportAsync(PyamqpTransport, AmqpTransportAsync):
         if receiver._receive_context.is_set():
             receiver._handler._received_messages.put((frame, message))
         else:
-            await receiver._handler.settle_messages_async(frame[1], 'released')
+            await receiver._handler.settle_messages_async(frame[1], frame[2], "released")
 
     @staticmethod
     def set_handler_message_received_async(receiver: "ServiceBusReceiver") -> None:
         # reassigning default _message_received method in ReceiveClient
         # pylint: disable=protected-access
         receiver._handler._message_received_async = functools.partial(  # type: ignore[assignment]
-            PyamqpTransportAsync.enhanced_message_received_async,
-            receiver
+            PyamqpTransportAsync.enhanced_message_received_async, receiver
         )
 
     @staticmethod
-    async def reset_link_credit_async(
-        handler: "ReceiveClientAsync", link_credit: int
-    ) -> None:
+    async def reset_link_credit_async(handler: "ReceiveClientAsync", link_credit: int) -> None:
         """
         Resets the link credit on the link.
         :param ReceiveClientAsync handler: Client with link to reset link credit.
         :param int link_credit: Link credit needed.
         :rtype: None
         """
-        await handler._link.flow(link_credit=link_credit)   # pylint: disable=protected-access
+        await handler._link.flow(link_credit=link_credit)  # pylint: disable=protected-access
 
     @staticmethod
     async def settle_message_via_receiver_link_async(
@@ -292,33 +312,36 @@ class PyamqpTransportAsync(PyamqpTransport, AmqpTransportAsync):
         # pylint: disable=protected-access
         try:
             if settle_operation == MESSAGE_COMPLETE:
-                return await handler.settle_messages_async(message._delivery_id, 'accepted')
+                return await handler.settle_messages_async(message._delivery_id, message._delivery_tag, "accepted")
             if settle_operation == MESSAGE_ABANDON:
                 return await handler.settle_messages_async(
                     message._delivery_id,
-                    'modified',
+                    message._delivery_tag,
+                    "modified",
                     delivery_failed=True,
-                    undeliverable_here=False
+                    undeliverable_here=False,
                 )
             if settle_operation == MESSAGE_DEAD_LETTER:
                 return await handler.settle_messages_async(
                     message._delivery_id,
-                    'rejected',
+                    message._delivery_tag,
+                    "rejected",
                     error=AMQPError(
                         condition=DEADLETTERNAME,
                         description=dead_letter_error_description,
                         info={
                             RECEIVER_LINK_DEAD_LETTER_REASON: dead_letter_reason,
                             RECEIVER_LINK_DEAD_LETTER_ERROR_DESCRIPTION: dead_letter_error_description,
-                        }
-                    )
+                        },
+                    ),
                 )
             if settle_operation == MESSAGE_DEFER:
                 return await handler.settle_messages_async(
                     message._delivery_id,
-                    'modified',
+                    message._delivery_tag,
+                    "modified",
                     delivery_failed=True,
-                    undeliverable_here=True
+                    undeliverable_here=True,
                 )
         except AttributeError as ae:
             raise RuntimeError("handler is not initialized and cannot complete the message") from ae
@@ -326,35 +349,31 @@ class PyamqpTransportAsync(PyamqpTransport, AmqpTransportAsync):
         except AMQPConnectionError as e:
             raise RuntimeError("Connection lost during settle operation.") from e
 
-        raise ValueError(
-            f"Unsupported settle operation type: {settle_operation}"
-        )
+        except AMQPException as ae:
+            if ae.condition == ErrorCondition.IllegalState:
+                raise RuntimeError("Link error occurred during settle operation.") from ae
+
+            raise ServiceBusConnectionError(message="Link error occurred during settle operation.") from ae
+
+        raise ValueError(f"Unsupported settle operation type: {settle_operation}")
 
     @staticmethod
-    async def on_attach_async(
-        receiver: "ServiceBusReceiver", attach_frame: "AttachFrame"
-    ) -> None:
-        # pylint: disable=protected-access, unused-argument
+    async def on_attach_async(receiver: "ServiceBusReceiver", attach_frame: "AttachFrame") -> None:
+        # pylint: disable=protected-access
         if receiver._session and attach_frame.source.address.decode() == receiver._entity_uri:
             # This has to live on the session object so that autorenew has access to it.
             receiver._session._session_start = utc_now()
             expiry_in_seconds = attach_frame.properties.get(SESSION_LOCKED_UNTIL)
             if expiry_in_seconds:
-                expiry_in_seconds = (
-                    expiry_in_seconds - DATETIMEOFFSET_EPOCH
-                ) / 10000000
+                expiry_in_seconds = (expiry_in_seconds - DATETIMEOFFSET_EPOCH) / 10000000
                 receiver._session._locked_until_utc = utc_from_timestamp(expiry_in_seconds)
             session_filter = attach_frame.source.filters[SESSION_FILTER]
             receiver._session_id = session_filter.decode(receiver._config.encoding)
             receiver._session._session_id = receiver._session_id
 
     @staticmethod
-    async def create_token_auth_async(
-        auth_uri: str,
-        get_token: Callable,
-        token_type: bytes,
-        config: "Configuration",
-        **kwargs: Any
+    async def create_token_auth_async( # pylint: disable=docstring-keyword-should-match-keyword-only
+        auth_uri: str, get_token: Callable, token_type: bytes, config: "Configuration", **kwargs: Any
     ) -> "JWTTokenAuthAsync":
         """
         Creates the JWTTokenAuth.
@@ -370,7 +389,7 @@ class PyamqpTransportAsync(PyamqpTransport, AmqpTransportAsync):
         :rtype: ~pyamqp.aio._authentication_async.JWTTokenAuthAsync
         """
         # TODO: figure out why we're passing all these args to pyamqp JWTTokenAuth, which aren't being used
-        update_token = kwargs.pop("update_token")  # pylint: disable=unused-variable
+        update_token = kwargs.pop("update_token")
         if update_token:
             # update_token not actually needed by pyamqp
             # just using to detect which args to pass
@@ -383,7 +402,6 @@ class PyamqpTransportAsync(PyamqpTransport, AmqpTransportAsync):
             timeout=config.auth_timeout,
             custom_endpoint_hostname=config.custom_endpoint_hostname,
             port=config.connection_port,
-            verify=config.connection_verify,
         )
 
     @staticmethod
@@ -393,9 +411,9 @@ class PyamqpTransportAsync(PyamqpTransport, AmqpTransportAsync):
         *,
         operation: bytes,
         operation_type: bytes,
-        node: bytes,
+        node: str,
         timeout: int,
-        callback: Callable
+        callback: Callable,
     ) -> "ServiceBusReceivedMessage":
         """
         Send mgmt request.
@@ -403,7 +421,7 @@ class PyamqpTransportAsync(PyamqpTransport, AmqpTransportAsync):
         :param ~pyamqp.message.Message mgmt_msg: Message.
         :keyword bytes operation: Operation.
         :keyword bytes operation_type: Op type.
-        :keyword bytes node: Mgmt target.
+        :keyword str node: Mgmt target.
         :keyword int timeout: Timeout.
         :keyword callable callback: Callback to process request response.
         :return: The result returned by the mgmt request.

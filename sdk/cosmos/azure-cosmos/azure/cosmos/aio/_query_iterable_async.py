@@ -21,7 +21,7 @@
 
 """Iterable query results in the Azure Cosmos database service.
 """
-import asyncio
+import asyncio # pylint: disable=do-not-import-asyncio
 from azure.core.async_paging import AsyncPageIterator
 from azure.cosmos._execution_context.aio import execution_dispatcher
 
@@ -82,7 +82,7 @@ class QueryIterable(AsyncPageIterator):
         continuation = None
         if self._client.last_response_headers:
             continuation = self._client.last_response_headers.get("x-ms-continuation") or \
-                self._client.last_response_headers.get('etag')
+                           self._client.last_response_headers.get('etag')
         if block:
             self._did_a_call_already = False
         return continuation, block

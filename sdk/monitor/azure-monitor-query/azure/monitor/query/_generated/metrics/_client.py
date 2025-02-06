@@ -8,6 +8,7 @@
 
 from copy import deepcopy
 from typing import Any
+from typing_extensions import Self
 
 from azure.core import PipelineClient
 from azure.core.pipeline import policies
@@ -18,7 +19,7 @@ from ._serialization import Deserializer, Serializer
 from .operations import MetricDefinitionsOperations, MetricNamespacesOperations, MetricsOperations
 
 
-class MonitorMetricsClient:  # pylint: disable=client-accepts-api-version-keyword
+class MonitorMetricsClient:
     """Azure Monitor Metrics Python Client.
 
     :ivar metric_definitions: MetricDefinitionsOperations operations
@@ -29,6 +30,9 @@ class MonitorMetricsClient:  # pylint: disable=client-accepts-api-version-keywor
     :vartype metric_namespaces: monitor_metrics_client.operations.MetricNamespacesOperations
     :keyword endpoint: Service URL. Default value is "https://management.azure.com".
     :paramtype endpoint: str
+    :keyword api_version: Api Version. Default value is "2024-02-01". Note that overriding this
+     default value may result in unsupported behavior.
+    :paramtype api_version: str
     """
 
     def __init__(  # pylint: disable=missing-client-constructor-parameter-credential
@@ -90,7 +94,7 @@ class MonitorMetricsClient:  # pylint: disable=client-accepts-api-version-keywor
     def close(self) -> None:
         self._client.close()
 
-    def __enter__(self) -> "MonitorMetricsClient":
+    def __enter__(self) -> Self:
         self._client.__enter__()
         return self
 

@@ -30,7 +30,7 @@ import logging
 from itertools import groupby
 from typing import Iterator, cast, TYPE_CHECKING
 from multidict import CIMultiDict
-import aiohttp.client_exceptions  # pylint: disable=all
+import aiohttp.client_exceptions  # pylint: disable=networking-import-outside-azure-core-transport
 
 from ._http_response_impl_async import AsyncHttpResponseImpl
 from ..exceptions import (
@@ -263,7 +263,7 @@ class AioHttpStreamDownloadGenerator(collections.abc.AsyncIterator):
         self.response = response
 
         # TODO: determine if block size should be public on RestAioHttpTransportResponse.
-        self.block_size = response._block_size  # pylint: disable=protected-access
+        self.block_size = response._block_size
         self._decompress = decompress
         self.content_length = int(response.headers.get("Content-Length", 0))
         self._decompressor = None
@@ -272,11 +272,11 @@ class AioHttpStreamDownloadGenerator(collections.abc.AsyncIterator):
         return self.content_length
 
     async def __anext__(self):
-        internal_response = self.response._internal_response  # pylint: disable=protected-access
+        internal_response = self.response._internal_response
         try:
             # TODO: Determine how chunks should be read.
             # chunk = await self.response.internal_response.content.read(self.block_size)
-            chunk = await internal_response.content.read(self.block_size)  # pylint: disable=protected-access
+            chunk = await internal_response.content.read(self.block_size)
             if not chunk:
                 raise _ResponseStopIteration()
             if not self._decompress:

@@ -1,4 +1,4 @@
-# pylint: disable=too-many-lines
+# pylint: disable=too-many-lines,too-many-statements
 # coding=utf-8
 # --------------------------------------------------------------------------
 # Copyright (c) Microsoft Corporation. All rights reserved.
@@ -7,7 +7,8 @@
 # Changes may cause incorrect behavior and will be lost if the code is regenerated.
 # --------------------------------------------------------------------------
 from io import IOBase
-from typing import Any, Callable, Dict, IO, Iterable, Optional, TypeVar, Union, overload
+import sys
+from typing import Any, Callable, Dict, IO, Iterable, Optional, Type, TypeVar, Union, overload
 import urllib.parse
 
 from azure.core.exceptions import (
@@ -20,16 +21,18 @@ from azure.core.exceptions import (
 )
 from azure.core.paging import ItemPaged
 from azure.core.pipeline import PipelineResponse
-from azure.core.pipeline.transport import HttpResponse
-from azure.core.rest import HttpRequest
+from azure.core.rest import HttpRequest, HttpResponse
 from azure.core.tracing.decorator import distributed_trace
 from azure.core.utils import case_insensitive_dict
 from azure.mgmt.core.exceptions import ARMErrorFormat
 
 from .. import models as _models
 from ..._serialization import Serializer
-from .._vendor import _convert_request, _format_url_section
 
+if sys.version_info >= (3, 9):
+    from collections.abc import MutableMapping
+else:
+    from typing import MutableMapping  # type: ignore  # pylint: disable=ungrouped-imports
 T = TypeVar("T")
 ClsType = Optional[Callable[[PipelineResponse[HttpRequest, HttpResponse], T, Dict[str, Any]], Any]]
 
@@ -37,7 +40,7 @@ _SERIALIZER = Serializer()
 _SERIALIZER.client_side_validation = False
 
 
-def build_template_specs_create_or_update_request(
+def build_template_specs_create_or_update_request(  # pylint: disable=name-too-long
     resource_group_name: str, template_spec_name: str, subscription_id: str, **kwargs: Any
 ) -> HttpRequest:
     _headers = case_insensitive_dict(kwargs.pop("headers", {}) or {})
@@ -62,7 +65,7 @@ def build_template_specs_create_or_update_request(
         ),
     }
 
-    _url: str = _format_url_section(_url, **path_format_arguments)  # type: ignore
+    _url: str = _url.format(**path_format_arguments)  # type: ignore
 
     # Construct parameters
     _params["api-version"] = _SERIALIZER.query("api_version", api_version, "str")
@@ -100,7 +103,7 @@ def build_template_specs_update_request(
         ),
     }
 
-    _url: str = _format_url_section(_url, **path_format_arguments)  # type: ignore
+    _url: str = _url.format(**path_format_arguments)  # type: ignore
 
     # Construct parameters
     _params["api-version"] = _SERIALIZER.query("api_version", api_version, "str")
@@ -142,7 +145,7 @@ def build_template_specs_get_request(
         ),
     }
 
-    _url: str = _format_url_section(_url, **path_format_arguments)  # type: ignore
+    _url: str = _url.format(**path_format_arguments)  # type: ignore
 
     # Construct parameters
     if expand is not None:
@@ -179,7 +182,7 @@ def build_template_specs_delete_request(
         ),
     }
 
-    _url: str = _format_url_section(_url, **path_format_arguments)  # type: ignore
+    _url: str = _url.format(**path_format_arguments)  # type: ignore
 
     # Construct parameters
     _params["api-version"] = _SERIALIZER.query("api_version", api_version, "str")
@@ -190,7 +193,7 @@ def build_template_specs_delete_request(
     return HttpRequest(method="DELETE", url=_url, params=_params, headers=_headers, **kwargs)
 
 
-def build_template_specs_list_by_subscription_request(
+def build_template_specs_list_by_subscription_request(  # pylint: disable=name-too-long
     subscription_id: str, *, expand: Optional[Union[str, _models.TemplateSpecExpandKind]] = None, **kwargs: Any
 ) -> HttpRequest:
     _headers = case_insensitive_dict(kwargs.pop("headers", {}) or {})
@@ -205,7 +208,7 @@ def build_template_specs_list_by_subscription_request(
         "subscriptionId": _SERIALIZER.url("subscription_id", subscription_id, "str"),
     }
 
-    _url: str = _format_url_section(_url, **path_format_arguments)  # type: ignore
+    _url: str = _url.format(**path_format_arguments)  # type: ignore
 
     # Construct parameters
     if expand is not None:
@@ -218,7 +221,7 @@ def build_template_specs_list_by_subscription_request(
     return HttpRequest(method="GET", url=_url, params=_params, headers=_headers, **kwargs)
 
 
-def build_template_specs_list_by_resource_group_request(
+def build_template_specs_list_by_resource_group_request(  # pylint: disable=name-too-long
     resource_group_name: str,
     subscription_id: str,
     *,
@@ -243,7 +246,7 @@ def build_template_specs_list_by_resource_group_request(
         ),
     }
 
-    _url: str = _format_url_section(_url, **path_format_arguments)  # type: ignore
+    _url: str = _url.format(**path_format_arguments)  # type: ignore
 
     # Construct parameters
     if expand is not None:
@@ -256,7 +259,7 @@ def build_template_specs_list_by_resource_group_request(
     return HttpRequest(method="GET", url=_url, params=_params, headers=_headers, **kwargs)
 
 
-def build_template_specs_get_built_in_request(
+def build_template_specs_get_built_in_request(  # pylint: disable=name-too-long
     template_spec_name: str, *, expand: Optional[Union[str, _models.TemplateSpecExpandKind]] = None, **kwargs: Any
 ) -> HttpRequest:
     _headers = case_insensitive_dict(kwargs.pop("headers", {}) or {})
@@ -273,7 +276,7 @@ def build_template_specs_get_built_in_request(
         ),
     }
 
-    _url: str = _format_url_section(_url, **path_format_arguments)  # type: ignore
+    _url: str = _url.format(**path_format_arguments)  # type: ignore
 
     # Construct parameters
     if expand is not None:
@@ -286,7 +289,7 @@ def build_template_specs_get_built_in_request(
     return HttpRequest(method="GET", url=_url, params=_params, headers=_headers, **kwargs)
 
 
-def build_template_specs_list_built_ins_request(
+def build_template_specs_list_built_ins_request(  # pylint: disable=name-too-long
     *, expand: Optional[Union[str, _models.TemplateSpecExpandKind]] = None, **kwargs: Any
 ) -> HttpRequest:
     _headers = case_insensitive_dict(kwargs.pop("headers", {}) or {})
@@ -309,7 +312,7 @@ def build_template_specs_list_built_ins_request(
     return HttpRequest(method="GET", url=_url, params=_params, headers=_headers, **kwargs)
 
 
-def build_template_spec_versions_create_or_update_request(
+def build_template_spec_versions_create_or_update_request(  # pylint: disable=name-too-long
     resource_group_name: str, template_spec_name: str, template_spec_version: str, subscription_id: str, **kwargs: Any
 ) -> HttpRequest:
     _headers = case_insensitive_dict(kwargs.pop("headers", {}) or {})
@@ -342,7 +345,7 @@ def build_template_spec_versions_create_or_update_request(
         ),
     }
 
-    _url: str = _format_url_section(_url, **path_format_arguments)  # type: ignore
+    _url: str = _url.format(**path_format_arguments)  # type: ignore
 
     # Construct parameters
     _params["api-version"] = _SERIALIZER.query("api_version", api_version, "str")
@@ -355,7 +358,7 @@ def build_template_spec_versions_create_or_update_request(
     return HttpRequest(method="PUT", url=_url, params=_params, headers=_headers, **kwargs)
 
 
-def build_template_spec_versions_update_request(
+def build_template_spec_versions_update_request(  # pylint: disable=name-too-long
     resource_group_name: str, template_spec_name: str, template_spec_version: str, subscription_id: str, **kwargs: Any
 ) -> HttpRequest:
     _headers = case_insensitive_dict(kwargs.pop("headers", {}) or {})
@@ -388,7 +391,7 @@ def build_template_spec_versions_update_request(
         ),
     }
 
-    _url: str = _format_url_section(_url, **path_format_arguments)  # type: ignore
+    _url: str = _url.format(**path_format_arguments)  # type: ignore
 
     # Construct parameters
     _params["api-version"] = _SERIALIZER.query("api_version", api_version, "str")
@@ -433,7 +436,7 @@ def build_template_spec_versions_get_request(
         ),
     }
 
-    _url: str = _format_url_section(_url, **path_format_arguments)  # type: ignore
+    _url: str = _url.format(**path_format_arguments)  # type: ignore
 
     # Construct parameters
     _params["api-version"] = _SERIALIZER.query("api_version", api_version, "str")
@@ -444,7 +447,7 @@ def build_template_spec_versions_get_request(
     return HttpRequest(method="GET", url=_url, params=_params, headers=_headers, **kwargs)
 
 
-def build_template_spec_versions_delete_request(
+def build_template_spec_versions_delete_request(  # pylint: disable=name-too-long
     resource_group_name: str, template_spec_name: str, template_spec_version: str, subscription_id: str, **kwargs: Any
 ) -> HttpRequest:
     _headers = case_insensitive_dict(kwargs.pop("headers", {}) or {})
@@ -476,7 +479,7 @@ def build_template_spec_versions_delete_request(
         ),
     }
 
-    _url: str = _format_url_section(_url, **path_format_arguments)  # type: ignore
+    _url: str = _url.format(**path_format_arguments)  # type: ignore
 
     # Construct parameters
     _params["api-version"] = _SERIALIZER.query("api_version", api_version, "str")
@@ -487,7 +490,7 @@ def build_template_spec_versions_delete_request(
     return HttpRequest(method="DELETE", url=_url, params=_params, headers=_headers, **kwargs)
 
 
-def build_template_spec_versions_list_request(
+def build_template_spec_versions_list_request(  # pylint: disable=name-too-long
     resource_group_name: str, template_spec_name: str, subscription_id: str, **kwargs: Any
 ) -> HttpRequest:
     _headers = case_insensitive_dict(kwargs.pop("headers", {}) or {})
@@ -511,7 +514,7 @@ def build_template_spec_versions_list_request(
         ),
     }
 
-    _url: str = _format_url_section(_url, **path_format_arguments)  # type: ignore
+    _url: str = _url.format(**path_format_arguments)  # type: ignore
 
     # Construct parameters
     _params["api-version"] = _SERIALIZER.query("api_version", api_version, "str")
@@ -522,7 +525,9 @@ def build_template_spec_versions_list_request(
     return HttpRequest(method="GET", url=_url, params=_params, headers=_headers, **kwargs)
 
 
-def build_template_spec_versions_list_built_ins_request(template_spec_name: str, **kwargs: Any) -> HttpRequest:
+def build_template_spec_versions_list_built_ins_request(  # pylint: disable=name-too-long
+    template_spec_name: str, **kwargs: Any
+) -> HttpRequest:
     _headers = case_insensitive_dict(kwargs.pop("headers", {}) or {})
     _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
@@ -537,7 +542,7 @@ def build_template_spec_versions_list_built_ins_request(template_spec_name: str,
         ),
     }
 
-    _url: str = _format_url_section(_url, **path_format_arguments)  # type: ignore
+    _url: str = _url.format(**path_format_arguments)  # type: ignore
 
     # Construct parameters
     _params["api-version"] = _SERIALIZER.query("api_version", api_version, "str")
@@ -548,7 +553,7 @@ def build_template_spec_versions_list_built_ins_request(template_spec_name: str,
     return HttpRequest(method="GET", url=_url, params=_params, headers=_headers, **kwargs)
 
 
-def build_template_spec_versions_get_built_in_request(
+def build_template_spec_versions_get_built_in_request(  # pylint: disable=name-too-long
     template_spec_name: str, template_spec_version: str, **kwargs: Any
 ) -> HttpRequest:
     _headers = case_insensitive_dict(kwargs.pop("headers", {}) or {})
@@ -576,7 +581,7 @@ def build_template_spec_versions_get_built_in_request(
         ),
     }
 
-    _url: str = _format_url_section(_url, **path_format_arguments)  # type: ignore
+    _url: str = _url.format(**path_format_arguments)  # type: ignore
 
     # Construct parameters
     _params["api-version"] = _SERIALIZER.query("api_version", api_version, "str")
@@ -605,6 +610,7 @@ class TemplateSpecsOperations:
         self._config = input_args.pop(0) if input_args else kwargs.pop("config")
         self._serialize = input_args.pop(0) if input_args else kwargs.pop("serializer")
         self._deserialize = input_args.pop(0) if input_args else kwargs.pop("deserializer")
+        self._api_version = input_args.pop(0) if input_args else kwargs.pop("api_version")
 
     @overload
     def create_or_update(
@@ -628,7 +634,6 @@ class TemplateSpecsOperations:
         :keyword content_type: Body Parameter content-type. Content type parameter for JSON body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: TemplateSpec or the result of cls(response)
         :rtype: ~azure.mgmt.resource.templatespecs.v2022_02_01.models.TemplateSpec
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -639,7 +644,7 @@ class TemplateSpecsOperations:
         self,
         resource_group_name: str,
         template_spec_name: str,
-        template_spec: IO,
+        template_spec: IO[bytes],
         *,
         content_type: str = "application/json",
         **kwargs: Any
@@ -652,11 +657,10 @@ class TemplateSpecsOperations:
         :param template_spec_name: Name of the Template Spec. Required.
         :type template_spec_name: str
         :param template_spec: Template Spec supplied to the operation. Required.
-        :type template_spec: IO
+        :type template_spec: IO[bytes]
         :keyword content_type: Body Parameter content-type. Content type parameter for binary body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: TemplateSpec or the result of cls(response)
         :rtype: ~azure.mgmt.resource.templatespecs.v2022_02_01.models.TemplateSpec
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -667,7 +671,7 @@ class TemplateSpecsOperations:
         self,
         resource_group_name: str,
         template_spec_name: str,
-        template_spec: Union[_models.TemplateSpec, IO],
+        template_spec: Union[_models.TemplateSpec, IO[bytes]],
         **kwargs: Any
     ) -> _models.TemplateSpec:
         """Creates or updates a Template Spec.
@@ -678,17 +682,14 @@ class TemplateSpecsOperations:
         :param template_spec_name: Name of the Template Spec. Required.
         :type template_spec_name: str
         :param template_spec: Template Spec supplied to the operation. Is either a TemplateSpec type or
-         a IO type. Required.
-        :type template_spec: ~azure.mgmt.resource.templatespecs.v2022_02_01.models.TemplateSpec or IO
-        :keyword content_type: Body Parameter content-type. Known values are: 'application/json'.
-         Default value is None.
-        :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
+         a IO[bytes] type. Required.
+        :type template_spec: ~azure.mgmt.resource.templatespecs.v2022_02_01.models.TemplateSpec or
+         IO[bytes]
         :return: TemplateSpec or the result of cls(response)
         :rtype: ~azure.mgmt.resource.templatespecs.v2022_02_01.models.TemplateSpec
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -699,7 +700,7 @@ class TemplateSpecsOperations:
         _headers = case_insensitive_dict(kwargs.pop("headers", {}) or {})
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2022-02-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2022-02-01"))
         content_type: Optional[str] = kwargs.pop("content_type", _headers.pop("Content-Type", None))
         cls: ClsType[_models.TemplateSpec] = kwargs.pop("cls", None)
 
@@ -711,7 +712,7 @@ class TemplateSpecsOperations:
         else:
             _json = self._serialize.body(template_spec, "TemplateSpec")
 
-        request = build_template_specs_create_or_update_request(
+        _request = build_template_specs_create_or_update_request(
             resource_group_name=resource_group_name,
             template_spec_name=template_spec_name,
             subscription_id=self._config.subscription_id,
@@ -719,16 +720,14 @@ class TemplateSpecsOperations:
             content_type=content_type,
             json=_json,
             content=_content,
-            template_url=self.create_or_update.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -738,20 +737,12 @@ class TemplateSpecsOperations:
             error = self._deserialize.failsafe_deserialize(_models.TemplateSpecsError, pipeline_response)
             raise HttpResponseError(response=response, model=error, error_format=ARMErrorFormat)
 
-        if response.status_code == 200:
-            deserialized = self._deserialize("TemplateSpec", pipeline_response)
-
-        if response.status_code == 201:
-            deserialized = self._deserialize("TemplateSpec", pipeline_response)
+        deserialized = self._deserialize("TemplateSpec", pipeline_response.http_response)
 
         if cls:
             return cls(pipeline_response, deserialized, {})  # type: ignore
 
         return deserialized  # type: ignore
-
-    create_or_update.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Resources/templateSpecs/{templateSpecName}"
-    }
 
     @overload
     def update(
@@ -777,7 +768,6 @@ class TemplateSpecsOperations:
         :keyword content_type: Body Parameter content-type. Content type parameter for JSON body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: TemplateSpec or the result of cls(response)
         :rtype: ~azure.mgmt.resource.templatespecs.v2022_02_01.models.TemplateSpec
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -788,7 +778,7 @@ class TemplateSpecsOperations:
         self,
         resource_group_name: str,
         template_spec_name: str,
-        template_spec: Optional[IO] = None,
+        template_spec: Optional[IO[bytes]] = None,
         *,
         content_type: str = "application/json",
         **kwargs: Any
@@ -802,11 +792,10 @@ class TemplateSpecsOperations:
         :type template_spec_name: str
         :param template_spec: Template Spec resource with the tags to be updated. Default value is
          None.
-        :type template_spec: IO
+        :type template_spec: IO[bytes]
         :keyword content_type: Body Parameter content-type. Content type parameter for binary body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: TemplateSpec or the result of cls(response)
         :rtype: ~azure.mgmt.resource.templatespecs.v2022_02_01.models.TemplateSpec
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -817,7 +806,7 @@ class TemplateSpecsOperations:
         self,
         resource_group_name: str,
         template_spec_name: str,
-        template_spec: Optional[Union[_models.TemplateSpecUpdateModel, IO]] = None,
+        template_spec: Optional[Union[_models.TemplateSpecUpdateModel, IO[bytes]]] = None,
         **kwargs: Any
     ) -> _models.TemplateSpec:
         """Updates Template Spec tags with specified values.
@@ -828,18 +817,14 @@ class TemplateSpecsOperations:
         :param template_spec_name: Name of the Template Spec. Required.
         :type template_spec_name: str
         :param template_spec: Template Spec resource with the tags to be updated. Is either a
-         TemplateSpecUpdateModel type or a IO type. Default value is None.
+         TemplateSpecUpdateModel type or a IO[bytes] type. Default value is None.
         :type template_spec:
-         ~azure.mgmt.resource.templatespecs.v2022_02_01.models.TemplateSpecUpdateModel or IO
-        :keyword content_type: Body Parameter content-type. Known values are: 'application/json'.
-         Default value is None.
-        :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
+         ~azure.mgmt.resource.templatespecs.v2022_02_01.models.TemplateSpecUpdateModel or IO[bytes]
         :return: TemplateSpec or the result of cls(response)
         :rtype: ~azure.mgmt.resource.templatespecs.v2022_02_01.models.TemplateSpec
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -850,7 +835,7 @@ class TemplateSpecsOperations:
         _headers = case_insensitive_dict(kwargs.pop("headers", {}) or {})
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2022-02-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2022-02-01"))
         content_type: Optional[str] = kwargs.pop("content_type", _headers.pop("Content-Type", None))
         cls: ClsType[_models.TemplateSpec] = kwargs.pop("cls", None)
 
@@ -865,7 +850,7 @@ class TemplateSpecsOperations:
             else:
                 _json = None
 
-        request = build_template_specs_update_request(
+        _request = build_template_specs_update_request(
             resource_group_name=resource_group_name,
             template_spec_name=template_spec_name,
             subscription_id=self._config.subscription_id,
@@ -873,16 +858,14 @@ class TemplateSpecsOperations:
             content_type=content_type,
             json=_json,
             content=_content,
-            template_url=self.update.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -892,16 +875,12 @@ class TemplateSpecsOperations:
             error = self._deserialize.failsafe_deserialize(_models.TemplateSpecsError, pipeline_response)
             raise HttpResponseError(response=response, model=error, error_format=ARMErrorFormat)
 
-        deserialized = self._deserialize("TemplateSpec", pipeline_response)
+        deserialized = self._deserialize("TemplateSpec", pipeline_response.http_response)
 
         if cls:
-            return cls(pipeline_response, deserialized, {})
+            return cls(pipeline_response, deserialized, {})  # type: ignore
 
-        return deserialized
-
-    update.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Resources/templateSpecs/{templateSpecName}"
-    }
+        return deserialized  # type: ignore
 
     @distributed_trace
     def get(
@@ -922,12 +901,11 @@ class TemplateSpecsOperations:
          Optional. "versions" Default value is None.
         :type expand: str or
          ~azure.mgmt.resource.templatespecs.v2022_02_01.models.TemplateSpecExpandKind
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: TemplateSpec or the result of cls(response)
         :rtype: ~azure.mgmt.resource.templatespecs.v2022_02_01.models.TemplateSpec
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -938,25 +916,23 @@ class TemplateSpecsOperations:
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2022-02-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2022-02-01"))
         cls: ClsType[_models.TemplateSpec] = kwargs.pop("cls", None)
 
-        request = build_template_specs_get_request(
+        _request = build_template_specs_get_request(
             resource_group_name=resource_group_name,
             template_spec_name=template_spec_name,
             subscription_id=self._config.subscription_id,
             expand=expand,
             api_version=api_version,
-            template_url=self.get.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -966,16 +942,12 @@ class TemplateSpecsOperations:
             error = self._deserialize.failsafe_deserialize(_models.TemplateSpecsError, pipeline_response)
             raise HttpResponseError(response=response, model=error, error_format=ARMErrorFormat)
 
-        deserialized = self._deserialize("TemplateSpec", pipeline_response)
+        deserialized = self._deserialize("TemplateSpec", pipeline_response.http_response)
 
         if cls:
-            return cls(pipeline_response, deserialized, {})
+            return cls(pipeline_response, deserialized, {})  # type: ignore
 
-        return deserialized
-
-    get.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Resources/templateSpecs/{templateSpecName}"
-    }
+        return deserialized  # type: ignore
 
     @distributed_trace
     def delete(  # pylint: disable=inconsistent-return-statements
@@ -989,12 +961,11 @@ class TemplateSpecsOperations:
         :type resource_group_name: str
         :param template_spec_name: Name of the Template Spec. Required.
         :type template_spec_name: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: None or the result of cls(response)
         :rtype: None
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -1005,24 +976,22 @@ class TemplateSpecsOperations:
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2022-02-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2022-02-01"))
         cls: ClsType[None] = kwargs.pop("cls", None)
 
-        request = build_template_specs_delete_request(
+        _request = build_template_specs_delete_request(
             resource_group_name=resource_group_name,
             template_spec_name=template_spec_name,
             subscription_id=self._config.subscription_id,
             api_version=api_version,
-            template_url=self.delete.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -1033,11 +1002,7 @@ class TemplateSpecsOperations:
             raise HttpResponseError(response=response, model=error, error_format=ARMErrorFormat)
 
         if cls:
-            return cls(pipeline_response, None, {})
-
-    delete.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Resources/templateSpecs/{templateSpecName}"
-    }
+            return cls(pipeline_response, None, {})  # type: ignore
 
     @distributed_trace
     def list_by_subscription(
@@ -1049,7 +1014,6 @@ class TemplateSpecsOperations:
          Optional. "versions" Default value is None.
         :type expand: str or
          ~azure.mgmt.resource.templatespecs.v2022_02_01.models.TemplateSpecExpandKind
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: An iterator like instance of either TemplateSpec or the result of cls(response)
         :rtype:
          ~azure.core.paging.ItemPaged[~azure.mgmt.resource.templatespecs.v2022_02_01.models.TemplateSpec]
@@ -1058,10 +1022,10 @@ class TemplateSpecsOperations:
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2022-02-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2022-02-01"))
         cls: ClsType[_models.TemplateSpecsListResult] = kwargs.pop("cls", None)
 
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -1072,16 +1036,14 @@ class TemplateSpecsOperations:
         def prepare_request(next_link=None):
             if not next_link:
 
-                request = build_template_specs_list_by_subscription_request(
+                _request = build_template_specs_list_by_subscription_request(
                     subscription_id=self._config.subscription_id,
                     expand=expand,
                     api_version=api_version,
-                    template_url=self.list_by_subscription.metadata["url"],
                     headers=_headers,
                     params=_params,
                 )
-                request = _convert_request(request)
-                request.url = self._client.format_url(request.url)
+                _request.url = self._client.format_url(_request.url)
 
             else:
                 # make call to next link with the client's api-version
@@ -1092,14 +1054,13 @@ class TemplateSpecsOperations:
                         for key, value in urllib.parse.parse_qs(_parsed_next_link.query).items()
                     }
                 )
-                _next_request_params["api-version"] = self._config.api_version
-                request = HttpRequest(
+                _next_request_params["api-version"] = self._api_version
+                _request = HttpRequest(
                     "GET", urllib.parse.urljoin(next_link, _parsed_next_link.path), params=_next_request_params
                 )
-                request = _convert_request(request)
-                request.url = self._client.format_url(request.url)
-                request.method = "GET"
-            return request
+                _request.url = self._client.format_url(_request.url)
+                _request.method = "GET"
+            return _request
 
         def extract_data(pipeline_response):
             deserialized = self._deserialize("TemplateSpecsListResult", pipeline_response)
@@ -1109,11 +1070,11 @@ class TemplateSpecsOperations:
             return deserialized.next_link or None, iter(list_of_elem)
 
         def get_next(next_link=None):
-            request = prepare_request(next_link)
+            _request = prepare_request(next_link)
 
             _stream = False
             pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-                request, stream=_stream, **kwargs
+                _request, stream=_stream, **kwargs
             )
             response = pipeline_response.http_response
 
@@ -1125,10 +1086,6 @@ class TemplateSpecsOperations:
             return pipeline_response
 
         return ItemPaged(get_next, extract_data)
-
-    list_by_subscription.metadata = {
-        "url": "/subscriptions/{subscriptionId}/providers/Microsoft.Resources/templateSpecs/"
-    }
 
     @distributed_trace
     def list_by_resource_group(
@@ -1146,7 +1103,6 @@ class TemplateSpecsOperations:
          Optional. "versions" Default value is None.
         :type expand: str or
          ~azure.mgmt.resource.templatespecs.v2022_02_01.models.TemplateSpecExpandKind
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: An iterator like instance of either TemplateSpec or the result of cls(response)
         :rtype:
          ~azure.core.paging.ItemPaged[~azure.mgmt.resource.templatespecs.v2022_02_01.models.TemplateSpec]
@@ -1155,10 +1111,10 @@ class TemplateSpecsOperations:
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2022-02-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2022-02-01"))
         cls: ClsType[_models.TemplateSpecsListResult] = kwargs.pop("cls", None)
 
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -1169,17 +1125,15 @@ class TemplateSpecsOperations:
         def prepare_request(next_link=None):
             if not next_link:
 
-                request = build_template_specs_list_by_resource_group_request(
+                _request = build_template_specs_list_by_resource_group_request(
                     resource_group_name=resource_group_name,
                     subscription_id=self._config.subscription_id,
                     expand=expand,
                     api_version=api_version,
-                    template_url=self.list_by_resource_group.metadata["url"],
                     headers=_headers,
                     params=_params,
                 )
-                request = _convert_request(request)
-                request.url = self._client.format_url(request.url)
+                _request.url = self._client.format_url(_request.url)
 
             else:
                 # make call to next link with the client's api-version
@@ -1190,14 +1144,13 @@ class TemplateSpecsOperations:
                         for key, value in urllib.parse.parse_qs(_parsed_next_link.query).items()
                     }
                 )
-                _next_request_params["api-version"] = self._config.api_version
-                request = HttpRequest(
+                _next_request_params["api-version"] = self._api_version
+                _request = HttpRequest(
                     "GET", urllib.parse.urljoin(next_link, _parsed_next_link.path), params=_next_request_params
                 )
-                request = _convert_request(request)
-                request.url = self._client.format_url(request.url)
-                request.method = "GET"
-            return request
+                _request.url = self._client.format_url(_request.url)
+                _request.method = "GET"
+            return _request
 
         def extract_data(pipeline_response):
             deserialized = self._deserialize("TemplateSpecsListResult", pipeline_response)
@@ -1207,11 +1160,11 @@ class TemplateSpecsOperations:
             return deserialized.next_link or None, iter(list_of_elem)
 
         def get_next(next_link=None):
-            request = prepare_request(next_link)
+            _request = prepare_request(next_link)
 
             _stream = False
             pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-                request, stream=_stream, **kwargs
+                _request, stream=_stream, **kwargs
             )
             response = pipeline_response.http_response
 
@@ -1223,10 +1176,6 @@ class TemplateSpecsOperations:
             return pipeline_response
 
         return ItemPaged(get_next, extract_data)
-
-    list_by_resource_group.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Resources/templateSpecs/"
-    }
 
     @distributed_trace
     def get_built_in(
@@ -1243,12 +1192,11 @@ class TemplateSpecsOperations:
          Optional. "versions" Default value is None.
         :type expand: str or
          ~azure.mgmt.resource.templatespecs.v2022_02_01.models.TemplateSpecExpandKind
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: TemplateSpec or the result of cls(response)
         :rtype: ~azure.mgmt.resource.templatespecs.v2022_02_01.models.TemplateSpec
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -1259,23 +1207,21 @@ class TemplateSpecsOperations:
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2022-02-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2022-02-01"))
         cls: ClsType[_models.TemplateSpec] = kwargs.pop("cls", None)
 
-        request = build_template_specs_get_built_in_request(
+        _request = build_template_specs_get_built_in_request(
             template_spec_name=template_spec_name,
             expand=expand,
             api_version=api_version,
-            template_url=self.get_built_in.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -1285,14 +1231,12 @@ class TemplateSpecsOperations:
             error = self._deserialize.failsafe_deserialize(_models.TemplateSpecsError, pipeline_response)
             raise HttpResponseError(response=response, model=error, error_format=ARMErrorFormat)
 
-        deserialized = self._deserialize("TemplateSpec", pipeline_response)
+        deserialized = self._deserialize("TemplateSpec", pipeline_response.http_response)
 
         if cls:
-            return cls(pipeline_response, deserialized, {})
+            return cls(pipeline_response, deserialized, {})  # type: ignore
 
-        return deserialized
-
-    get_built_in.metadata = {"url": "/providers/Microsoft.Resources/builtInTemplateSpecs/{templateSpecName}"}
+        return deserialized  # type: ignore
 
     @distributed_trace
     def list_built_ins(
@@ -1304,7 +1248,6 @@ class TemplateSpecsOperations:
          Optional. "versions" Default value is None.
         :type expand: str or
          ~azure.mgmt.resource.templatespecs.v2022_02_01.models.TemplateSpecExpandKind
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: An iterator like instance of either TemplateSpec or the result of cls(response)
         :rtype:
          ~azure.core.paging.ItemPaged[~azure.mgmt.resource.templatespecs.v2022_02_01.models.TemplateSpec]
@@ -1313,10 +1256,10 @@ class TemplateSpecsOperations:
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2022-02-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2022-02-01"))
         cls: ClsType[_models.TemplateSpecsListResult] = kwargs.pop("cls", None)
 
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -1327,15 +1270,13 @@ class TemplateSpecsOperations:
         def prepare_request(next_link=None):
             if not next_link:
 
-                request = build_template_specs_list_built_ins_request(
+                _request = build_template_specs_list_built_ins_request(
                     expand=expand,
                     api_version=api_version,
-                    template_url=self.list_built_ins.metadata["url"],
                     headers=_headers,
                     params=_params,
                 )
-                request = _convert_request(request)
-                request.url = self._client.format_url(request.url)
+                _request.url = self._client.format_url(_request.url)
 
             else:
                 # make call to next link with the client's api-version
@@ -1346,14 +1287,13 @@ class TemplateSpecsOperations:
                         for key, value in urllib.parse.parse_qs(_parsed_next_link.query).items()
                     }
                 )
-                _next_request_params["api-version"] = self._config.api_version
-                request = HttpRequest(
+                _next_request_params["api-version"] = self._api_version
+                _request = HttpRequest(
                     "GET", urllib.parse.urljoin(next_link, _parsed_next_link.path), params=_next_request_params
                 )
-                request = _convert_request(request)
-                request.url = self._client.format_url(request.url)
-                request.method = "GET"
-            return request
+                _request.url = self._client.format_url(_request.url)
+                _request.method = "GET"
+            return _request
 
         def extract_data(pipeline_response):
             deserialized = self._deserialize("TemplateSpecsListResult", pipeline_response)
@@ -1363,11 +1303,11 @@ class TemplateSpecsOperations:
             return deserialized.next_link or None, iter(list_of_elem)
 
         def get_next(next_link=None):
-            request = prepare_request(next_link)
+            _request = prepare_request(next_link)
 
             _stream = False
             pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-                request, stream=_stream, **kwargs
+                _request, stream=_stream, **kwargs
             )
             response = pipeline_response.http_response
 
@@ -1379,8 +1319,6 @@ class TemplateSpecsOperations:
             return pipeline_response
 
         return ItemPaged(get_next, extract_data)
-
-    list_built_ins.metadata = {"url": "/providers/Microsoft.Resources/builtInTemplateSpecs/"}
 
 
 class TemplateSpecVersionsOperations:
@@ -1401,6 +1339,7 @@ class TemplateSpecVersionsOperations:
         self._config = input_args.pop(0) if input_args else kwargs.pop("config")
         self._serialize = input_args.pop(0) if input_args else kwargs.pop("serializer")
         self._deserialize = input_args.pop(0) if input_args else kwargs.pop("deserializer")
+        self._api_version = input_args.pop(0) if input_args else kwargs.pop("api_version")
 
     @overload
     def create_or_update(
@@ -1428,7 +1367,6 @@ class TemplateSpecVersionsOperations:
         :keyword content_type: Body Parameter content-type. Content type parameter for JSON body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: TemplateSpecVersion or the result of cls(response)
         :rtype: ~azure.mgmt.resource.templatespecs.v2022_02_01.models.TemplateSpecVersion
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -1440,7 +1378,7 @@ class TemplateSpecVersionsOperations:
         resource_group_name: str,
         template_spec_name: str,
         template_spec_version: str,
-        template_spec_version_model: IO,
+        template_spec_version_model: IO[bytes],
         *,
         content_type: str = "application/json",
         **kwargs: Any
@@ -1455,11 +1393,10 @@ class TemplateSpecVersionsOperations:
         :param template_spec_version: The version of the Template Spec. Required.
         :type template_spec_version: str
         :param template_spec_version_model: Template Spec Version supplied to the operation. Required.
-        :type template_spec_version_model: IO
+        :type template_spec_version_model: IO[bytes]
         :keyword content_type: Body Parameter content-type. Content type parameter for binary body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: TemplateSpecVersion or the result of cls(response)
         :rtype: ~azure.mgmt.resource.templatespecs.v2022_02_01.models.TemplateSpecVersion
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -1471,7 +1408,7 @@ class TemplateSpecVersionsOperations:
         resource_group_name: str,
         template_spec_name: str,
         template_spec_version: str,
-        template_spec_version_model: Union[_models.TemplateSpecVersion, IO],
+        template_spec_version_model: Union[_models.TemplateSpecVersion, IO[bytes]],
         **kwargs: Any
     ) -> _models.TemplateSpecVersion:
         """Creates or updates a Template Spec version.
@@ -1484,18 +1421,14 @@ class TemplateSpecVersionsOperations:
         :param template_spec_version: The version of the Template Spec. Required.
         :type template_spec_version: str
         :param template_spec_version_model: Template Spec Version supplied to the operation. Is either
-         a TemplateSpecVersion type or a IO type. Required.
+         a TemplateSpecVersion type or a IO[bytes] type. Required.
         :type template_spec_version_model:
-         ~azure.mgmt.resource.templatespecs.v2022_02_01.models.TemplateSpecVersion or IO
-        :keyword content_type: Body Parameter content-type. Known values are: 'application/json'.
-         Default value is None.
-        :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
+         ~azure.mgmt.resource.templatespecs.v2022_02_01.models.TemplateSpecVersion or IO[bytes]
         :return: TemplateSpecVersion or the result of cls(response)
         :rtype: ~azure.mgmt.resource.templatespecs.v2022_02_01.models.TemplateSpecVersion
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -1506,7 +1439,7 @@ class TemplateSpecVersionsOperations:
         _headers = case_insensitive_dict(kwargs.pop("headers", {}) or {})
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2022-02-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2022-02-01"))
         content_type: Optional[str] = kwargs.pop("content_type", _headers.pop("Content-Type", None))
         cls: ClsType[_models.TemplateSpecVersion] = kwargs.pop("cls", None)
 
@@ -1518,7 +1451,7 @@ class TemplateSpecVersionsOperations:
         else:
             _json = self._serialize.body(template_spec_version_model, "TemplateSpecVersion")
 
-        request = build_template_spec_versions_create_or_update_request(
+        _request = build_template_spec_versions_create_or_update_request(
             resource_group_name=resource_group_name,
             template_spec_name=template_spec_name,
             template_spec_version=template_spec_version,
@@ -1527,16 +1460,14 @@ class TemplateSpecVersionsOperations:
             content_type=content_type,
             json=_json,
             content=_content,
-            template_url=self.create_or_update.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -1546,20 +1477,12 @@ class TemplateSpecVersionsOperations:
             error = self._deserialize.failsafe_deserialize(_models.TemplateSpecsError, pipeline_response)
             raise HttpResponseError(response=response, model=error, error_format=ARMErrorFormat)
 
-        if response.status_code == 200:
-            deserialized = self._deserialize("TemplateSpecVersion", pipeline_response)
-
-        if response.status_code == 201:
-            deserialized = self._deserialize("TemplateSpecVersion", pipeline_response)
+        deserialized = self._deserialize("TemplateSpecVersion", pipeline_response.http_response)
 
         if cls:
             return cls(pipeline_response, deserialized, {})  # type: ignore
 
         return deserialized  # type: ignore
-
-    create_or_update.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Resources/templateSpecs/{templateSpecName}/versions/{templateSpecVersion}"
-    }
 
     @overload
     def update(
@@ -1588,7 +1511,6 @@ class TemplateSpecVersionsOperations:
         :keyword content_type: Body Parameter content-type. Content type parameter for JSON body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: TemplateSpecVersion or the result of cls(response)
         :rtype: ~azure.mgmt.resource.templatespecs.v2022_02_01.models.TemplateSpecVersion
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -1600,7 +1522,7 @@ class TemplateSpecVersionsOperations:
         resource_group_name: str,
         template_spec_name: str,
         template_spec_version: str,
-        template_spec_version_update_model: Optional[IO] = None,
+        template_spec_version_update_model: Optional[IO[bytes]] = None,
         *,
         content_type: str = "application/json",
         **kwargs: Any
@@ -1616,11 +1538,10 @@ class TemplateSpecVersionsOperations:
         :type template_spec_version: str
         :param template_spec_version_update_model: Template Spec Version resource with the tags to be
          updated. Default value is None.
-        :type template_spec_version_update_model: IO
+        :type template_spec_version_update_model: IO[bytes]
         :keyword content_type: Body Parameter content-type. Content type parameter for binary body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: TemplateSpecVersion or the result of cls(response)
         :rtype: ~azure.mgmt.resource.templatespecs.v2022_02_01.models.TemplateSpecVersion
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -1632,7 +1553,7 @@ class TemplateSpecVersionsOperations:
         resource_group_name: str,
         template_spec_name: str,
         template_spec_version: str,
-        template_spec_version_update_model: Optional[Union[_models.TemplateSpecVersionUpdateModel, IO]] = None,
+        template_spec_version_update_model: Optional[Union[_models.TemplateSpecVersionUpdateModel, IO[bytes]]] = None,
         **kwargs: Any
     ) -> _models.TemplateSpecVersion:
         """Updates Template Spec Version tags with specified values.
@@ -1645,18 +1566,16 @@ class TemplateSpecVersionsOperations:
         :param template_spec_version: The version of the Template Spec. Required.
         :type template_spec_version: str
         :param template_spec_version_update_model: Template Spec Version resource with the tags to be
-         updated. Is either a TemplateSpecVersionUpdateModel type or a IO type. Default value is None.
+         updated. Is either a TemplateSpecVersionUpdateModel type or a IO[bytes] type. Default value is
+         None.
         :type template_spec_version_update_model:
-         ~azure.mgmt.resource.templatespecs.v2022_02_01.models.TemplateSpecVersionUpdateModel or IO
-        :keyword content_type: Body Parameter content-type. Known values are: 'application/json'.
-         Default value is None.
-        :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
+         ~azure.mgmt.resource.templatespecs.v2022_02_01.models.TemplateSpecVersionUpdateModel or
+         IO[bytes]
         :return: TemplateSpecVersion or the result of cls(response)
         :rtype: ~azure.mgmt.resource.templatespecs.v2022_02_01.models.TemplateSpecVersion
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -1667,7 +1586,7 @@ class TemplateSpecVersionsOperations:
         _headers = case_insensitive_dict(kwargs.pop("headers", {}) or {})
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2022-02-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2022-02-01"))
         content_type: Optional[str] = kwargs.pop("content_type", _headers.pop("Content-Type", None))
         cls: ClsType[_models.TemplateSpecVersion] = kwargs.pop("cls", None)
 
@@ -1682,7 +1601,7 @@ class TemplateSpecVersionsOperations:
             else:
                 _json = None
 
-        request = build_template_spec_versions_update_request(
+        _request = build_template_spec_versions_update_request(
             resource_group_name=resource_group_name,
             template_spec_name=template_spec_name,
             template_spec_version=template_spec_version,
@@ -1691,16 +1610,14 @@ class TemplateSpecVersionsOperations:
             content_type=content_type,
             json=_json,
             content=_content,
-            template_url=self.update.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -1710,16 +1627,12 @@ class TemplateSpecVersionsOperations:
             error = self._deserialize.failsafe_deserialize(_models.TemplateSpecsError, pipeline_response)
             raise HttpResponseError(response=response, model=error, error_format=ARMErrorFormat)
 
-        deserialized = self._deserialize("TemplateSpecVersion", pipeline_response)
+        deserialized = self._deserialize("TemplateSpecVersion", pipeline_response.http_response)
 
         if cls:
-            return cls(pipeline_response, deserialized, {})
+            return cls(pipeline_response, deserialized, {})  # type: ignore
 
-        return deserialized
-
-    update.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Resources/templateSpecs/{templateSpecName}/versions/{templateSpecVersion}"
-    }
+        return deserialized  # type: ignore
 
     @distributed_trace
     def get(
@@ -1734,12 +1647,11 @@ class TemplateSpecVersionsOperations:
         :type template_spec_name: str
         :param template_spec_version: The version of the Template Spec. Required.
         :type template_spec_version: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: TemplateSpecVersion or the result of cls(response)
         :rtype: ~azure.mgmt.resource.templatespecs.v2022_02_01.models.TemplateSpecVersion
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -1750,25 +1662,23 @@ class TemplateSpecVersionsOperations:
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2022-02-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2022-02-01"))
         cls: ClsType[_models.TemplateSpecVersion] = kwargs.pop("cls", None)
 
-        request = build_template_spec_versions_get_request(
+        _request = build_template_spec_versions_get_request(
             resource_group_name=resource_group_name,
             template_spec_name=template_spec_name,
             template_spec_version=template_spec_version,
             subscription_id=self._config.subscription_id,
             api_version=api_version,
-            template_url=self.get.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -1778,16 +1688,12 @@ class TemplateSpecVersionsOperations:
             error = self._deserialize.failsafe_deserialize(_models.TemplateSpecsError, pipeline_response)
             raise HttpResponseError(response=response, model=error, error_format=ARMErrorFormat)
 
-        deserialized = self._deserialize("TemplateSpecVersion", pipeline_response)
+        deserialized = self._deserialize("TemplateSpecVersion", pipeline_response.http_response)
 
         if cls:
-            return cls(pipeline_response, deserialized, {})
+            return cls(pipeline_response, deserialized, {})  # type: ignore
 
-        return deserialized
-
-    get.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Resources/templateSpecs/{templateSpecName}/versions/{templateSpecVersion}"
-    }
+        return deserialized  # type: ignore
 
     @distributed_trace
     def delete(  # pylint: disable=inconsistent-return-statements
@@ -1803,12 +1709,11 @@ class TemplateSpecVersionsOperations:
         :type template_spec_name: str
         :param template_spec_version: The version of the Template Spec. Required.
         :type template_spec_version: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: None or the result of cls(response)
         :rtype: None
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -1819,25 +1724,23 @@ class TemplateSpecVersionsOperations:
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2022-02-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2022-02-01"))
         cls: ClsType[None] = kwargs.pop("cls", None)
 
-        request = build_template_spec_versions_delete_request(
+        _request = build_template_spec_versions_delete_request(
             resource_group_name=resource_group_name,
             template_spec_name=template_spec_name,
             template_spec_version=template_spec_version,
             subscription_id=self._config.subscription_id,
             api_version=api_version,
-            template_url=self.delete.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -1848,11 +1751,7 @@ class TemplateSpecVersionsOperations:
             raise HttpResponseError(response=response, model=error, error_format=ARMErrorFormat)
 
         if cls:
-            return cls(pipeline_response, None, {})
-
-    delete.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Resources/templateSpecs/{templateSpecName}/versions/{templateSpecVersion}"
-    }
+            return cls(pipeline_response, None, {})  # type: ignore
 
     @distributed_trace
     def list(
@@ -1865,7 +1764,6 @@ class TemplateSpecVersionsOperations:
         :type resource_group_name: str
         :param template_spec_name: Name of the Template Spec. Required.
         :type template_spec_name: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: An iterator like instance of either TemplateSpecVersion or the result of cls(response)
         :rtype:
          ~azure.core.paging.ItemPaged[~azure.mgmt.resource.templatespecs.v2022_02_01.models.TemplateSpecVersion]
@@ -1874,10 +1772,10 @@ class TemplateSpecVersionsOperations:
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2022-02-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2022-02-01"))
         cls: ClsType[_models.TemplateSpecVersionsListResult] = kwargs.pop("cls", None)
 
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -1888,17 +1786,15 @@ class TemplateSpecVersionsOperations:
         def prepare_request(next_link=None):
             if not next_link:
 
-                request = build_template_spec_versions_list_request(
+                _request = build_template_spec_versions_list_request(
                     resource_group_name=resource_group_name,
                     template_spec_name=template_spec_name,
                     subscription_id=self._config.subscription_id,
                     api_version=api_version,
-                    template_url=self.list.metadata["url"],
                     headers=_headers,
                     params=_params,
                 )
-                request = _convert_request(request)
-                request.url = self._client.format_url(request.url)
+                _request.url = self._client.format_url(_request.url)
 
             else:
                 # make call to next link with the client's api-version
@@ -1909,14 +1805,13 @@ class TemplateSpecVersionsOperations:
                         for key, value in urllib.parse.parse_qs(_parsed_next_link.query).items()
                     }
                 )
-                _next_request_params["api-version"] = self._config.api_version
-                request = HttpRequest(
+                _next_request_params["api-version"] = self._api_version
+                _request = HttpRequest(
                     "GET", urllib.parse.urljoin(next_link, _parsed_next_link.path), params=_next_request_params
                 )
-                request = _convert_request(request)
-                request.url = self._client.format_url(request.url)
-                request.method = "GET"
-            return request
+                _request.url = self._client.format_url(_request.url)
+                _request.method = "GET"
+            return _request
 
         def extract_data(pipeline_response):
             deserialized = self._deserialize("TemplateSpecVersionsListResult", pipeline_response)
@@ -1926,11 +1821,11 @@ class TemplateSpecVersionsOperations:
             return deserialized.next_link or None, iter(list_of_elem)
 
         def get_next(next_link=None):
-            request = prepare_request(next_link)
+            _request = prepare_request(next_link)
 
             _stream = False
             pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-                request, stream=_stream, **kwargs
+                _request, stream=_stream, **kwargs
             )
             response = pipeline_response.http_response
 
@@ -1942,10 +1837,6 @@ class TemplateSpecVersionsOperations:
             return pipeline_response
 
         return ItemPaged(get_next, extract_data)
-
-    list.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Resources/templateSpecs/{templateSpecName}/versions"
-    }
 
     @distributed_trace
     def list_built_ins(self, template_spec_name: str, **kwargs: Any) -> Iterable["_models.TemplateSpecVersion"]:
@@ -1953,7 +1844,6 @@ class TemplateSpecVersionsOperations:
 
         :param template_spec_name: Name of the Template Spec. Required.
         :type template_spec_name: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: An iterator like instance of either TemplateSpecVersion or the result of cls(response)
         :rtype:
          ~azure.core.paging.ItemPaged[~azure.mgmt.resource.templatespecs.v2022_02_01.models.TemplateSpecVersion]
@@ -1962,10 +1852,10 @@ class TemplateSpecVersionsOperations:
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2022-02-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2022-02-01"))
         cls: ClsType[_models.TemplateSpecVersionsListResult] = kwargs.pop("cls", None)
 
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -1976,15 +1866,13 @@ class TemplateSpecVersionsOperations:
         def prepare_request(next_link=None):
             if not next_link:
 
-                request = build_template_spec_versions_list_built_ins_request(
+                _request = build_template_spec_versions_list_built_ins_request(
                     template_spec_name=template_spec_name,
                     api_version=api_version,
-                    template_url=self.list_built_ins.metadata["url"],
                     headers=_headers,
                     params=_params,
                 )
-                request = _convert_request(request)
-                request.url = self._client.format_url(request.url)
+                _request.url = self._client.format_url(_request.url)
 
             else:
                 # make call to next link with the client's api-version
@@ -1995,14 +1883,13 @@ class TemplateSpecVersionsOperations:
                         for key, value in urllib.parse.parse_qs(_parsed_next_link.query).items()
                     }
                 )
-                _next_request_params["api-version"] = self._config.api_version
-                request = HttpRequest(
+                _next_request_params["api-version"] = self._api_version
+                _request = HttpRequest(
                     "GET", urllib.parse.urljoin(next_link, _parsed_next_link.path), params=_next_request_params
                 )
-                request = _convert_request(request)
-                request.url = self._client.format_url(request.url)
-                request.method = "GET"
-            return request
+                _request.url = self._client.format_url(_request.url)
+                _request.method = "GET"
+            return _request
 
         def extract_data(pipeline_response):
             deserialized = self._deserialize("TemplateSpecVersionsListResult", pipeline_response)
@@ -2012,11 +1899,11 @@ class TemplateSpecVersionsOperations:
             return deserialized.next_link or None, iter(list_of_elem)
 
         def get_next(next_link=None):
-            request = prepare_request(next_link)
+            _request = prepare_request(next_link)
 
             _stream = False
             pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-                request, stream=_stream, **kwargs
+                _request, stream=_stream, **kwargs
             )
             response = pipeline_response.http_response
 
@@ -2028,8 +1915,6 @@ class TemplateSpecVersionsOperations:
             return pipeline_response
 
         return ItemPaged(get_next, extract_data)
-
-    list_built_ins.metadata = {"url": "/providers/Microsoft.Resources/builtInTemplateSpecs/{templateSpecName}/versions"}
 
     @distributed_trace
     def get_built_in(
@@ -2041,12 +1926,11 @@ class TemplateSpecVersionsOperations:
         :type template_spec_name: str
         :param template_spec_version: The version of the Template Spec. Required.
         :type template_spec_version: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: TemplateSpecVersion or the result of cls(response)
         :rtype: ~azure.mgmt.resource.templatespecs.v2022_02_01.models.TemplateSpecVersion
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -2057,23 +1941,21 @@ class TemplateSpecVersionsOperations:
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2022-02-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2022-02-01"))
         cls: ClsType[_models.TemplateSpecVersion] = kwargs.pop("cls", None)
 
-        request = build_template_spec_versions_get_built_in_request(
+        _request = build_template_spec_versions_get_built_in_request(
             template_spec_name=template_spec_name,
             template_spec_version=template_spec_version,
             api_version=api_version,
-            template_url=self.get_built_in.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -2083,13 +1965,9 @@ class TemplateSpecVersionsOperations:
             error = self._deserialize.failsafe_deserialize(_models.TemplateSpecsError, pipeline_response)
             raise HttpResponseError(response=response, model=error, error_format=ARMErrorFormat)
 
-        deserialized = self._deserialize("TemplateSpecVersion", pipeline_response)
+        deserialized = self._deserialize("TemplateSpecVersion", pipeline_response.http_response)
 
         if cls:
-            return cls(pipeline_response, deserialized, {})
+            return cls(pipeline_response, deserialized, {})  # type: ignore
 
-        return deserialized
-
-    get_built_in.metadata = {
-        "url": "/providers/Microsoft.Resources/builtInTemplateSpecs/{templateSpecName}/versions/{templateSpecVersion}"
-    }
+        return deserialized  # type: ignore

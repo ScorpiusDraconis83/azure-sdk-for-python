@@ -9,10 +9,9 @@ import os
 import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, Optional, Tuple, TypeVar, Union
+from typing import TYPE_CHECKING, Dict, Optional, Tuple, TypeVar, Union
+
 from typing_extensions import Literal
-from azure.storage.blob import BlobSasPermissions, generate_blob_sas
-from azure.storage.filedatalake import FileSasPermissions, generate_file_sas
 
 from azure.ai.ml._artifacts._blob_storage_helper import BlobStorageClient
 from azure.ai.ml._artifacts._gen2_storage_helper import Gen2StorageClient
@@ -43,10 +42,23 @@ from azure.ai.ml._utils.utils import is_mlflow_uri, is_url
 from azure.ai.ml.constants._common import SHORT_URI_FORMAT, STORAGE_ACCOUNT_URLS
 from azure.ai.ml.entities import Environment
 from azure.ai.ml.entities._assets._artifacts.artifact import Artifact, ArtifactStorageInfo
-from azure.ai.ml.entities._credentials import AccountKeyConfiguration
 from azure.ai.ml.entities._datastore._constants import WORKSPACE_BLOB_STORE
-from azure.ai.ml.exceptions import ErrorTarget, ValidationException
+from azure.ai.ml.exceptions import ErrorTarget, MlException, ValidationException
 from azure.ai.ml.operations._datastore_operations import DatastoreOperations
+from azure.core.exceptions import HttpResponseError
+from azure.storage.blob import BlobSasPermissions, generate_blob_sas
+from azure.storage.filedatalake import FileSasPermissions, generate_file_sas
+
+if TYPE_CHECKING:
+    from azure.ai.ml.operations import (
+        DataOperations,
+        EnvironmentOperations,
+        EvaluatorOperations,
+        FeatureSetOperations,
+        IndexOperations,
+        ModelOperations,
+    )
+    from azure.ai.ml.operations._code_operations import CodeOperations
 
 module_logger = logging.getLogger(__name__)
 
@@ -60,7 +72,7 @@ def _get_datastore_name(*, datastore_name: Optional[str] = WORKSPACE_BLOB_STORE)
     datastore_name = remove_aml_prefix(datastore_name)
     if is_ARM_id_for_resource(datastore_name):
         datastore_name = get_resource_name_from_arm_id(datastore_name)
-    return datastore_name
+    return str(datastore_name)
 
 
 def get_datastore_info(
@@ -76,18 +88,15 @@ def get_datastore_info(
     :type operations: DatastoreOperations
     :param name: Name of the datastore. If not provided, the default datastore will be used.
     :type name: str
-    :keyword credential: Local credential to use for authentication. If not provided, will try to get
-        credentials from the datastore, which requires authorization to perform action
-        'Microsoft.MachineLearningServices/workspaces/datastores/listSecrets/action' over target datastore.
+    :keyword credential: Local credential to use for authentication. This argument is no longer used as of 1.18.0.
+        Instead, a SAS token will be requested from the datastore, and the MLClient credential will be used as backup,
+        if necessary.
     :paramtype credential: str
     :return: The dictionary with datastore info
-    :rtype: Dict[Literal["storage_type", "storage_account", "account_url", "container_name"], str]
+    :rtype: Dict[Literal["storage_type", "storage_account", "account_url", "container_name", "credential"], str]
     """
-    datastore_info = {}
-    if name:
-        datastore = operations.get(name, include_secrets=credential is None)
-    else:
-        datastore = operations.get_default(include_secrets=credential is None)
+    datastore_info: Dict = {}
+    datastore = operations.get(name) if name else operations.get_default()
 
     storage_endpoint = _get_storage_endpoint_from_metadata()
     datastore_info["storage_type"] = datastore.type
@@ -95,31 +104,23 @@ def get_datastore_info(
     datastore_info["account_url"] = STORAGE_ACCOUNT_URLS[datastore.type].format(
         datastore.account_name, storage_endpoint
     )
-    if credential is not None:
-        datastore_info["credential"] = credential
-    else:
-        credential = datastore.credentials
 
-        if isinstance(credential, AccountKeyConfiguration):
-            datastore_info["credential"] = credential.account_key
-        else:
-            try:
-                datastore_info["credential"] = credential.sas_token
-            except Exception as e:  # pylint: disable=broad-except
-                if not hasattr(credential, "sas_token"):
-                    datastore_info["credential"] = operations._credential
-                else:
-                    raise e
+    try:
+        credential = operations._list_secrets(name=name, expirable_secret=True)
+        datastore_info["credential"] = credential.sas_token
+    except HttpResponseError:
+        datastore_info["credential"] = operations._credential
 
     if datastore.type == DatastoreType.AZURE_BLOB:
         datastore_info["container_name"] = str(datastore.container_name)
     elif datastore.type == DatastoreType.AZURE_DATA_LAKE_GEN2:
         datastore_info["container_name"] = str(datastore.filesystem)
     else:
-        raise Exception(
+        msg = (
             f"Datastore type {datastore.type} is not supported for uploads. "
             f"Supported types are {DatastoreType.AZURE_BLOB} and {DatastoreType.AZURE_DATA_LAKE_GEN2}."
         )
+        raise MlException(message=msg, no_personal_data_message=msg)
 
     for override_param_name, value in kwargs.items():
         if override_param_name in datastore_info:
@@ -151,7 +152,8 @@ def list_logs_in_datastore(
         DatastoreType.AZURE_BLOB,
         DatastoreType.AZURE_DATA_LAKE_GEN2,
     ]:
-        raise Exception("Only Blob and Azure DataLake Storage Gen2 datastores are supported.")
+        msg = "Only Blob and Azure DataLake Storage Gen2 datastores are supported."
+        raise MlException(message=msg, no_personal_data_message=msg)
 
     storage_client = get_storage_client(
         credential=ds_info["credential"],
@@ -186,7 +188,12 @@ def list_logs_in_datastore(
                 expiry=datetime.utcnow() + timedelta(minutes=30),
             )
 
-        log_dict[sub_name] = "{}/{}/{}?{}".format(ds_info["account_url"], ds_info["container_name"], item_name, token)
+        log_dict[sub_name] = "{}/{}/{}?{}".format(
+            ds_info["account_url"],
+            ds_info["container_name"],
+            item_name,
+            token,  # pylint: disable=possibly-used-before-assignment
+        )
     return log_dict
 
 
@@ -449,7 +456,14 @@ T = TypeVar("T", bound=Artifact)
 
 def _check_and_upload_path(
     artifact: T,
-    asset_operations: Union["DataOperations", "ModelOperations", "CodeOperations", "FeatureSetOperations"],
+    asset_operations: Union[
+        "DataOperations",
+        "ModelOperations",
+        "EvaluatorOperations",
+        "CodeOperations",
+        "FeatureSetOperations",
+        "IndexOperations",
+    ],
     artifact_type: str,
     datastore_name: Optional[str] = None,
     sas_uri: Optional[str] = None,
@@ -461,7 +475,7 @@ def _check_and_upload_path(
     :param artifact: artifact to check and upload param
     :type artifact: T
     :param asset_operations: The asset operations to use for uploading
-    :type asset_operations: Union["DataOperations", "ModelOperations", "CodeOperations"]
+    :type asset_operations: Union["DataOperations", "ModelOperations", "CodeOperations", "IndexOperations"]
     :param artifact_type: The artifact type
     :type artifact_type: str
     :param datastore_name: the name of the datastore to upload to
@@ -538,12 +552,13 @@ def _check_and_upload_env_build_context(
             datastore_name=environment.datastore,
             show_progress=show_progress,
         )
-        # TODO: Depending on decision trailing "/" needs to stay or not. EMS requires it to be present
-        environment.build.path = uploaded_artifact.full_storage_path + "/"
+        if environment.build is not None:
+            # TODO: Depending on decision trailing "/" needs to stay or not. EMS requires it to be present
+            environment.build.path = str(uploaded_artifact.full_storage_path) + "/"
     return environment
 
 
-def _get_snapshot_path_info(artifact) -> Tuple[Path, IgnoreFile, str]:
+def _get_snapshot_path_info(artifact) -> Optional[Tuple[Path, IgnoreFile, str]]:
     """
     Validate an Artifact's local path and get its resolved path, ignore file, and hash. If no local path, return None.
     :param artifact: Artifact object

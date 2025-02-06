@@ -1,14 +1,209 @@
 # Release History
 
-## 1.0.0b21 (Unreleased)
+## 1.0.0b34 (Unreleased)
 
 ### Features Added
+
+- Support AAD for sovereign clouds
+  ([#39379](https://github.com/Azure/azure-sdk-for-python/pull/39379))
+- Support stable http semantic conventions for breeze exporter - REQUESTS
+  ([#39208](https://github.com/Azure/azure-sdk-for-python/pull/39208))
+- Support stable http semantic conventions for breeze exporter - DEPENDENCIES
+  ([#39441](https://github.com/Azure/azure-sdk-for-python/pull/39441))
 
 ### Breaking Changes
 
 ### Bugs Fixed
 
 ### Other Changes
+
+## 1.0.0b33 (2025-01-14)
+
+### Features Added
+
+- Implement live metrics filtering for metrics
+  ([#37998](https://github.com/Azure/azure-sdk-for-python/pull/37998))
+- Add applying filter/validating filter logic to live metrics filtering
+  ([#38451](https://github.com/Azure/azure-sdk-for-python/pull/38451))
+- Implement live metrics filtering for docs
+  ([#38925](https://github.com/Azure/azure-sdk-for-python/pull/38925))
+- Implement live metrics + filtering for span event exceptions
+  ([#39168](https://github.com/Azure/azure-sdk-for-python/pull/39168))
+
+### Bugs Fixed
+
+- Detect live metrics usage during runtime in addition to on startup
+  ([#37694](https://github.com/Azure/azure-sdk-for-python/pull/37694))
+- Remove status code `206` from retry code + only count batch level for statsbeat
+  ([#38647](https://github.com/Azure/azure-sdk-for-python/pull/38647))
+
+### Other Changes
+
+- Refactored live metrics filtering modules
+  ([#38837](https://github.com/Azure/azure-sdk-for-python/pull/38837))
+
+## 1.0.0b32 (2024-11-04)
+
+### Breaking Changes
+
+- Serialize complex objects provided as log or event bodies to JSON and
+  fall back to string representation if they are not serializable.
+  ([#37694](https://github.com/Azure/azure-sdk-for-python/pull/37694))
+
+### Other Changes
+
+- Refactor trace mapping logic for target and data into trace utils
+    ([#37897](https://github.com/Azure/azure-sdk-for-python/pull/37897))
+
+## 1.0.0b31 (2024-10-08)
+
+### Features Added
+
+- Allow tracking of whether in a Azure Functions attach scenario
+    ([#37717](https://github.com/Azure/azure-sdk-for-python/pull/37717))
+
+## 1.0.0b30 (2024-09-20)
+
+### Bugs Fixed
+
+- Fix setting custom `TracerProvider` bug
+    ([#37469](https://github.com/Azure/azure-sdk-for-python/pull/37469))
+
+## 1.0.0b29 (2024-09-10)
+
+### Features Added
+
+- Allow passing in of custom `TracerProvider` for `AzureMonitorTraceExporter`
+    ([#36363](https://github.com/Azure/azure-sdk-for-python/pull/36363))
+- Support AAD Auth for live metrics
+    ([#37258](https://github.com/Azure/azure-sdk-for-python/pull/37258))
+
+### Other Changes
+
+- Update instrumentation constants info
+    ([#36696](https://github.com/Azure/azure-sdk-for-python/pull/36696))
+- Refactor statsbeat utils functions
+    ([#36824](https://github.com/Azure/azure-sdk-for-python/pull/36824))
+
+## 1.0.0b28 (2024-07-29)
+
+### Other Changes
+
+- Support for Python 3.12
+    ([#36481](https://github.com/Azure/azure-sdk-for-python/pull/36481))
+
+## 1.0.0b27 (2024-06-21)
+
+### Features Added
+
+- Implement redirect for live metrics
+    ([#35910](https://github.com/Azure/azure-sdk-for-python/pull/35910))
+
+### Bugs Fixed
+
+- Default missing/invalid status codes to "0" for standard metrics/trace payloads, change
+    success criteria to `False` for those invalid cases, change success criteria to status_code < 400 for
+    both client and server standard metrics
+    ([#36079](https://github.com/Azure/azure-sdk-for-python/pull/36079))
+
+## 1.0.0b26 (2024-05-29)
+
+### Bugs Fixed
+
+- Handle invalid status codes in std metric payload
+    ([#35762](https://github.com/Azure/azure-sdk-for-python/pull/35762))
+- Disable distributed tracing for live metrics client calls
+    ([#35822](https://github.com/Azure/azure-sdk-for-python/pull/35822))
+
+### Other Changes
+
+- Update live metrics to use typespec generated swagger
+    ([#34840](https://github.com/Azure/azure-sdk-for-python/pull/34840))
+- Send old and new process level live metrics
+    ([#35753](https://github.com/Azure/azure-sdk-for-python/pull/35753))
+
+## 1.0.0b25 (2024-04-19)
+
+### Features Added
+
+- Enable sampling for attach
+    ([#35218](https://github.com/Azure/azure-sdk-for-python/pull/35218))
+
+## 1.0.0b24 (2024-04-05)
+
+### Features Added
+
+- Add live metrics collection of requests/dependencies/exceptions
+    ([#34673](https://github.com/Azure/azure-sdk-for-python/pull/34673))
+- Add live metrics collection of cpu time/process memory
+    ([#34735](https://github.com/Azure/azure-sdk-for-python/pull/34735))
+- Add live metrics collection feature detection to statsbeat
+    ([#34752](https://github.com/Azure/azure-sdk-for-python/pull/34752))
+
+### Breaking Changes
+
+- Rename Statbeat environments variables to use `APPLICATIONINSIGHTS_*`
+    ([#34742](https://github.com/Azure/azure-sdk-for-python/pull/34742))
+
+### Bugs Fixed
+
+- Reduce vm metadata service timeout to 200ms
+    ([#35039](https://github.com/Azure/azure-sdk-for-python/pull/35039))
+
+### Other Changes
+
+- Updated FastAPI sample
+    ([#34738](https://github.com/Azure/azure-sdk-for-python/pull/34738))
+- Set up branching logic for attach function
+    ([#35066](https://github.com/Azure/azure-sdk-for-python/pull/35066))
+
+## 1.0.0b23 (2024-02-28)
+
+### Features Added
+
+- Add device.* to part A fields
+    ([#34229](https://github.com/Azure/azure-sdk-for-python/pull/34229))
+- Add live metrics exporting functionality
+    ([#34141](https://github.com/Azure/azure-sdk-for-python/pull/34141))
+- Add application.ver to part A fields
+    ([#34401](https://github.com/Azure/azure-sdk-for-python/pull/34401))
+- Add `APPLICATIONINSIGHTS_METRIC_NAMESPACE_OPT_IN`
+    ([#34463](https://github.com/Azure/azure-sdk-for-python/pull/34463))
+
+### Other Changes
+
+- Add attachType character to sdkVersion prefix
+    ([#34226](https://github.com/Azure/azure-sdk-for-python/pull/34226))
+- Add AKS scenarios to statsbeat metric and sdkVersion prefix
+    ([#34427](https://github.com/Azure/azure-sdk-for-python/pull/34427))
+
+## 1.0.0b22 (2024-02-01)
+
+### Features Added
+
+- Add live metrics skeleton + swagger definitions
+    ([#33983](https://github.com/Azure/azure-sdk-for-python/pull/33983))
+- Only create temporary folder if local storage is enabled without storage directory.
+    ([#34061](https://github.com/Azure/azure-sdk-for-python/pull/34061))
+
+### Bugs Fixed
+
+- Update exception details messsage based on `LogRecord` body
+    ([#34020](https://github.com/Azure/azure-sdk-for-python/pull/34020))
+
+### Other Changes
+
+- Drop support for Python 3.7
+    ([#34105](https://github.com/Azure/azure-sdk-for-python/pull/34105))
+
+## 1.0.0b21 (2024-01-16)
+
+### Other Changes
+
+- Update to OTel SKD/API 1.21
+    ([#33864](https://github.com/Azure/azure-sdk-for-python/pull/33864))
+- Update Django sample
+    ([#33834](https://github.com/Azure/azure-sdk-for-python/pull/33834))
 
 ## 1.0.0b20 (2024-01-04)
 
@@ -25,7 +220,7 @@
 - Implement distro detection for statsbeat feature
     ([#33761](https://github.com/Azure/azure-sdk-for-python/pull/33761))
 - Use empty resource for statsbeat `MeterProvider`
-    ([#33761](https://github.com/Azure/azure-sdk-for-python/pull/33761))
+    ([#33768](https://github.com/Azure/azure-sdk-for-python/pull/33768))
 
 ## 1.0.0b19 (2023-11-20)
 
@@ -333,7 +528,7 @@
   ([#78](https://github.com/microsoft/opentelemetry-azure-monitor-python/pull/78))
 - Handle status 439 - Too Many Requests over extended time
   ([#80](https://github.com/microsoft/opentelemetry-azure-monitor-python/pull/80))
-- Fix breaking changes from OT release 0.7b.0 
+- Fix breaking changes from OT release 0.7b.0
   ([#86](https://github.com/microsoft/opentelemetry-azure-monitor-python/pull/86))
 
 ## 0.2b.0 (2020-03-31)

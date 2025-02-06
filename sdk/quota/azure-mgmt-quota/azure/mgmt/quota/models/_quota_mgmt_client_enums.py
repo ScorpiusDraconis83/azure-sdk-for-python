@@ -10,6 +10,15 @@ from enum import Enum
 from azure.core import CaseInsensitiveEnumMeta
 
 
+class CreatedByType(str, Enum, metaclass=CaseInsensitiveEnumMeta):
+    """The type of identity that created the resource."""
+
+    USER = "User"
+    APPLICATION = "Application"
+    MANAGED_IDENTITY = "ManagedIdentity"
+    KEY = "Key"
+
+
 class LimitType(str, Enum, metaclass=CaseInsensitiveEnumMeta):
     """The limit object type."""
 
@@ -31,6 +40,18 @@ class QuotaRequestState(str, Enum, metaclass=CaseInsensitiveEnumMeta):
     SUCCEEDED = "Succeeded"
     FAILED = "Failed"
     IN_PROGRESS = "InProgress"
+
+
+class RequestState(str, Enum, metaclass=CaseInsensitiveEnumMeta):
+    """Request status."""
+
+    ACCEPTED = "Accepted"
+    CREATED = "Created"
+    INVALID = "Invalid"
+    SUCCEEDED = "Succeeded"
+    FAILED = "Failed"
+    IN_PROGRESS = "InProgress"
+    CANCELED = "Canceled"
 
 
 class UsagesTypes(str, Enum, metaclass=CaseInsensitiveEnumMeta):

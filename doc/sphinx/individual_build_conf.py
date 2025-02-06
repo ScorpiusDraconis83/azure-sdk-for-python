@@ -64,8 +64,8 @@ intersphinx_mapping = {
     'trio': ('https://trio.readthedocs.io/en/stable/', None),
     'msal': ('https://msal-python.readthedocs.io/en/latest/', None),
     # Azure packages
-    'azure-core': ('https://azuresdkdocs.blob.core.windows.net/$web/python/azure-core/1.0.0/', None),
-    'azure-identity': ('https://azuresdkdocs.blob.core.windows.net/$web/python/azure-identity/1.0.0/', None),
+    'azure-core': ('https://azuresdkdocs.z19.web.core.windows.net/python/azure-core/1.0.0/', None),
+    'azure-identity': ('https://azuresdkdocs.z19.web.core.windows.net/python/azure-identity/1.0.0/', None),
 }
 
 autodoc_member_order = 'groupwise'
@@ -107,7 +107,7 @@ release = '2.0.0'
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
-exclude_patterns = ['_build']
+exclude_patterns = ['_build', '*/synthetic/simulator/_model_tools/models.py']
 
 # The reST default role (used for this markup: `text`) to use for all
 # documents.

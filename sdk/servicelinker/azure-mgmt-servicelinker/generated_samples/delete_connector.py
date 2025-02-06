@@ -7,6 +7,7 @@
 # --------------------------------------------------------------------------
 
 from azure.identity import DefaultAzureCredential
+
 from azure.mgmt.servicelinker import ServiceLinkerManagementClient
 
 """
@@ -28,15 +29,14 @@ def main():
         credential=DefaultAzureCredential(),
     )
 
-    response = client.connector.begin_delete(
+    client.connector.begin_delete(
         subscription_id="00000000-0000-0000-0000-000000000000",
         resource_group_name="test-rg",
         location="westus",
         connector_name="connectorName",
     ).result()
-    print(response)
 
 
-# x-ms-original-file: specification/servicelinker/resource-manager/Microsoft.ServiceLinker/preview/2022-11-01-preview/examples/DeleteConnector.json
+# x-ms-original-file: specification/servicelinker/resource-manager/Microsoft.ServiceLinker/preview/2024-07-01-preview/examples/DeleteConnector.json
 if __name__ == "__main__":
     main()

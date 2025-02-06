@@ -4,7 +4,7 @@
 import re
 from os import PathLike
 from pathlib import Path
-from typing import Dict, Union
+from typing import Dict, Optional, Union
 
 from marshmallow.exceptions import ValidationError as SchemaValidationError
 
@@ -50,7 +50,7 @@ from azure.core.exceptions import HttpResponseError
 
 
 ops_logger = OpsLogger(__name__)
-logger, module_logger = ops_logger.package_logger, ops_logger.module_logger
+module_logger = ops_logger.module_logger
 
 
 class CodeOperations(_ScopeDependentOperations):
@@ -82,14 +82,14 @@ class CodeOperations(_ScopeDependentOperations):
         **kwargs: Dict,
     ):
         super(CodeOperations, self).__init__(operation_scope, operation_config)
-        ops_logger.update_info(kwargs)
+        ops_logger.update_filter()
         self._service_client = service_client
         self._version_operation = service_client.code_versions
         self._container_operation = service_client.code_containers
         self._datastore_operation = datastore_operations
         self._init_kwargs = kwargs
 
-    @monitor_with_activity(logger, "Code.CreateOrUpdate", ActivityType.PUBLICAPI)
+    @monitor_with_activity(ops_logger, "Code.CreateOrUpdate", ActivityType.PUBLICAPI)
     def create_or_update(self, code: Code) -> Code:
         """Returns created or updated code asset.
 
@@ -211,7 +211,7 @@ class CodeOperations(_ScopeDependentOperations):
                     ) from ex
             raise ex
 
-    @monitor_with_activity(logger, "Code.Get", ActivityType.PUBLICAPI)
+    @monitor_with_activity(ops_logger, "Code.Get", ActivityType.PUBLICAPI)
     def get(self, name: str, version: str) -> Code:
         """Returns information about the specified code asset.
 
@@ -236,7 +236,7 @@ class CodeOperations(_ScopeDependentOperations):
         return self._get(name=name, version=version)
 
     # this is a public API but CodeOperations is hidden, so it may only monitor internal calls
-    @monitor_with_activity(logger, "Code.Download", ActivityType.PUBLICAPI)
+    @monitor_with_activity(ops_logger, "Code.Download", ActivityType.PUBLICAPI)
     def download(self, name: str, version: str, download_path: Union[PathLike, str]) -> None:
         """Download content of a code.
 
@@ -258,32 +258,17 @@ class CodeOperations(_ScopeDependentOperations):
         m = re.match(
             r"https://(?P<account_name>.+)\.blob\.core\.windows\.net"
             r"(:[0-9]+)?/(?P<container_name>.+)/(?P<blob_name>.*)",
-            code.path,
+            str(code.path),
         )
         if not m:
             raise ValueError(f"Invalid code path: {code.path}")
 
-        # 1. different content now saved in different container, so we need to override the container name
-        # 2. get credentials from datastore requires authorization to perform action
-        #    'Microsoft.MachineLearningServices/workspaces/datastores/listSecrets/action' over target datastore,
-        #    so we use local credential instead if so.
-        # check more information here:
-        # https://github.com/Azure/azureml_run_specification/blob/master/specs/create_workspace_asset_from_local_upload.md
-        try:
-            datastore_info = get_datastore_info(
-                self._datastore_operation,
-                # always use WORKSPACE_BLOB_STORE
-                name=_get_datastore_name(),
-                container_name=m.group("container_name"),
-            )
-        except HttpResponseError:
-            datastore_info = get_datastore_info(
-                self._datastore_operation,
-                # always use WORKSPACE_BLOB_STORE
-                name=_get_datastore_name(),
-                credential=self._service_client._config.credential,
-                container_name=m.group("container_name"),
-            )
+        datastore_info = get_datastore_info(
+            self._datastore_operation,
+            # always use WORKSPACE_BLOB_STORE
+            name=_get_datastore_name(),
+            container_name=m.group("container_name"),
+        )
         storage_client = get_storage_client(**datastore_info)
         storage_client.download(
             starts_with=m.group("blob_name"),
@@ -292,7 +277,7 @@ class CodeOperations(_ScopeDependentOperations):
         if not output_dir.is_dir() or not any(output_dir.iterdir()):
             raise RuntimeError(f"Failed to download code to {output_dir}")
 
-    def _get(self, name: str, version: str = None) -> Code:
+    def _get(self, name: str, version: Optional[str] = None) -> Code:
         if not version:
             msg = "Code asset version must be specified as part of name parameter, in format 'name:version'."
             raise ValidationException(

@@ -24,7 +24,18 @@
 #
 # --------------------------------------------------------------------------
 
-from typing import TypeVar, Generic, Dict, Any, Tuple, List, Optional, overload, TYPE_CHECKING, Union
+from typing import (
+    TypeVar,
+    Generic,
+    Dict,
+    Any,
+    Tuple,
+    List,
+    Optional,
+    overload,
+    TYPE_CHECKING,
+    Union,
+)
 
 HTTPResponseType = TypeVar("HTTPResponseType", covariant=True)  # pylint: disable=typevar-name-incorrect-variance
 HTTPRequestType = TypeVar("HTTPRequestType", covariant=True)  # pylint: disable=typevar-name-incorrect-variance
@@ -50,9 +61,7 @@ class PipelineContext(Dict[str, Any]):
 
     _PICKLE_CONTEXT = {"deserialized_data"}
 
-    def __init__(
-        self, transport: Optional["TransportType"], **kwargs: Any
-    ) -> None:  # pylint: disable=super-init-not-called
+    def __init__(self, transport: Optional["TransportType"], **kwargs: Any) -> None:
         self.transport: Optional["TransportType"] = transport
         self.options = kwargs
         self._protected = ["transport", "options"]
@@ -95,7 +104,9 @@ class PipelineContext(Dict[str, Any]):
             raise ValueError("Context value {} cannot be deleted.".format(key))
         return super(PipelineContext, self).__delitem__(key)
 
-    def clear(self) -> None:  # pylint: disable=docstring-missing-return, docstring-missing-rtype
+    def clear(  # pylint: disable=docstring-missing-return, docstring-missing-rtype
+        self,
+    ) -> None:
         """Context objects cannot be cleared.
 
         :raises: TypeError
@@ -112,12 +123,10 @@ class PipelineContext(Dict[str, Any]):
         raise TypeError("Context objects cannot be updated.")
 
     @overload
-    def pop(self, __key: str) -> Any:
-        ...
+    def pop(self, __key: str) -> Any: ...
 
     @overload
-    def pop(self, __key: str, __default: Optional[Any]) -> Any:
-        ...
+    def pop(self, __key: str, __default: Optional[Any]) -> Any: ...
 
     def pop(self, *args: Any) -> Any:
         """Removes specified key and returns the value.

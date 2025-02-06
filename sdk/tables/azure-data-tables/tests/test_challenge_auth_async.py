@@ -38,7 +38,7 @@ class TestTableChallengeAuthAsync(AzureRecordedTestCase, AsyncTableTestCase):
 
         Recorded using an incorrect tenant for the credential provided to our client. To run this live, ensure that the
         service principal used for testing is enabled for multitenant authentication
-        (https://docs.microsoft.com/azure/active-directory/develop/howto-convert-app-to-be-multi-tenant). Set the
+        (https://learn.microsoft.com/azure/active-directory/develop/howto-convert-app-to-be-multi-tenant). Set the
         TABLES_TENANT_ID environment variable to a different, existing tenant than the one the storage account exists
         in, and set CHALLENGE_TABLES_TENANT_ID to the tenant that the storage account exists in.
         """
@@ -60,7 +60,7 @@ class TestTableChallengeAuthAsync(AzureRecordedTestCase, AsyncTableTestCase):
 
         Recorded using an incorrect tenant for the credential provided to our client. To run this live, ensure that the
         service principal used for testing is enabled for multitenant authentication
-        (https://docs.microsoft.com/azure/active-directory/develop/howto-convert-app-to-be-multi-tenant). Set the
+        (https://learn.microsoft.com/azure/active-directory/develop/howto-convert-app-to-be-multi-tenant). Set the
         TABLES_TENANT_ID environment variable to a different, existing tenant than the one the storage account exists
         in, and set CHALLENGE_TABLES_TENANT_ID to the tenant that the storage account exists in.
         """
@@ -117,7 +117,7 @@ async def test_challenge_policy_uses_scopes_and_tenant(http_request):
                 raise ValueError("unexpected token request")
             return AccessToken(expected_token, 0)
 
-        credential = Mock(get_token=Mock(wraps=get_token))
+        credential = Mock(spec_set=["get_token"], get_token=Mock(wraps=get_token))
         policy = AsyncBearerTokenChallengePolicy(credential, "scope")
         pipeline = AsyncPipeline(policies=[policy], transport=Mock(send=send))
         await pipeline.run(http_request("GET", "https://localhost"))
@@ -189,7 +189,7 @@ async def test_challenge_policy_disable_tenant_discovery(http_request):
                 return AccessToken(bad_token, 0)
             raise ValueError("unexpected token request")
 
-        credential = Mock(get_token=Mock(wraps=get_token))
+        credential = Mock(spec_set=["get_token"], get_token=Mock(wraps=get_token))
         policy = AsyncBearerTokenChallengePolicy(credential, "scope", discover_tenant=False)
         pipeline = AsyncPipeline(policies=[policy], transport=Mock(send=send))
         await pipeline.run(http_request("GET", "https://localhost"))
@@ -249,8 +249,8 @@ async def test_challenge_policy_disable_scopes_discovery(http_request):
                 return AccessToken(bad_token, 0)
             raise ValueError("unexpected token request")
 
-        credential = Mock(get_token=Mock(wraps=get_token))
-        policy = AsyncBearerTokenChallengePolicy(credential, "scope", discover_scopes=False)
+        credential = Mock(spec_set=["get_token"], get_token=Mock(wraps=get_token))
+        policy = AsyncBearerTokenChallengePolicy(credential, ["scope1", "scope2"], discover_scopes=False)
         pipeline = AsyncPipeline(policies=[policy], transport=Mock(send=send))
         await pipeline.run(http_request("GET", "https://localhost"))
 
@@ -300,8 +300,10 @@ async def test_challenge_policy_disable_any_discovery(http_request):
                 return AccessToken(bad_token, 0)
             raise ValueError("unexpected token request")
 
-        credential = Mock(get_token=Mock(wraps=get_token))
-        policy = AsyncBearerTokenChallengePolicy(credential, "scope", discover_tenant=False, discover_scopes=False)
+        credential = Mock(spec_set=["get_token"], get_token=Mock(wraps=get_token))
+        policy = AsyncBearerTokenChallengePolicy(
+            credential, ["scope1", "scope2"], discover_tenant=False, discover_scopes=False
+        )
         pipeline = AsyncPipeline(policies=[policy], transport=Mock(send=send))
         await pipeline.run(http_request("GET", "https://localhost"))
 
@@ -359,7 +361,7 @@ async def test_challenge_policy_no_scope_in_challenge(http_request):
                 return AccessToken(bad_token, 0)
             raise ValueError("unexpected token request")
 
-        credential = Mock(get_token=Mock(wraps=get_token))
+        credential = Mock(spec_set=["get_token"], get_token=Mock(wraps=get_token))
         policy = AsyncBearerTokenChallengePolicy(credential, "scope")
         pipeline = AsyncPipeline(policies=[policy], transport=Mock(send=send))
         await pipeline.run(http_request("GET", "https://localhost"))

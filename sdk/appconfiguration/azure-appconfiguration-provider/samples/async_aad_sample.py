@@ -8,11 +8,11 @@ import asyncio
 from azure.appconfiguration.provider.aio import load
 from azure.appconfiguration.provider import SettingSelector
 import os
-from sample_utilities import get_authority, get_audience, get_credential, get_client_modifications
+from sample_utilities import get_authority, get_credential, get_client_modifications
 
 
 async def main():
-    endpoint = os.environ.get("APPCONFIGURATION_ENDPOINT_STRING")
+    endpoint = os.environ["APPCONFIGURATION_ENDPOINT_STRING"]
     authority = get_authority(endpoint)
     credential = get_credential(authority, is_async=True)
     kwargs = get_client_modifications()
@@ -21,14 +21,20 @@ async def main():
     config = await load(endpoint=endpoint, credential=credential, **kwargs)
     print(config["message"])
 
+    await credential.close()
+    await config.close()
+
     # Connecting to Azure App Configuration using AAD and trim key prefixes
-    trimmed = {"test."}
+    trimmed = ["test."]
     config = await load(endpoint=endpoint, credential=credential, trim_prefixes=trimmed, **kwargs)
 
     print(config["message"])
 
+    await credential.close()
+    await config.close()
+
     # Connection to Azure App Configuration using SettingSelector
-    selects = {SettingSelector(key_filter="message*")}
+    selects = [SettingSelector(key_filter="message*")]
     config = await load(endpoint=endpoint, credential=credential, selects=selects, **kwargs)
 
     print("message found: " + str("message" in config))

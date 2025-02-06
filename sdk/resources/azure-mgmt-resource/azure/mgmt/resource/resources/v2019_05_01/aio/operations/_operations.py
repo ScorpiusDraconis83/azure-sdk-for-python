@@ -1,4 +1,4 @@
-# pylint: disable=too-many-lines
+# pylint: disable=too-many-lines,too-many-statements
 # coding=utf-8
 # --------------------------------------------------------------------------
 # Copyright (c) Microsoft Corporation. All rights reserved.
@@ -8,7 +8,7 @@
 # --------------------------------------------------------------------------
 from io import IOBase
 import sys
-from typing import Any, AsyncIterable, Callable, Dict, IO, Optional, TypeVar, Union, cast, overload
+from typing import Any, AsyncIterable, AsyncIterator, Callable, Dict, IO, Optional, Type, TypeVar, Union, cast, overload
 import urllib.parse
 
 from azure.core.async_paging import AsyncItemPaged, AsyncList
@@ -18,12 +18,13 @@ from azure.core.exceptions import (
     ResourceExistsError,
     ResourceNotFoundError,
     ResourceNotModifiedError,
+    StreamClosedError,
+    StreamConsumedError,
     map_error,
 )
 from azure.core.pipeline import PipelineResponse
-from azure.core.pipeline.transport import AsyncHttpResponse
 from azure.core.polling import AsyncLROPoller, AsyncNoPolling, AsyncPollingMethod
-from azure.core.rest import HttpRequest
+from azure.core.rest import AsyncHttpResponse, HttpRequest
 from azure.core.tracing.decorator import distributed_trace
 from azure.core.tracing.decorator_async import distributed_trace_async
 from azure.core.utils import case_insensitive_dict
@@ -31,7 +32,6 @@ from azure.mgmt.core.exceptions import ARMErrorFormat
 from azure.mgmt.core.polling.async_arm_polling import AsyncARMPolling
 
 from ... import models as _models
-from ..._vendor import _convert_request
 from ...operations._operations import (
     build_deployment_operations_get_at_management_group_scope_request,
     build_deployment_operations_get_at_subscription_scope_request,
@@ -124,12 +124,12 @@ class Operations:
         self._config = input_args.pop(0) if input_args else kwargs.pop("config")
         self._serialize = input_args.pop(0) if input_args else kwargs.pop("serializer")
         self._deserialize = input_args.pop(0) if input_args else kwargs.pop("deserializer")
+        self._api_version = input_args.pop(0) if input_args else kwargs.pop("api_version")
 
     @distributed_trace
     def list(self, **kwargs: Any) -> AsyncIterable["_models.Operation"]:
         """Lists all of the available Microsoft.Resources REST API operations.
 
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: An iterator like instance of either Operation or the result of cls(response)
         :rtype:
          ~azure.core.async_paging.AsyncItemPaged[~azure.mgmt.resource.resources.v2019_05_01.models.Operation]
@@ -138,10 +138,10 @@ class Operations:
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         cls: ClsType[_models.OperationListResult] = kwargs.pop("cls", None)
 
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -152,14 +152,12 @@ class Operations:
         def prepare_request(next_link=None):
             if not next_link:
 
-                request = build_operations_list_request(
+                _request = build_operations_list_request(
                     api_version=api_version,
-                    template_url=self.list.metadata["url"],
                     headers=_headers,
                     params=_params,
                 )
-                request = _convert_request(request)
-                request.url = self._client.format_url(request.url)
+                _request.url = self._client.format_url(_request.url)
 
             else:
                 # make call to next link with the client's api-version
@@ -170,14 +168,13 @@ class Operations:
                         for key, value in urllib.parse.parse_qs(_parsed_next_link.query).items()
                     }
                 )
-                _next_request_params["api-version"] = self._config.api_version
-                request = HttpRequest(
+                _next_request_params["api-version"] = self._api_version
+                _request = HttpRequest(
                     "GET", urllib.parse.urljoin(next_link, _parsed_next_link.path), params=_next_request_params
                 )
-                request = _convert_request(request)
-                request.url = self._client.format_url(request.url)
-                request.method = "GET"
-            return request
+                _request.url = self._client.format_url(_request.url)
+                _request.method = "GET"
+            return _request
 
         async def extract_data(pipeline_response):
             deserialized = self._deserialize("OperationListResult", pipeline_response)
@@ -187,11 +184,11 @@ class Operations:
             return deserialized.next_link or None, AsyncList(list_of_elem)
 
         async def get_next(next_link=None):
-            request = prepare_request(next_link)
+            _request = prepare_request(next_link)
 
             _stream = False
             pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-                request, stream=_stream, **kwargs
+                _request, stream=_stream, **kwargs
             )
             response = pipeline_response.http_response
 
@@ -202,8 +199,6 @@ class Operations:
             return pipeline_response
 
         return AsyncItemPaged(get_next, extract_data)
-
-    list.metadata = {"url": "/providers/Microsoft.Resources/operations"}
 
 
 class DeploymentsOperations:  # pylint: disable=too-many-public-methods
@@ -224,11 +219,12 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         self._config = input_args.pop(0) if input_args else kwargs.pop("config")
         self._serialize = input_args.pop(0) if input_args else kwargs.pop("serializer")
         self._deserialize = input_args.pop(0) if input_args else kwargs.pop("deserializer")
+        self._api_version = input_args.pop(0) if input_args else kwargs.pop("api_version")
 
-    async def _delete_at_management_group_scope_initial(  # pylint: disable=inconsistent-return-statements
+    async def _delete_at_management_group_scope_initial(  # pylint: disable=name-too-long
         self, group_id: str, deployment_name: str, **kwargs: Any
-    ) -> None:
-        error_map = {
+    ) -> AsyncIterator[bytes]:
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -239,37 +235,40 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
-        cls: ClsType[None] = kwargs.pop("cls", None)
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
+        cls: ClsType[AsyncIterator[bytes]] = kwargs.pop("cls", None)
 
-        request = build_deployments_delete_at_management_group_scope_request(
+        _request = build_deployments_delete_at_management_group_scope_request(
             group_id=group_id,
             deployment_name=deployment_name,
             api_version=api_version,
-            template_url=self._delete_at_management_group_scope_initial.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
-        _stream = False
+        _decompress = kwargs.pop("decompress", True)
+        _stream = True
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
 
         if response.status_code not in [202, 204]:
+            try:
+                await response.read()  # Load the body in memory and close the socket
+            except (StreamConsumedError, StreamClosedError):
+                pass
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        if cls:
-            return cls(pipeline_response, None, {})
+        deserialized = response.stream_download(self._client._pipeline, decompress=_decompress)
 
-    _delete_at_management_group_scope_initial.metadata = {
-        "url": "/providers/Microsoft.Management/managementGroups/{groupId}/providers/Microsoft.Resources/deployments/{deploymentName}"
-    }
+        if cls:
+            return cls(pipeline_response, deserialized, {})  # type: ignore
+
+        return deserialized  # type: ignore
 
     @distributed_trace_async
     async def begin_delete_at_management_group_scope(
@@ -289,14 +288,6 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         :type group_id: str
         :param deployment_name: The name of the deployment. Required.
         :type deployment_name: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be AsyncARMPolling. Pass in False for
-         this operation to not poll, or pass in your own initialized polling object for a personal
-         polling strategy.
-        :paramtype polling: bool or ~azure.core.polling.AsyncPollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of AsyncLROPoller that returns either None or the result of cls(response)
         :rtype: ~azure.core.polling.AsyncLROPoller[None]
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -304,13 +295,13 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         cls: ClsType[None] = kwargs.pop("cls", None)
         polling: Union[bool, AsyncPollingMethod] = kwargs.pop("polling", True)
         lro_delay = kwargs.pop("polling_interval", self._config.polling_interval)
         cont_token: Optional[str] = kwargs.pop("continuation_token", None)
         if cont_token is None:
-            raw_result = await self._delete_at_management_group_scope_initial(  # type: ignore
+            raw_result = await self._delete_at_management_group_scope_initial(
                 group_id=group_id,
                 deployment_name=deployment_name,
                 api_version=api_version,
@@ -319,11 +310,12 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
                 params=_params,
                 **kwargs
             )
+            await raw_result.http_response.read()  # type: ignore
         kwargs.pop("error_map", None)
 
         def get_long_running_output(pipeline_response):  # pylint: disable=inconsistent-return-statements
             if cls:
-                return cls(pipeline_response, None, {})
+                return cls(pipeline_response, None, {})  # type: ignore
 
         if polling is True:
             polling_method: AsyncPollingMethod = cast(AsyncPollingMethod, AsyncARMPolling(lro_delay, **kwargs))
@@ -332,20 +324,16 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         else:
             polling_method = polling
         if cont_token:
-            return AsyncLROPoller.from_continuation_token(
+            return AsyncLROPoller[None].from_continuation_token(
                 polling_method=polling_method,
                 continuation_token=cont_token,
                 client=self._client,
                 deserialization_callback=get_long_running_output,
             )
-        return AsyncLROPoller(self._client, raw_result, get_long_running_output, polling_method)  # type: ignore
-
-    begin_delete_at_management_group_scope.metadata = {
-        "url": "/providers/Microsoft.Management/managementGroups/{groupId}/providers/Microsoft.Resources/deployments/{deploymentName}"
-    }
+        return AsyncLROPoller[None](self._client, raw_result, get_long_running_output, polling_method)  # type: ignore
 
     @distributed_trace_async
-    async def check_existence_at_management_group_scope(
+    async def check_existence_at_management_group_scope(  # pylint: disable=name-too-long
         self, group_id: str, deployment_name: str, **kwargs: Any
     ) -> bool:
         """Checks whether the deployment exists.
@@ -354,12 +342,11 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         :type group_id: str
         :param deployment_name: The name of the deployment. Required.
         :type deployment_name: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: bool or the result of cls(response)
         :rtype: bool
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -370,23 +357,21 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         cls: ClsType[None] = kwargs.pop("cls", None)
 
-        request = build_deployments_check_existence_at_management_group_scope_request(
+        _request = build_deployments_check_existence_at_management_group_scope_request(
             group_id=group_id,
             deployment_name=deployment_name,
             api_version=api_version,
-            template_url=self.check_existence_at_management_group_scope.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -396,17 +381,13 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
         if cls:
-            return cls(pipeline_response, None, {})
+            return cls(pipeline_response, None, {})  # type: ignore
         return 200 <= response.status_code <= 299
 
-    check_existence_at_management_group_scope.metadata = {
-        "url": "/providers/Microsoft.Management/managementGroups/{groupId}/providers/Microsoft.Resources/deployments/{deploymentName}"
-    }
-
-    async def _create_or_update_at_management_group_scope_initial(
-        self, group_id: str, deployment_name: str, parameters: Union[_models.Deployment, IO], **kwargs: Any
-    ) -> _models.DeploymentExtended:
-        error_map = {
+    async def _create_or_update_at_management_group_scope_initial(  # pylint: disable=name-too-long
+        self, group_id: str, deployment_name: str, parameters: Union[_models.Deployment, IO[bytes]], **kwargs: Any
+    ) -> AsyncIterator[bytes]:
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -417,9 +398,9 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         _headers = case_insensitive_dict(kwargs.pop("headers", {}) or {})
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         content_type: Optional[str] = kwargs.pop("content_type", _headers.pop("Content-Type", None))
-        cls: ClsType[_models.DeploymentExtended] = kwargs.pop("cls", None)
+        cls: ClsType[AsyncIterator[bytes]] = kwargs.pop("cls", None)
 
         content_type = content_type or "application/json"
         _json = None
@@ -429,48 +410,43 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         else:
             _json = self._serialize.body(parameters, "Deployment")
 
-        request = build_deployments_create_or_update_at_management_group_scope_request(
+        _request = build_deployments_create_or_update_at_management_group_scope_request(
             group_id=group_id,
             deployment_name=deployment_name,
             api_version=api_version,
             content_type=content_type,
             json=_json,
             content=_content,
-            template_url=self._create_or_update_at_management_group_scope_initial.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
-        _stream = False
+        _decompress = kwargs.pop("decompress", True)
+        _stream = True
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
 
         if response.status_code not in [200, 201]:
+            try:
+                await response.read()  # Load the body in memory and close the socket
+            except (StreamConsumedError, StreamClosedError):
+                pass
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        if response.status_code == 200:
-            deserialized = self._deserialize("DeploymentExtended", pipeline_response)
-
-        if response.status_code == 201:
-            deserialized = self._deserialize("DeploymentExtended", pipeline_response)
+        deserialized = response.stream_download(self._client._pipeline, decompress=_decompress)
 
         if cls:
             return cls(pipeline_response, deserialized, {})  # type: ignore
 
         return deserialized  # type: ignore
 
-    _create_or_update_at_management_group_scope_initial.metadata = {
-        "url": "/providers/Microsoft.Management/managementGroups/{groupId}/providers/Microsoft.Resources/deployments/{deploymentName}"
-    }
-
     @overload
-    async def begin_create_or_update_at_management_group_scope(
+    async def begin_create_or_update_at_management_group_scope(  # pylint: disable=name-too-long
         self,
         group_id: str,
         deployment_name: str,
@@ -492,14 +468,6 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         :keyword content_type: Body Parameter content-type. Content type parameter for JSON body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be AsyncARMPolling. Pass in False for
-         this operation to not poll, or pass in your own initialized polling object for a personal
-         polling strategy.
-        :paramtype polling: bool or ~azure.core.polling.AsyncPollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of AsyncLROPoller that returns either DeploymentExtended or the result of
          cls(response)
         :rtype:
@@ -508,11 +476,11 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         """
 
     @overload
-    async def begin_create_or_update_at_management_group_scope(
+    async def begin_create_or_update_at_management_group_scope(  # pylint: disable=name-too-long
         self,
         group_id: str,
         deployment_name: str,
-        parameters: IO,
+        parameters: IO[bytes],
         *,
         content_type: str = "application/json",
         **kwargs: Any
@@ -526,18 +494,10 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         :param deployment_name: The name of the deployment. Required.
         :type deployment_name: str
         :param parameters: Additional parameters supplied to the operation. Required.
-        :type parameters: IO
+        :type parameters: IO[bytes]
         :keyword content_type: Body Parameter content-type. Content type parameter for binary body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be AsyncARMPolling. Pass in False for
-         this operation to not poll, or pass in your own initialized polling object for a personal
-         polling strategy.
-        :paramtype polling: bool or ~azure.core.polling.AsyncPollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of AsyncLROPoller that returns either DeploymentExtended or the result of
          cls(response)
         :rtype:
@@ -546,8 +506,8 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         """
 
     @distributed_trace_async
-    async def begin_create_or_update_at_management_group_scope(
-        self, group_id: str, deployment_name: str, parameters: Union[_models.Deployment, IO], **kwargs: Any
+    async def begin_create_or_update_at_management_group_scope(  # pylint: disable=name-too-long
+        self, group_id: str, deployment_name: str, parameters: Union[_models.Deployment, IO[bytes]], **kwargs: Any
     ) -> AsyncLROPoller[_models.DeploymentExtended]:
         """Deploys resources at management group scope.
 
@@ -558,19 +518,8 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         :param deployment_name: The name of the deployment. Required.
         :type deployment_name: str
         :param parameters: Additional parameters supplied to the operation. Is either a Deployment type
-         or a IO type. Required.
-        :type parameters: ~azure.mgmt.resource.resources.v2019_05_01.models.Deployment or IO
-        :keyword content_type: Body Parameter content-type. Known values are: 'application/json'.
-         Default value is None.
-        :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be AsyncARMPolling. Pass in False for
-         this operation to not poll, or pass in your own initialized polling object for a personal
-         polling strategy.
-        :paramtype polling: bool or ~azure.core.polling.AsyncPollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
+         or a IO[bytes] type. Required.
+        :type parameters: ~azure.mgmt.resource.resources.v2019_05_01.models.Deployment or IO[bytes]
         :return: An instance of AsyncLROPoller that returns either DeploymentExtended or the result of
          cls(response)
         :rtype:
@@ -580,7 +529,7 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         _headers = case_insensitive_dict(kwargs.pop("headers", {}) or {})
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         content_type: Optional[str] = kwargs.pop("content_type", _headers.pop("Content-Type", None))
         cls: ClsType[_models.DeploymentExtended] = kwargs.pop("cls", None)
         polling: Union[bool, AsyncPollingMethod] = kwargs.pop("polling", True)
@@ -598,12 +547,13 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
                 params=_params,
                 **kwargs
             )
+            await raw_result.http_response.read()  # type: ignore
         kwargs.pop("error_map", None)
 
         def get_long_running_output(pipeline_response):
-            deserialized = self._deserialize("DeploymentExtended", pipeline_response)
+            deserialized = self._deserialize("DeploymentExtended", pipeline_response.http_response)
             if cls:
-                return cls(pipeline_response, deserialized, {})
+                return cls(pipeline_response, deserialized, {})  # type: ignore
             return deserialized
 
         if polling is True:
@@ -613,17 +563,15 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         else:
             polling_method = polling
         if cont_token:
-            return AsyncLROPoller.from_continuation_token(
+            return AsyncLROPoller[_models.DeploymentExtended].from_continuation_token(
                 polling_method=polling_method,
                 continuation_token=cont_token,
                 client=self._client,
                 deserialization_callback=get_long_running_output,
             )
-        return AsyncLROPoller(self._client, raw_result, get_long_running_output, polling_method)  # type: ignore
-
-    begin_create_or_update_at_management_group_scope.metadata = {
-        "url": "/providers/Microsoft.Management/managementGroups/{groupId}/providers/Microsoft.Resources/deployments/{deploymentName}"
-    }
+        return AsyncLROPoller[_models.DeploymentExtended](
+            self._client, raw_result, get_long_running_output, polling_method  # type: ignore
+        )
 
     @distributed_trace_async
     async def get_at_management_group_scope(
@@ -635,12 +583,11 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         :type group_id: str
         :param deployment_name: The name of the deployment. Required.
         :type deployment_name: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: DeploymentExtended or the result of cls(response)
         :rtype: ~azure.mgmt.resource.resources.v2019_05_01.models.DeploymentExtended
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -651,23 +598,21 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         cls: ClsType[_models.DeploymentExtended] = kwargs.pop("cls", None)
 
-        request = build_deployments_get_at_management_group_scope_request(
+        _request = build_deployments_get_at_management_group_scope_request(
             group_id=group_id,
             deployment_name=deployment_name,
             api_version=api_version,
-            template_url=self.get_at_management_group_scope.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -676,16 +621,12 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        deserialized = self._deserialize("DeploymentExtended", pipeline_response)
+        deserialized = self._deserialize("DeploymentExtended", pipeline_response.http_response)
 
         if cls:
-            return cls(pipeline_response, deserialized, {})
+            return cls(pipeline_response, deserialized, {})  # type: ignore
 
-        return deserialized
-
-    get_at_management_group_scope.metadata = {
-        "url": "/providers/Microsoft.Management/managementGroups/{groupId}/providers/Microsoft.Resources/deployments/{deploymentName}"
-    }
+        return deserialized  # type: ignore
 
     @distributed_trace_async
     async def cancel_at_management_group_scope(  # pylint: disable=inconsistent-return-statements
@@ -702,12 +643,11 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         :type group_id: str
         :param deployment_name: The name of the deployment. Required.
         :type deployment_name: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: None or the result of cls(response)
         :rtype: None
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -718,23 +658,21 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         cls: ClsType[None] = kwargs.pop("cls", None)
 
-        request = build_deployments_cancel_at_management_group_scope_request(
+        _request = build_deployments_cancel_at_management_group_scope_request(
             group_id=group_id,
             deployment_name=deployment_name,
             api_version=api_version,
-            template_url=self.cancel_at_management_group_scope.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -744,11 +682,7 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
         if cls:
-            return cls(pipeline_response, None, {})
-
-    cancel_at_management_group_scope.metadata = {
-        "url": "/providers/Microsoft.Management/managementGroups/{groupId}/providers/Microsoft.Resources/deployments/{deploymentName}/cancel"
-    }
+            return cls(pipeline_response, None, {})  # type: ignore
 
     @overload
     async def validate_at_management_group_scope(
@@ -772,7 +706,6 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         :keyword content_type: Body Parameter content-type. Content type parameter for JSON body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: DeploymentValidateResult or the result of cls(response)
         :rtype: ~azure.mgmt.resource.resources.v2019_05_01.models.DeploymentValidateResult
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -783,7 +716,7 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         self,
         group_id: str,
         deployment_name: str,
-        parameters: IO,
+        parameters: IO[bytes],
         *,
         content_type: str = "application/json",
         **kwargs: Any
@@ -796,11 +729,10 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         :param deployment_name: The name of the deployment. Required.
         :type deployment_name: str
         :param parameters: Parameters to validate. Required.
-        :type parameters: IO
+        :type parameters: IO[bytes]
         :keyword content_type: Body Parameter content-type. Content type parameter for binary body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: DeploymentValidateResult or the result of cls(response)
         :rtype: ~azure.mgmt.resource.resources.v2019_05_01.models.DeploymentValidateResult
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -808,7 +740,7 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
 
     @distributed_trace_async
     async def validate_at_management_group_scope(
-        self, group_id: str, deployment_name: str, parameters: Union[_models.Deployment, IO], **kwargs: Any
+        self, group_id: str, deployment_name: str, parameters: Union[_models.Deployment, IO[bytes]], **kwargs: Any
     ) -> _models.DeploymentValidateResult:
         """Validates whether the specified template is syntactically correct and will be accepted by Azure
         Resource Manager..
@@ -817,17 +749,14 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         :type group_id: str
         :param deployment_name: The name of the deployment. Required.
         :type deployment_name: str
-        :param parameters: Parameters to validate. Is either a Deployment type or a IO type. Required.
-        :type parameters: ~azure.mgmt.resource.resources.v2019_05_01.models.Deployment or IO
-        :keyword content_type: Body Parameter content-type. Known values are: 'application/json'.
-         Default value is None.
-        :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
+        :param parameters: Parameters to validate. Is either a Deployment type or a IO[bytes] type.
+         Required.
+        :type parameters: ~azure.mgmt.resource.resources.v2019_05_01.models.Deployment or IO[bytes]
         :return: DeploymentValidateResult or the result of cls(response)
         :rtype: ~azure.mgmt.resource.resources.v2019_05_01.models.DeploymentValidateResult
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -838,7 +767,7 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         _headers = case_insensitive_dict(kwargs.pop("headers", {}) or {})
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         content_type: Optional[str] = kwargs.pop("content_type", _headers.pop("Content-Type", None))
         cls: ClsType[_models.DeploymentValidateResult] = kwargs.pop("cls", None)
 
@@ -850,23 +779,21 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         else:
             _json = self._serialize.body(parameters, "Deployment")
 
-        request = build_deployments_validate_at_management_group_scope_request(
+        _request = build_deployments_validate_at_management_group_scope_request(
             group_id=group_id,
             deployment_name=deployment_name,
             api_version=api_version,
             content_type=content_type,
             json=_json,
             content=_content,
-            template_url=self.validate_at_management_group_scope.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -875,23 +802,15 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        if response.status_code == 200:
-            deserialized = self._deserialize("DeploymentValidateResult", pipeline_response)
-
-        if response.status_code == 400:
-            deserialized = self._deserialize("DeploymentValidateResult", pipeline_response)
+        deserialized = self._deserialize("DeploymentValidateResult", pipeline_response.http_response)
 
         if cls:
             return cls(pipeline_response, deserialized, {})  # type: ignore
 
         return deserialized  # type: ignore
 
-    validate_at_management_group_scope.metadata = {
-        "url": "/providers/Microsoft.Management/managementGroups/{groupId}/providers/Microsoft.Resources/deployments/{deploymentName}/validate"
-    }
-
     @distributed_trace_async
-    async def export_template_at_management_group_scope(
+    async def export_template_at_management_group_scope(  # pylint: disable=name-too-long
         self, group_id: str, deployment_name: str, **kwargs: Any
     ) -> _models.DeploymentExportResult:
         """Exports the template used for specified deployment.
@@ -900,12 +819,11 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         :type group_id: str
         :param deployment_name: The name of the deployment. Required.
         :type deployment_name: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: DeploymentExportResult or the result of cls(response)
         :rtype: ~azure.mgmt.resource.resources.v2019_05_01.models.DeploymentExportResult
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -916,23 +834,21 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         cls: ClsType[_models.DeploymentExportResult] = kwargs.pop("cls", None)
 
-        request = build_deployments_export_template_at_management_group_scope_request(
+        _request = build_deployments_export_template_at_management_group_scope_request(
             group_id=group_id,
             deployment_name=deployment_name,
             api_version=api_version,
-            template_url=self.export_template_at_management_group_scope.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -941,16 +857,12 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        deserialized = self._deserialize("DeploymentExportResult", pipeline_response)
+        deserialized = self._deserialize("DeploymentExportResult", pipeline_response.http_response)
 
         if cls:
-            return cls(pipeline_response, deserialized, {})
+            return cls(pipeline_response, deserialized, {})  # type: ignore
 
-        return deserialized
-
-    export_template_at_management_group_scope.metadata = {
-        "url": "/providers/Microsoft.Management/managementGroups/{groupId}/providers/Microsoft.Resources/deployments/{deploymentName}/exportTemplate"
-    }
+        return deserialized  # type: ignore
 
     @distributed_trace
     def list_at_management_group_scope(
@@ -966,7 +878,6 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         :param top: The number of results to get. If null is passed, returns all deployments. Default
          value is None.
         :type top: int
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: An iterator like instance of either DeploymentExtended or the result of cls(response)
         :rtype:
          ~azure.core.async_paging.AsyncItemPaged[~azure.mgmt.resource.resources.v2019_05_01.models.DeploymentExtended]
@@ -975,10 +886,10 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         cls: ClsType[_models.DeploymentListResult] = kwargs.pop("cls", None)
 
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -989,17 +900,15 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         def prepare_request(next_link=None):
             if not next_link:
 
-                request = build_deployments_list_at_management_group_scope_request(
+                _request = build_deployments_list_at_management_group_scope_request(
                     group_id=group_id,
                     filter=filter,
                     top=top,
                     api_version=api_version,
-                    template_url=self.list_at_management_group_scope.metadata["url"],
                     headers=_headers,
                     params=_params,
                 )
-                request = _convert_request(request)
-                request.url = self._client.format_url(request.url)
+                _request.url = self._client.format_url(_request.url)
 
             else:
                 # make call to next link with the client's api-version
@@ -1010,14 +919,13 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
                         for key, value in urllib.parse.parse_qs(_parsed_next_link.query).items()
                     }
                 )
-                _next_request_params["api-version"] = self._config.api_version
-                request = HttpRequest(
+                _next_request_params["api-version"] = self._api_version
+                _request = HttpRequest(
                     "GET", urllib.parse.urljoin(next_link, _parsed_next_link.path), params=_next_request_params
                 )
-                request = _convert_request(request)
-                request.url = self._client.format_url(request.url)
-                request.method = "GET"
-            return request
+                _request.url = self._client.format_url(_request.url)
+                _request.method = "GET"
+            return _request
 
         async def extract_data(pipeline_response):
             deserialized = self._deserialize("DeploymentListResult", pipeline_response)
@@ -1027,11 +935,11 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
             return deserialized.next_link or None, AsyncList(list_of_elem)
 
         async def get_next(next_link=None):
-            request = prepare_request(next_link)
+            _request = prepare_request(next_link)
 
             _stream = False
             pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-                request, stream=_stream, **kwargs
+                _request, stream=_stream, **kwargs
             )
             response = pipeline_response.http_response
 
@@ -1043,14 +951,8 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
 
         return AsyncItemPaged(get_next, extract_data)
 
-    list_at_management_group_scope.metadata = {
-        "url": "/providers/Microsoft.Management/managementGroups/{groupId}/providers/Microsoft.Resources/deployments/"
-    }
-
-    async def _delete_at_subscription_scope_initial(  # pylint: disable=inconsistent-return-statements
-        self, deployment_name: str, **kwargs: Any
-    ) -> None:
-        error_map = {
+    async def _delete_at_subscription_scope_initial(self, deployment_name: str, **kwargs: Any) -> AsyncIterator[bytes]:
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -1061,37 +963,40 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
-        cls: ClsType[None] = kwargs.pop("cls", None)
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
+        cls: ClsType[AsyncIterator[bytes]] = kwargs.pop("cls", None)
 
-        request = build_deployments_delete_at_subscription_scope_request(
+        _request = build_deployments_delete_at_subscription_scope_request(
             deployment_name=deployment_name,
             subscription_id=self._config.subscription_id,
             api_version=api_version,
-            template_url=self._delete_at_subscription_scope_initial.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
-        _stream = False
+        _decompress = kwargs.pop("decompress", True)
+        _stream = True
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
 
         if response.status_code not in [202, 204]:
+            try:
+                await response.read()  # Load the body in memory and close the socket
+            except (StreamConsumedError, StreamClosedError):
+                pass
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        if cls:
-            return cls(pipeline_response, None, {})
+        deserialized = response.stream_download(self._client._pipeline, decompress=_decompress)
 
-    _delete_at_subscription_scope_initial.metadata = {
-        "url": "/subscriptions/{subscriptionId}/providers/Microsoft.Resources/deployments/{deploymentName}"
-    }
+        if cls:
+            return cls(pipeline_response, deserialized, {})  # type: ignore
+
+        return deserialized  # type: ignore
 
     @distributed_trace_async
     async def begin_delete_at_subscription_scope(self, deployment_name: str, **kwargs: Any) -> AsyncLROPoller[None]:
@@ -1107,14 +1012,6 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
 
         :param deployment_name: The name of the deployment. Required.
         :type deployment_name: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be AsyncARMPolling. Pass in False for
-         this operation to not poll, or pass in your own initialized polling object for a personal
-         polling strategy.
-        :paramtype polling: bool or ~azure.core.polling.AsyncPollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of AsyncLROPoller that returns either None or the result of cls(response)
         :rtype: ~azure.core.polling.AsyncLROPoller[None]
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -1122,13 +1019,13 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         cls: ClsType[None] = kwargs.pop("cls", None)
         polling: Union[bool, AsyncPollingMethod] = kwargs.pop("polling", True)
         lro_delay = kwargs.pop("polling_interval", self._config.polling_interval)
         cont_token: Optional[str] = kwargs.pop("continuation_token", None)
         if cont_token is None:
-            raw_result = await self._delete_at_subscription_scope_initial(  # type: ignore
+            raw_result = await self._delete_at_subscription_scope_initial(
                 deployment_name=deployment_name,
                 api_version=api_version,
                 cls=lambda x, y, z: x,
@@ -1136,11 +1033,12 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
                 params=_params,
                 **kwargs
             )
+            await raw_result.http_response.read()  # type: ignore
         kwargs.pop("error_map", None)
 
         def get_long_running_output(pipeline_response):  # pylint: disable=inconsistent-return-statements
             if cls:
-                return cls(pipeline_response, None, {})
+                return cls(pipeline_response, None, {})  # type: ignore
 
         if polling is True:
             polling_method: AsyncPollingMethod = cast(AsyncPollingMethod, AsyncARMPolling(lro_delay, **kwargs))
@@ -1149,17 +1047,13 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         else:
             polling_method = polling
         if cont_token:
-            return AsyncLROPoller.from_continuation_token(
+            return AsyncLROPoller[None].from_continuation_token(
                 polling_method=polling_method,
                 continuation_token=cont_token,
                 client=self._client,
                 deserialization_callback=get_long_running_output,
             )
-        return AsyncLROPoller(self._client, raw_result, get_long_running_output, polling_method)  # type: ignore
-
-    begin_delete_at_subscription_scope.metadata = {
-        "url": "/subscriptions/{subscriptionId}/providers/Microsoft.Resources/deployments/{deploymentName}"
-    }
+        return AsyncLROPoller[None](self._client, raw_result, get_long_running_output, polling_method)  # type: ignore
 
     @distributed_trace_async
     async def check_existence_at_subscription_scope(self, deployment_name: str, **kwargs: Any) -> bool:
@@ -1167,12 +1061,11 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
 
         :param deployment_name: The name of the deployment. Required.
         :type deployment_name: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: bool or the result of cls(response)
         :rtype: bool
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -1183,23 +1076,21 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         cls: ClsType[None] = kwargs.pop("cls", None)
 
-        request = build_deployments_check_existence_at_subscription_scope_request(
+        _request = build_deployments_check_existence_at_subscription_scope_request(
             deployment_name=deployment_name,
             subscription_id=self._config.subscription_id,
             api_version=api_version,
-            template_url=self.check_existence_at_subscription_scope.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -1209,17 +1100,13 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
         if cls:
-            return cls(pipeline_response, None, {})
+            return cls(pipeline_response, None, {})  # type: ignore
         return 200 <= response.status_code <= 299
 
-    check_existence_at_subscription_scope.metadata = {
-        "url": "/subscriptions/{subscriptionId}/providers/Microsoft.Resources/deployments/{deploymentName}"
-    }
-
-    async def _create_or_update_at_subscription_scope_initial(
-        self, deployment_name: str, parameters: Union[_models.Deployment, IO], **kwargs: Any
-    ) -> _models.DeploymentExtended:
-        error_map = {
+    async def _create_or_update_at_subscription_scope_initial(  # pylint: disable=name-too-long
+        self, deployment_name: str, parameters: Union[_models.Deployment, IO[bytes]], **kwargs: Any
+    ) -> AsyncIterator[bytes]:
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -1230,9 +1117,9 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         _headers = case_insensitive_dict(kwargs.pop("headers", {}) or {})
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         content_type: Optional[str] = kwargs.pop("content_type", _headers.pop("Content-Type", None))
-        cls: ClsType[_models.DeploymentExtended] = kwargs.pop("cls", None)
+        cls: ClsType[AsyncIterator[bytes]] = kwargs.pop("cls", None)
 
         content_type = content_type or "application/json"
         _json = None
@@ -1242,48 +1129,43 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         else:
             _json = self._serialize.body(parameters, "Deployment")
 
-        request = build_deployments_create_or_update_at_subscription_scope_request(
+        _request = build_deployments_create_or_update_at_subscription_scope_request(
             deployment_name=deployment_name,
             subscription_id=self._config.subscription_id,
             api_version=api_version,
             content_type=content_type,
             json=_json,
             content=_content,
-            template_url=self._create_or_update_at_subscription_scope_initial.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
-        _stream = False
+        _decompress = kwargs.pop("decompress", True)
+        _stream = True
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
 
         if response.status_code not in [200, 201]:
+            try:
+                await response.read()  # Load the body in memory and close the socket
+            except (StreamConsumedError, StreamClosedError):
+                pass
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        if response.status_code == 200:
-            deserialized = self._deserialize("DeploymentExtended", pipeline_response)
-
-        if response.status_code == 201:
-            deserialized = self._deserialize("DeploymentExtended", pipeline_response)
+        deserialized = response.stream_download(self._client._pipeline, decompress=_decompress)
 
         if cls:
             return cls(pipeline_response, deserialized, {})  # type: ignore
 
         return deserialized  # type: ignore
 
-    _create_or_update_at_subscription_scope_initial.metadata = {
-        "url": "/subscriptions/{subscriptionId}/providers/Microsoft.Resources/deployments/{deploymentName}"
-    }
-
     @overload
-    async def begin_create_or_update_at_subscription_scope(
+    async def begin_create_or_update_at_subscription_scope(  # pylint: disable=name-too-long
         self,
         deployment_name: str,
         parameters: _models.Deployment,
@@ -1302,14 +1184,6 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         :keyword content_type: Body Parameter content-type. Content type parameter for JSON body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be AsyncARMPolling. Pass in False for
-         this operation to not poll, or pass in your own initialized polling object for a personal
-         polling strategy.
-        :paramtype polling: bool or ~azure.core.polling.AsyncPollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of AsyncLROPoller that returns either DeploymentExtended or the result of
          cls(response)
         :rtype:
@@ -1318,8 +1192,8 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         """
 
     @overload
-    async def begin_create_or_update_at_subscription_scope(
-        self, deployment_name: str, parameters: IO, *, content_type: str = "application/json", **kwargs: Any
+    async def begin_create_or_update_at_subscription_scope(  # pylint: disable=name-too-long
+        self, deployment_name: str, parameters: IO[bytes], *, content_type: str = "application/json", **kwargs: Any
     ) -> AsyncLROPoller[_models.DeploymentExtended]:
         """Deploys resources at subscription scope.
 
@@ -1328,18 +1202,10 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         :param deployment_name: The name of the deployment. Required.
         :type deployment_name: str
         :param parameters: Additional parameters supplied to the operation. Required.
-        :type parameters: IO
+        :type parameters: IO[bytes]
         :keyword content_type: Body Parameter content-type. Content type parameter for binary body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be AsyncARMPolling. Pass in False for
-         this operation to not poll, or pass in your own initialized polling object for a personal
-         polling strategy.
-        :paramtype polling: bool or ~azure.core.polling.AsyncPollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of AsyncLROPoller that returns either DeploymentExtended or the result of
          cls(response)
         :rtype:
@@ -1348,8 +1214,8 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         """
 
     @distributed_trace_async
-    async def begin_create_or_update_at_subscription_scope(
-        self, deployment_name: str, parameters: Union[_models.Deployment, IO], **kwargs: Any
+    async def begin_create_or_update_at_subscription_scope(  # pylint: disable=name-too-long
+        self, deployment_name: str, parameters: Union[_models.Deployment, IO[bytes]], **kwargs: Any
     ) -> AsyncLROPoller[_models.DeploymentExtended]:
         """Deploys resources at subscription scope.
 
@@ -1358,19 +1224,8 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         :param deployment_name: The name of the deployment. Required.
         :type deployment_name: str
         :param parameters: Additional parameters supplied to the operation. Is either a Deployment type
-         or a IO type. Required.
-        :type parameters: ~azure.mgmt.resource.resources.v2019_05_01.models.Deployment or IO
-        :keyword content_type: Body Parameter content-type. Known values are: 'application/json'.
-         Default value is None.
-        :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be AsyncARMPolling. Pass in False for
-         this operation to not poll, or pass in your own initialized polling object for a personal
-         polling strategy.
-        :paramtype polling: bool or ~azure.core.polling.AsyncPollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
+         or a IO[bytes] type. Required.
+        :type parameters: ~azure.mgmt.resource.resources.v2019_05_01.models.Deployment or IO[bytes]
         :return: An instance of AsyncLROPoller that returns either DeploymentExtended or the result of
          cls(response)
         :rtype:
@@ -1380,7 +1235,7 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         _headers = case_insensitive_dict(kwargs.pop("headers", {}) or {})
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         content_type: Optional[str] = kwargs.pop("content_type", _headers.pop("Content-Type", None))
         cls: ClsType[_models.DeploymentExtended] = kwargs.pop("cls", None)
         polling: Union[bool, AsyncPollingMethod] = kwargs.pop("polling", True)
@@ -1397,12 +1252,13 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
                 params=_params,
                 **kwargs
             )
+            await raw_result.http_response.read()  # type: ignore
         kwargs.pop("error_map", None)
 
         def get_long_running_output(pipeline_response):
-            deserialized = self._deserialize("DeploymentExtended", pipeline_response)
+            deserialized = self._deserialize("DeploymentExtended", pipeline_response.http_response)
             if cls:
-                return cls(pipeline_response, deserialized, {})
+                return cls(pipeline_response, deserialized, {})  # type: ignore
             return deserialized
 
         if polling is True:
@@ -1412,17 +1268,15 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         else:
             polling_method = polling
         if cont_token:
-            return AsyncLROPoller.from_continuation_token(
+            return AsyncLROPoller[_models.DeploymentExtended].from_continuation_token(
                 polling_method=polling_method,
                 continuation_token=cont_token,
                 client=self._client,
                 deserialization_callback=get_long_running_output,
             )
-        return AsyncLROPoller(self._client, raw_result, get_long_running_output, polling_method)  # type: ignore
-
-    begin_create_or_update_at_subscription_scope.metadata = {
-        "url": "/subscriptions/{subscriptionId}/providers/Microsoft.Resources/deployments/{deploymentName}"
-    }
+        return AsyncLROPoller[_models.DeploymentExtended](
+            self._client, raw_result, get_long_running_output, polling_method  # type: ignore
+        )
 
     @distributed_trace_async
     async def get_at_subscription_scope(self, deployment_name: str, **kwargs: Any) -> _models.DeploymentExtended:
@@ -1430,12 +1284,11 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
 
         :param deployment_name: The name of the deployment. Required.
         :type deployment_name: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: DeploymentExtended or the result of cls(response)
         :rtype: ~azure.mgmt.resource.resources.v2019_05_01.models.DeploymentExtended
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -1446,23 +1299,21 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         cls: ClsType[_models.DeploymentExtended] = kwargs.pop("cls", None)
 
-        request = build_deployments_get_at_subscription_scope_request(
+        _request = build_deployments_get_at_subscription_scope_request(
             deployment_name=deployment_name,
             subscription_id=self._config.subscription_id,
             api_version=api_version,
-            template_url=self.get_at_subscription_scope.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -1471,16 +1322,12 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        deserialized = self._deserialize("DeploymentExtended", pipeline_response)
+        deserialized = self._deserialize("DeploymentExtended", pipeline_response.http_response)
 
         if cls:
-            return cls(pipeline_response, deserialized, {})
+            return cls(pipeline_response, deserialized, {})  # type: ignore
 
-        return deserialized
-
-    get_at_subscription_scope.metadata = {
-        "url": "/subscriptions/{subscriptionId}/providers/Microsoft.Resources/deployments/{deploymentName}"
-    }
+        return deserialized  # type: ignore
 
     @distributed_trace_async
     async def cancel_at_subscription_scope(  # pylint: disable=inconsistent-return-statements
@@ -1495,12 +1342,11 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
 
         :param deployment_name: The name of the deployment. Required.
         :type deployment_name: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: None or the result of cls(response)
         :rtype: None
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -1511,23 +1357,21 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         cls: ClsType[None] = kwargs.pop("cls", None)
 
-        request = build_deployments_cancel_at_subscription_scope_request(
+        _request = build_deployments_cancel_at_subscription_scope_request(
             deployment_name=deployment_name,
             subscription_id=self._config.subscription_id,
             api_version=api_version,
-            template_url=self.cancel_at_subscription_scope.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -1537,11 +1381,7 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
         if cls:
-            return cls(pipeline_response, None, {})
-
-    cancel_at_subscription_scope.metadata = {
-        "url": "/subscriptions/{subscriptionId}/providers/Microsoft.Resources/deployments/{deploymentName}/cancel"
-    }
+            return cls(pipeline_response, None, {})  # type: ignore
 
     @overload
     async def validate_at_subscription_scope(
@@ -1562,7 +1402,6 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         :keyword content_type: Body Parameter content-type. Content type parameter for JSON body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: DeploymentValidateResult or the result of cls(response)
         :rtype: ~azure.mgmt.resource.resources.v2019_05_01.models.DeploymentValidateResult
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -1570,7 +1409,7 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
 
     @overload
     async def validate_at_subscription_scope(
-        self, deployment_name: str, parameters: IO, *, content_type: str = "application/json", **kwargs: Any
+        self, deployment_name: str, parameters: IO[bytes], *, content_type: str = "application/json", **kwargs: Any
     ) -> _models.DeploymentValidateResult:
         """Validates whether the specified template is syntactically correct and will be accepted by Azure
         Resource Manager..
@@ -1578,11 +1417,10 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         :param deployment_name: The name of the deployment. Required.
         :type deployment_name: str
         :param parameters: Parameters to validate. Required.
-        :type parameters: IO
+        :type parameters: IO[bytes]
         :keyword content_type: Body Parameter content-type. Content type parameter for binary body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: DeploymentValidateResult or the result of cls(response)
         :rtype: ~azure.mgmt.resource.resources.v2019_05_01.models.DeploymentValidateResult
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -1590,24 +1428,21 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
 
     @distributed_trace_async
     async def validate_at_subscription_scope(
-        self, deployment_name: str, parameters: Union[_models.Deployment, IO], **kwargs: Any
+        self, deployment_name: str, parameters: Union[_models.Deployment, IO[bytes]], **kwargs: Any
     ) -> _models.DeploymentValidateResult:
         """Validates whether the specified template is syntactically correct and will be accepted by Azure
         Resource Manager..
 
         :param deployment_name: The name of the deployment. Required.
         :type deployment_name: str
-        :param parameters: Parameters to validate. Is either a Deployment type or a IO type. Required.
-        :type parameters: ~azure.mgmt.resource.resources.v2019_05_01.models.Deployment or IO
-        :keyword content_type: Body Parameter content-type. Known values are: 'application/json'.
-         Default value is None.
-        :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
+        :param parameters: Parameters to validate. Is either a Deployment type or a IO[bytes] type.
+         Required.
+        :type parameters: ~azure.mgmt.resource.resources.v2019_05_01.models.Deployment or IO[bytes]
         :return: DeploymentValidateResult or the result of cls(response)
         :rtype: ~azure.mgmt.resource.resources.v2019_05_01.models.DeploymentValidateResult
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -1618,7 +1453,7 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         _headers = case_insensitive_dict(kwargs.pop("headers", {}) or {})
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         content_type: Optional[str] = kwargs.pop("content_type", _headers.pop("Content-Type", None))
         cls: ClsType[_models.DeploymentValidateResult] = kwargs.pop("cls", None)
 
@@ -1630,23 +1465,21 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         else:
             _json = self._serialize.body(parameters, "Deployment")
 
-        request = build_deployments_validate_at_subscription_scope_request(
+        _request = build_deployments_validate_at_subscription_scope_request(
             deployment_name=deployment_name,
             subscription_id=self._config.subscription_id,
             api_version=api_version,
             content_type=content_type,
             json=_json,
             content=_content,
-            template_url=self.validate_at_subscription_scope.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -1655,20 +1488,12 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        if response.status_code == 200:
-            deserialized = self._deserialize("DeploymentValidateResult", pipeline_response)
-
-        if response.status_code == 400:
-            deserialized = self._deserialize("DeploymentValidateResult", pipeline_response)
+        deserialized = self._deserialize("DeploymentValidateResult", pipeline_response.http_response)
 
         if cls:
             return cls(pipeline_response, deserialized, {})  # type: ignore
 
         return deserialized  # type: ignore
-
-    validate_at_subscription_scope.metadata = {
-        "url": "/subscriptions/{subscriptionId}/providers/Microsoft.Resources/deployments/{deploymentName}/validate"
-    }
 
     @distributed_trace_async
     async def export_template_at_subscription_scope(
@@ -1678,12 +1503,11 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
 
         :param deployment_name: The name of the deployment. Required.
         :type deployment_name: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: DeploymentExportResult or the result of cls(response)
         :rtype: ~azure.mgmt.resource.resources.v2019_05_01.models.DeploymentExportResult
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -1694,23 +1518,21 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         cls: ClsType[_models.DeploymentExportResult] = kwargs.pop("cls", None)
 
-        request = build_deployments_export_template_at_subscription_scope_request(
+        _request = build_deployments_export_template_at_subscription_scope_request(
             deployment_name=deployment_name,
             subscription_id=self._config.subscription_id,
             api_version=api_version,
-            template_url=self.export_template_at_subscription_scope.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -1719,16 +1541,12 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        deserialized = self._deserialize("DeploymentExportResult", pipeline_response)
+        deserialized = self._deserialize("DeploymentExportResult", pipeline_response.http_response)
 
         if cls:
-            return cls(pipeline_response, deserialized, {})
+            return cls(pipeline_response, deserialized, {})  # type: ignore
 
-        return deserialized
-
-    export_template_at_subscription_scope.metadata = {
-        "url": "/subscriptions/{subscriptionId}/providers/Microsoft.Resources/deployments/{deploymentName}/exportTemplate"
-    }
+        return deserialized  # type: ignore
 
     @distributed_trace
     def list_at_subscription_scope(
@@ -1742,7 +1560,6 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         :param top: The number of results to get. If null is passed, returns all deployments. Default
          value is None.
         :type top: int
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: An iterator like instance of either DeploymentExtended or the result of cls(response)
         :rtype:
          ~azure.core.async_paging.AsyncItemPaged[~azure.mgmt.resource.resources.v2019_05_01.models.DeploymentExtended]
@@ -1751,10 +1568,10 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         cls: ClsType[_models.DeploymentListResult] = kwargs.pop("cls", None)
 
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -1765,17 +1582,15 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         def prepare_request(next_link=None):
             if not next_link:
 
-                request = build_deployments_list_at_subscription_scope_request(
+                _request = build_deployments_list_at_subscription_scope_request(
                     subscription_id=self._config.subscription_id,
                     filter=filter,
                     top=top,
                     api_version=api_version,
-                    template_url=self.list_at_subscription_scope.metadata["url"],
                     headers=_headers,
                     params=_params,
                 )
-                request = _convert_request(request)
-                request.url = self._client.format_url(request.url)
+                _request.url = self._client.format_url(_request.url)
 
             else:
                 # make call to next link with the client's api-version
@@ -1786,14 +1601,13 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
                         for key, value in urllib.parse.parse_qs(_parsed_next_link.query).items()
                     }
                 )
-                _next_request_params["api-version"] = self._config.api_version
-                request = HttpRequest(
+                _next_request_params["api-version"] = self._api_version
+                _request = HttpRequest(
                     "GET", urllib.parse.urljoin(next_link, _parsed_next_link.path), params=_next_request_params
                 )
-                request = _convert_request(request)
-                request.url = self._client.format_url(request.url)
-                request.method = "GET"
-            return request
+                _request.url = self._client.format_url(_request.url)
+                _request.method = "GET"
+            return _request
 
         async def extract_data(pipeline_response):
             deserialized = self._deserialize("DeploymentListResult", pipeline_response)
@@ -1803,11 +1617,11 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
             return deserialized.next_link or None, AsyncList(list_of_elem)
 
         async def get_next(next_link=None):
-            request = prepare_request(next_link)
+            _request = prepare_request(next_link)
 
             _stream = False
             pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-                request, stream=_stream, **kwargs
+                _request, stream=_stream, **kwargs
             )
             response = pipeline_response.http_response
 
@@ -1819,14 +1633,10 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
 
         return AsyncItemPaged(get_next, extract_data)
 
-    list_at_subscription_scope.metadata = {
-        "url": "/subscriptions/{subscriptionId}/providers/Microsoft.Resources/deployments/"
-    }
-
-    async def _delete_initial(  # pylint: disable=inconsistent-return-statements
+    async def _delete_initial(
         self, resource_group_name: str, deployment_name: str, **kwargs: Any
-    ) -> None:
-        error_map = {
+    ) -> AsyncIterator[bytes]:
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -1837,38 +1647,41 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
-        cls: ClsType[None] = kwargs.pop("cls", None)
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
+        cls: ClsType[AsyncIterator[bytes]] = kwargs.pop("cls", None)
 
-        request = build_deployments_delete_request(
+        _request = build_deployments_delete_request(
             resource_group_name=resource_group_name,
             deployment_name=deployment_name,
             subscription_id=self._config.subscription_id,
             api_version=api_version,
-            template_url=self._delete_initial.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
-        _stream = False
+        _decompress = kwargs.pop("decompress", True)
+        _stream = True
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
 
         if response.status_code not in [202, 204]:
+            try:
+                await response.read()  # Load the body in memory and close the socket
+            except (StreamConsumedError, StreamClosedError):
+                pass
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        if cls:
-            return cls(pipeline_response, None, {})
+        deserialized = response.stream_download(self._client._pipeline, decompress=_decompress)
 
-    _delete_initial.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourcegroups/{resourceGroupName}/providers/Microsoft.Resources/deployments/{deploymentName}"
-    }
+        if cls:
+            return cls(pipeline_response, deserialized, {})  # type: ignore
+
+        return deserialized  # type: ignore
 
     @distributed_trace_async
     async def begin_delete(self, resource_group_name: str, deployment_name: str, **kwargs: Any) -> AsyncLROPoller[None]:
@@ -1888,14 +1701,6 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         :type resource_group_name: str
         :param deployment_name: The name of the deployment. Required.
         :type deployment_name: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be AsyncARMPolling. Pass in False for
-         this operation to not poll, or pass in your own initialized polling object for a personal
-         polling strategy.
-        :paramtype polling: bool or ~azure.core.polling.AsyncPollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of AsyncLROPoller that returns either None or the result of cls(response)
         :rtype: ~azure.core.polling.AsyncLROPoller[None]
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -1903,13 +1708,13 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         cls: ClsType[None] = kwargs.pop("cls", None)
         polling: Union[bool, AsyncPollingMethod] = kwargs.pop("polling", True)
         lro_delay = kwargs.pop("polling_interval", self._config.polling_interval)
         cont_token: Optional[str] = kwargs.pop("continuation_token", None)
         if cont_token is None:
-            raw_result = await self._delete_initial(  # type: ignore
+            raw_result = await self._delete_initial(
                 resource_group_name=resource_group_name,
                 deployment_name=deployment_name,
                 api_version=api_version,
@@ -1918,11 +1723,12 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
                 params=_params,
                 **kwargs
             )
+            await raw_result.http_response.read()  # type: ignore
         kwargs.pop("error_map", None)
 
         def get_long_running_output(pipeline_response):  # pylint: disable=inconsistent-return-statements
             if cls:
-                return cls(pipeline_response, None, {})
+                return cls(pipeline_response, None, {})  # type: ignore
 
         if polling is True:
             polling_method: AsyncPollingMethod = cast(AsyncPollingMethod, AsyncARMPolling(lro_delay, **kwargs))
@@ -1931,17 +1737,13 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         else:
             polling_method = polling
         if cont_token:
-            return AsyncLROPoller.from_continuation_token(
+            return AsyncLROPoller[None].from_continuation_token(
                 polling_method=polling_method,
                 continuation_token=cont_token,
                 client=self._client,
                 deserialization_callback=get_long_running_output,
             )
-        return AsyncLROPoller(self._client, raw_result, get_long_running_output, polling_method)  # type: ignore
-
-    begin_delete.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourcegroups/{resourceGroupName}/providers/Microsoft.Resources/deployments/{deploymentName}"
-    }
+        return AsyncLROPoller[None](self._client, raw_result, get_long_running_output, polling_method)  # type: ignore
 
     @distributed_trace_async
     async def check_existence(self, resource_group_name: str, deployment_name: str, **kwargs: Any) -> bool:
@@ -1952,12 +1754,11 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         :type resource_group_name: str
         :param deployment_name: The name of the deployment. Required.
         :type deployment_name: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: bool or the result of cls(response)
         :rtype: bool
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -1968,24 +1769,22 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         cls: ClsType[None] = kwargs.pop("cls", None)
 
-        request = build_deployments_check_existence_request(
+        _request = build_deployments_check_existence_request(
             resource_group_name=resource_group_name,
             deployment_name=deployment_name,
             subscription_id=self._config.subscription_id,
             api_version=api_version,
-            template_url=self.check_existence.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -1995,17 +1794,17 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
         if cls:
-            return cls(pipeline_response, None, {})
+            return cls(pipeline_response, None, {})  # type: ignore
         return 200 <= response.status_code <= 299
 
-    check_existence.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourcegroups/{resourceGroupName}/providers/Microsoft.Resources/deployments/{deploymentName}"
-    }
-
     async def _create_or_update_initial(
-        self, resource_group_name: str, deployment_name: str, parameters: Union[_models.Deployment, IO], **kwargs: Any
-    ) -> _models.DeploymentExtended:
-        error_map = {
+        self,
+        resource_group_name: str,
+        deployment_name: str,
+        parameters: Union[_models.Deployment, IO[bytes]],
+        **kwargs: Any
+    ) -> AsyncIterator[bytes]:
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -2016,9 +1815,9 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         _headers = case_insensitive_dict(kwargs.pop("headers", {}) or {})
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         content_type: Optional[str] = kwargs.pop("content_type", _headers.pop("Content-Type", None))
-        cls: ClsType[_models.DeploymentExtended] = kwargs.pop("cls", None)
+        cls: ClsType[AsyncIterator[bytes]] = kwargs.pop("cls", None)
 
         content_type = content_type or "application/json"
         _json = None
@@ -2028,7 +1827,7 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         else:
             _json = self._serialize.body(parameters, "Deployment")
 
-        request = build_deployments_create_or_update_request(
+        _request = build_deployments_create_or_update_request(
             resource_group_name=resource_group_name,
             deployment_name=deployment_name,
             subscription_id=self._config.subscription_id,
@@ -2036,38 +1835,33 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
             content_type=content_type,
             json=_json,
             content=_content,
-            template_url=self._create_or_update_initial.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
-        _stream = False
+        _decompress = kwargs.pop("decompress", True)
+        _stream = True
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
 
         if response.status_code not in [200, 201]:
+            try:
+                await response.read()  # Load the body in memory and close the socket
+            except (StreamConsumedError, StreamClosedError):
+                pass
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        if response.status_code == 200:
-            deserialized = self._deserialize("DeploymentExtended", pipeline_response)
-
-        if response.status_code == 201:
-            deserialized = self._deserialize("DeploymentExtended", pipeline_response)
+        deserialized = response.stream_download(self._client._pipeline, decompress=_decompress)
 
         if cls:
             return cls(pipeline_response, deserialized, {})  # type: ignore
 
         return deserialized  # type: ignore
-
-    _create_or_update_initial.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourcegroups/{resourceGroupName}/providers/Microsoft.Resources/deployments/{deploymentName}"
-    }
 
     @overload
     async def begin_create_or_update(
@@ -2093,14 +1887,6 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         :keyword content_type: Body Parameter content-type. Content type parameter for JSON body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be AsyncARMPolling. Pass in False for
-         this operation to not poll, or pass in your own initialized polling object for a personal
-         polling strategy.
-        :paramtype polling: bool or ~azure.core.polling.AsyncPollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of AsyncLROPoller that returns either DeploymentExtended or the result of
          cls(response)
         :rtype:
@@ -2113,7 +1899,7 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         self,
         resource_group_name: str,
         deployment_name: str,
-        parameters: IO,
+        parameters: IO[bytes],
         *,
         content_type: str = "application/json",
         **kwargs: Any
@@ -2128,18 +1914,10 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         :param deployment_name: The name of the deployment. Required.
         :type deployment_name: str
         :param parameters: Additional parameters supplied to the operation. Required.
-        :type parameters: IO
+        :type parameters: IO[bytes]
         :keyword content_type: Body Parameter content-type. Content type parameter for binary body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be AsyncARMPolling. Pass in False for
-         this operation to not poll, or pass in your own initialized polling object for a personal
-         polling strategy.
-        :paramtype polling: bool or ~azure.core.polling.AsyncPollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of AsyncLROPoller that returns either DeploymentExtended or the result of
          cls(response)
         :rtype:
@@ -2149,7 +1927,11 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
 
     @distributed_trace_async
     async def begin_create_or_update(
-        self, resource_group_name: str, deployment_name: str, parameters: Union[_models.Deployment, IO], **kwargs: Any
+        self,
+        resource_group_name: str,
+        deployment_name: str,
+        parameters: Union[_models.Deployment, IO[bytes]],
+        **kwargs: Any
     ) -> AsyncLROPoller[_models.DeploymentExtended]:
         """Deploys resources to a resource group.
 
@@ -2161,19 +1943,8 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         :param deployment_name: The name of the deployment. Required.
         :type deployment_name: str
         :param parameters: Additional parameters supplied to the operation. Is either a Deployment type
-         or a IO type. Required.
-        :type parameters: ~azure.mgmt.resource.resources.v2019_05_01.models.Deployment or IO
-        :keyword content_type: Body Parameter content-type. Known values are: 'application/json'.
-         Default value is None.
-        :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be AsyncARMPolling. Pass in False for
-         this operation to not poll, or pass in your own initialized polling object for a personal
-         polling strategy.
-        :paramtype polling: bool or ~azure.core.polling.AsyncPollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
+         or a IO[bytes] type. Required.
+        :type parameters: ~azure.mgmt.resource.resources.v2019_05_01.models.Deployment or IO[bytes]
         :return: An instance of AsyncLROPoller that returns either DeploymentExtended or the result of
          cls(response)
         :rtype:
@@ -2183,7 +1954,7 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         _headers = case_insensitive_dict(kwargs.pop("headers", {}) or {})
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         content_type: Optional[str] = kwargs.pop("content_type", _headers.pop("Content-Type", None))
         cls: ClsType[_models.DeploymentExtended] = kwargs.pop("cls", None)
         polling: Union[bool, AsyncPollingMethod] = kwargs.pop("polling", True)
@@ -2201,12 +1972,13 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
                 params=_params,
                 **kwargs
             )
+            await raw_result.http_response.read()  # type: ignore
         kwargs.pop("error_map", None)
 
         def get_long_running_output(pipeline_response):
-            deserialized = self._deserialize("DeploymentExtended", pipeline_response)
+            deserialized = self._deserialize("DeploymentExtended", pipeline_response.http_response)
             if cls:
-                return cls(pipeline_response, deserialized, {})
+                return cls(pipeline_response, deserialized, {})  # type: ignore
             return deserialized
 
         if polling is True:
@@ -2216,17 +1988,15 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         else:
             polling_method = polling
         if cont_token:
-            return AsyncLROPoller.from_continuation_token(
+            return AsyncLROPoller[_models.DeploymentExtended].from_continuation_token(
                 polling_method=polling_method,
                 continuation_token=cont_token,
                 client=self._client,
                 deserialization_callback=get_long_running_output,
             )
-        return AsyncLROPoller(self._client, raw_result, get_long_running_output, polling_method)  # type: ignore
-
-    begin_create_or_update.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourcegroups/{resourceGroupName}/providers/Microsoft.Resources/deployments/{deploymentName}"
-    }
+        return AsyncLROPoller[_models.DeploymentExtended](
+            self._client, raw_result, get_long_running_output, polling_method  # type: ignore
+        )
 
     @distributed_trace_async
     async def get(self, resource_group_name: str, deployment_name: str, **kwargs: Any) -> _models.DeploymentExtended:
@@ -2237,12 +2007,11 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         :type resource_group_name: str
         :param deployment_name: The name of the deployment. Required.
         :type deployment_name: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: DeploymentExtended or the result of cls(response)
         :rtype: ~azure.mgmt.resource.resources.v2019_05_01.models.DeploymentExtended
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -2253,24 +2022,22 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         cls: ClsType[_models.DeploymentExtended] = kwargs.pop("cls", None)
 
-        request = build_deployments_get_request(
+        _request = build_deployments_get_request(
             resource_group_name=resource_group_name,
             deployment_name=deployment_name,
             subscription_id=self._config.subscription_id,
             api_version=api_version,
-            template_url=self.get.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -2279,16 +2046,12 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        deserialized = self._deserialize("DeploymentExtended", pipeline_response)
+        deserialized = self._deserialize("DeploymentExtended", pipeline_response.http_response)
 
         if cls:
-            return cls(pipeline_response, deserialized, {})
+            return cls(pipeline_response, deserialized, {})  # type: ignore
 
-        return deserialized
-
-    get.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourcegroups/{resourceGroupName}/providers/Microsoft.Resources/deployments/{deploymentName}"
-    }
+        return deserialized  # type: ignore
 
     @distributed_trace_async
     async def cancel(  # pylint: disable=inconsistent-return-statements
@@ -2306,12 +2069,11 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         :type resource_group_name: str
         :param deployment_name: The name of the deployment. Required.
         :type deployment_name: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: None or the result of cls(response)
         :rtype: None
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -2322,24 +2084,22 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         cls: ClsType[None] = kwargs.pop("cls", None)
 
-        request = build_deployments_cancel_request(
+        _request = build_deployments_cancel_request(
             resource_group_name=resource_group_name,
             deployment_name=deployment_name,
             subscription_id=self._config.subscription_id,
             api_version=api_version,
-            template_url=self.cancel.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -2349,11 +2109,7 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
         if cls:
-            return cls(pipeline_response, None, {})
-
-    cancel.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourcegroups/{resourceGroupName}/providers/Microsoft.Resources/deployments/{deploymentName}/cancel"
-    }
+            return cls(pipeline_response, None, {})  # type: ignore
 
     @overload
     async def validate(
@@ -2378,7 +2134,6 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         :keyword content_type: Body Parameter content-type. Content type parameter for JSON body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: DeploymentValidateResult or the result of cls(response)
         :rtype: ~azure.mgmt.resource.resources.v2019_05_01.models.DeploymentValidateResult
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -2389,7 +2144,7 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         self,
         resource_group_name: str,
         deployment_name: str,
-        parameters: IO,
+        parameters: IO[bytes],
         *,
         content_type: str = "application/json",
         **kwargs: Any
@@ -2403,11 +2158,10 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         :param deployment_name: The name of the deployment. Required.
         :type deployment_name: str
         :param parameters: Parameters to validate. Required.
-        :type parameters: IO
+        :type parameters: IO[bytes]
         :keyword content_type: Body Parameter content-type. Content type parameter for binary body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: DeploymentValidateResult or the result of cls(response)
         :rtype: ~azure.mgmt.resource.resources.v2019_05_01.models.DeploymentValidateResult
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -2415,7 +2169,11 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
 
     @distributed_trace_async
     async def validate(
-        self, resource_group_name: str, deployment_name: str, parameters: Union[_models.Deployment, IO], **kwargs: Any
+        self,
+        resource_group_name: str,
+        deployment_name: str,
+        parameters: Union[_models.Deployment, IO[bytes]],
+        **kwargs: Any
     ) -> _models.DeploymentValidateResult:
         """Validates whether the specified template is syntactically correct and will be accepted by Azure
         Resource Manager..
@@ -2425,17 +2183,14 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         :type resource_group_name: str
         :param deployment_name: The name of the deployment. Required.
         :type deployment_name: str
-        :param parameters: Parameters to validate. Is either a Deployment type or a IO type. Required.
-        :type parameters: ~azure.mgmt.resource.resources.v2019_05_01.models.Deployment or IO
-        :keyword content_type: Body Parameter content-type. Known values are: 'application/json'.
-         Default value is None.
-        :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
+        :param parameters: Parameters to validate. Is either a Deployment type or a IO[bytes] type.
+         Required.
+        :type parameters: ~azure.mgmt.resource.resources.v2019_05_01.models.Deployment or IO[bytes]
         :return: DeploymentValidateResult or the result of cls(response)
         :rtype: ~azure.mgmt.resource.resources.v2019_05_01.models.DeploymentValidateResult
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -2446,7 +2201,7 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         _headers = case_insensitive_dict(kwargs.pop("headers", {}) or {})
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         content_type: Optional[str] = kwargs.pop("content_type", _headers.pop("Content-Type", None))
         cls: ClsType[_models.DeploymentValidateResult] = kwargs.pop("cls", None)
 
@@ -2458,7 +2213,7 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         else:
             _json = self._serialize.body(parameters, "Deployment")
 
-        request = build_deployments_validate_request(
+        _request = build_deployments_validate_request(
             resource_group_name=resource_group_name,
             deployment_name=deployment_name,
             subscription_id=self._config.subscription_id,
@@ -2466,16 +2221,14 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
             content_type=content_type,
             json=_json,
             content=_content,
-            template_url=self.validate.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -2484,20 +2237,12 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        if response.status_code == 200:
-            deserialized = self._deserialize("DeploymentValidateResult", pipeline_response)
-
-        if response.status_code == 400:
-            deserialized = self._deserialize("DeploymentValidateResult", pipeline_response)
+        deserialized = self._deserialize("DeploymentValidateResult", pipeline_response.http_response)
 
         if cls:
             return cls(pipeline_response, deserialized, {})  # type: ignore
 
         return deserialized  # type: ignore
-
-    validate.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourcegroups/{resourceGroupName}/providers/Microsoft.Resources/deployments/{deploymentName}/validate"
-    }
 
     @distributed_trace_async
     async def export_template(
@@ -2510,12 +2255,11 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         :type resource_group_name: str
         :param deployment_name: The name of the deployment. Required.
         :type deployment_name: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: DeploymentExportResult or the result of cls(response)
         :rtype: ~azure.mgmt.resource.resources.v2019_05_01.models.DeploymentExportResult
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -2526,24 +2270,22 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         cls: ClsType[_models.DeploymentExportResult] = kwargs.pop("cls", None)
 
-        request = build_deployments_export_template_request(
+        _request = build_deployments_export_template_request(
             resource_group_name=resource_group_name,
             deployment_name=deployment_name,
             subscription_id=self._config.subscription_id,
             api_version=api_version,
-            template_url=self.export_template.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -2552,16 +2294,12 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        deserialized = self._deserialize("DeploymentExportResult", pipeline_response)
+        deserialized = self._deserialize("DeploymentExportResult", pipeline_response.http_response)
 
         if cls:
-            return cls(pipeline_response, deserialized, {})
+            return cls(pipeline_response, deserialized, {})  # type: ignore
 
-        return deserialized
-
-    export_template.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourcegroups/{resourceGroupName}/providers/Microsoft.Resources/deployments/{deploymentName}/exportTemplate"
-    }
+        return deserialized  # type: ignore
 
     @distributed_trace
     def list_by_resource_group(
@@ -2578,7 +2316,6 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         :param top: The number of results to get. If null is passed, returns all deployments. Default
          value is None.
         :type top: int
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: An iterator like instance of either DeploymentExtended or the result of cls(response)
         :rtype:
          ~azure.core.async_paging.AsyncItemPaged[~azure.mgmt.resource.resources.v2019_05_01.models.DeploymentExtended]
@@ -2587,10 +2324,10 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         cls: ClsType[_models.DeploymentListResult] = kwargs.pop("cls", None)
 
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -2601,18 +2338,16 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         def prepare_request(next_link=None):
             if not next_link:
 
-                request = build_deployments_list_by_resource_group_request(
+                _request = build_deployments_list_by_resource_group_request(
                     resource_group_name=resource_group_name,
                     subscription_id=self._config.subscription_id,
                     filter=filter,
                     top=top,
                     api_version=api_version,
-                    template_url=self.list_by_resource_group.metadata["url"],
                     headers=_headers,
                     params=_params,
                 )
-                request = _convert_request(request)
-                request.url = self._client.format_url(request.url)
+                _request.url = self._client.format_url(_request.url)
 
             else:
                 # make call to next link with the client's api-version
@@ -2623,14 +2358,13 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
                         for key, value in urllib.parse.parse_qs(_parsed_next_link.query).items()
                     }
                 )
-                _next_request_params["api-version"] = self._config.api_version
-                request = HttpRequest(
+                _next_request_params["api-version"] = self._api_version
+                _request = HttpRequest(
                     "GET", urllib.parse.urljoin(next_link, _parsed_next_link.path), params=_next_request_params
                 )
-                request = _convert_request(request)
-                request.url = self._client.format_url(request.url)
-                request.method = "GET"
-            return request
+                _request.url = self._client.format_url(_request.url)
+                _request.method = "GET"
+            return _request
 
         async def extract_data(pipeline_response):
             deserialized = self._deserialize("DeploymentListResult", pipeline_response)
@@ -2640,11 +2374,11 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
             return deserialized.next_link or None, AsyncList(list_of_elem)
 
         async def get_next(next_link=None):
-            request = prepare_request(next_link)
+            _request = prepare_request(next_link)
 
             _stream = False
             pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-                request, stream=_stream, **kwargs
+                _request, stream=_stream, **kwargs
             )
             response = pipeline_response.http_response
 
@@ -2656,22 +2390,17 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
 
         return AsyncItemPaged(get_next, extract_data)
 
-    list_by_resource_group.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourcegroups/{resourceGroupName}/providers/Microsoft.Resources/deployments/"
-    }
-
     @distributed_trace_async
     async def calculate_template_hash(self, template: JSON, **kwargs: Any) -> _models.TemplateHashResult:
         """Calculate the hash of the given template.
 
         :param template: The template provided to calculate hash. Required.
         :type template: JSON
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: TemplateHashResult or the result of cls(response)
         :rtype: ~azure.mgmt.resource.resources.v2019_05_01.models.TemplateHashResult
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -2682,26 +2411,24 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
         _headers = case_insensitive_dict(kwargs.pop("headers", {}) or {})
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         content_type: str = kwargs.pop("content_type", _headers.pop("Content-Type", "application/json"))
         cls: ClsType[_models.TemplateHashResult] = kwargs.pop("cls", None)
 
         _json = self._serialize.body(template, "object")
 
-        request = build_deployments_calculate_template_hash_request(
+        _request = build_deployments_calculate_template_hash_request(
             api_version=api_version,
             content_type=content_type,
             json=_json,
-            template_url=self.calculate_template_hash.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -2710,14 +2437,12 @@ class DeploymentsOperations:  # pylint: disable=too-many-public-methods
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        deserialized = self._deserialize("TemplateHashResult", pipeline_response)
+        deserialized = self._deserialize("TemplateHashResult", pipeline_response.http_response)
 
         if cls:
-            return cls(pipeline_response, deserialized, {})
+            return cls(pipeline_response, deserialized, {})  # type: ignore
 
-        return deserialized
-
-    calculate_template_hash.metadata = {"url": "/providers/Microsoft.Resources/calculateTemplateHash"}
+        return deserialized  # type: ignore
 
 
 class ProvidersOperations:
@@ -2738,6 +2463,7 @@ class ProvidersOperations:
         self._config = input_args.pop(0) if input_args else kwargs.pop("config")
         self._serialize = input_args.pop(0) if input_args else kwargs.pop("serializer")
         self._deserialize = input_args.pop(0) if input_args else kwargs.pop("deserializer")
+        self._api_version = input_args.pop(0) if input_args else kwargs.pop("api_version")
 
     @distributed_trace_async
     async def unregister(self, resource_provider_namespace: str, **kwargs: Any) -> _models.Provider:
@@ -2746,12 +2472,11 @@ class ProvidersOperations:
         :param resource_provider_namespace: The namespace of the resource provider to unregister.
          Required.
         :type resource_provider_namespace: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: Provider or the result of cls(response)
         :rtype: ~azure.mgmt.resource.resources.v2019_05_01.models.Provider
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -2762,23 +2487,21 @@ class ProvidersOperations:
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         cls: ClsType[_models.Provider] = kwargs.pop("cls", None)
 
-        request = build_providers_unregister_request(
+        _request = build_providers_unregister_request(
             resource_provider_namespace=resource_provider_namespace,
             subscription_id=self._config.subscription_id,
             api_version=api_version,
-            template_url=self.unregister.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -2787,14 +2510,12 @@ class ProvidersOperations:
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        deserialized = self._deserialize("Provider", pipeline_response)
+        deserialized = self._deserialize("Provider", pipeline_response.http_response)
 
         if cls:
-            return cls(pipeline_response, deserialized, {})
+            return cls(pipeline_response, deserialized, {})  # type: ignore
 
-        return deserialized
-
-    unregister.metadata = {"url": "/subscriptions/{subscriptionId}/providers/{resourceProviderNamespace}/unregister"}
+        return deserialized  # type: ignore
 
     @distributed_trace_async
     async def register(self, resource_provider_namespace: str, **kwargs: Any) -> _models.Provider:
@@ -2803,12 +2524,11 @@ class ProvidersOperations:
         :param resource_provider_namespace: The namespace of the resource provider to register.
          Required.
         :type resource_provider_namespace: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: Provider or the result of cls(response)
         :rtype: ~azure.mgmt.resource.resources.v2019_05_01.models.Provider
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -2819,23 +2539,21 @@ class ProvidersOperations:
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         cls: ClsType[_models.Provider] = kwargs.pop("cls", None)
 
-        request = build_providers_register_request(
+        _request = build_providers_register_request(
             resource_provider_namespace=resource_provider_namespace,
             subscription_id=self._config.subscription_id,
             api_version=api_version,
-            template_url=self.register.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -2844,14 +2562,12 @@ class ProvidersOperations:
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        deserialized = self._deserialize("Provider", pipeline_response)
+        deserialized = self._deserialize("Provider", pipeline_response.http_response)
 
         if cls:
-            return cls(pipeline_response, deserialized, {})
+            return cls(pipeline_response, deserialized, {})  # type: ignore
 
-        return deserialized
-
-    register.metadata = {"url": "/subscriptions/{subscriptionId}/providers/{resourceProviderNamespace}/register"}
+        return deserialized  # type: ignore
 
     @distributed_trace
     def list(
@@ -2866,7 +2582,6 @@ class ProvidersOperations:
          the query string to retrieve resource provider metadata. To include property aliases in
          response, use $expand=resourceTypes/aliases. Default value is None.
         :type expand: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: An iterator like instance of either Provider or the result of cls(response)
         :rtype:
          ~azure.core.async_paging.AsyncItemPaged[~azure.mgmt.resource.resources.v2019_05_01.models.Provider]
@@ -2875,10 +2590,10 @@ class ProvidersOperations:
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         cls: ClsType[_models.ProviderListResult] = kwargs.pop("cls", None)
 
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -2889,17 +2604,15 @@ class ProvidersOperations:
         def prepare_request(next_link=None):
             if not next_link:
 
-                request = build_providers_list_request(
+                _request = build_providers_list_request(
                     subscription_id=self._config.subscription_id,
                     top=top,
                     expand=expand,
                     api_version=api_version,
-                    template_url=self.list.metadata["url"],
                     headers=_headers,
                     params=_params,
                 )
-                request = _convert_request(request)
-                request.url = self._client.format_url(request.url)
+                _request.url = self._client.format_url(_request.url)
 
             else:
                 # make call to next link with the client's api-version
@@ -2910,14 +2623,13 @@ class ProvidersOperations:
                         for key, value in urllib.parse.parse_qs(_parsed_next_link.query).items()
                     }
                 )
-                _next_request_params["api-version"] = self._config.api_version
-                request = HttpRequest(
+                _next_request_params["api-version"] = self._api_version
+                _request = HttpRequest(
                     "GET", urllib.parse.urljoin(next_link, _parsed_next_link.path), params=_next_request_params
                 )
-                request = _convert_request(request)
-                request.url = self._client.format_url(request.url)
-                request.method = "GET"
-            return request
+                _request.url = self._client.format_url(_request.url)
+                _request.method = "GET"
+            return _request
 
         async def extract_data(pipeline_response):
             deserialized = self._deserialize("ProviderListResult", pipeline_response)
@@ -2927,11 +2639,11 @@ class ProvidersOperations:
             return deserialized.next_link or None, AsyncList(list_of_elem)
 
         async def get_next(next_link=None):
-            request = prepare_request(next_link)
+            _request = prepare_request(next_link)
 
             _stream = False
             pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-                request, stream=_stream, **kwargs
+                _request, stream=_stream, **kwargs
             )
             response = pipeline_response.http_response
 
@@ -2942,8 +2654,6 @@ class ProvidersOperations:
             return pipeline_response
 
         return AsyncItemPaged(get_next, extract_data)
-
-    list.metadata = {"url": "/subscriptions/{subscriptionId}/providers"}
 
     @distributed_trace_async
     async def get(
@@ -2956,12 +2666,11 @@ class ProvidersOperations:
         :param expand: The $expand query parameter. For example, to include property aliases in
          response, use $expand=resourceTypes/aliases. Default value is None.
         :type expand: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: Provider or the result of cls(response)
         :rtype: ~azure.mgmt.resource.resources.v2019_05_01.models.Provider
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -2972,24 +2681,22 @@ class ProvidersOperations:
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         cls: ClsType[_models.Provider] = kwargs.pop("cls", None)
 
-        request = build_providers_get_request(
+        _request = build_providers_get_request(
             resource_provider_namespace=resource_provider_namespace,
             subscription_id=self._config.subscription_id,
             expand=expand,
             api_version=api_version,
-            template_url=self.get.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -2998,14 +2705,12 @@ class ProvidersOperations:
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        deserialized = self._deserialize("Provider", pipeline_response)
+        deserialized = self._deserialize("Provider", pipeline_response.http_response)
 
         if cls:
-            return cls(pipeline_response, deserialized, {})
+            return cls(pipeline_response, deserialized, {})  # type: ignore
 
-        return deserialized
-
-    get.metadata = {"url": "/subscriptions/{subscriptionId}/providers/{resourceProviderNamespace}"}
+        return deserialized  # type: ignore
 
 
 class ResourcesOperations:  # pylint: disable=too-many-public-methods
@@ -3026,6 +2731,7 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         self._config = input_args.pop(0) if input_args else kwargs.pop("config")
         self._serialize = input_args.pop(0) if input_args else kwargs.pop("serializer")
         self._deserialize = input_args.pop(0) if input_args else kwargs.pop("deserializer")
+        self._api_version = input_args.pop(0) if input_args else kwargs.pop("api_version")
 
     @distributed_trace
     def list_by_resource_group(
@@ -3056,13 +2762,12 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
          value is None.
         :type filter: str
         :param expand: Comma-separated list of additional properties to be included in the response.
-         Valid values include ``createdTime``\ , ``changedTime`` and ``provisioningState``. For example,
-         ``$expand=createdTime,changedTime``. Default value is None.
+         Valid values include ``createdTime``\\ , ``changedTime`` and ``provisioningState``. For
+         example, ``$expand=createdTime,changedTime``. Default value is None.
         :type expand: str
         :param top: The number of results to return. If null is passed, returns all resources. Default
          value is None.
         :type top: int
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: An iterator like instance of either GenericResourceExpanded or the result of
          cls(response)
         :rtype:
@@ -3072,10 +2777,10 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         cls: ClsType[_models.ResourceListResult] = kwargs.pop("cls", None)
 
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -3086,19 +2791,17 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         def prepare_request(next_link=None):
             if not next_link:
 
-                request = build_resources_list_by_resource_group_request(
+                _request = build_resources_list_by_resource_group_request(
                     resource_group_name=resource_group_name,
                     subscription_id=self._config.subscription_id,
                     filter=filter,
                     expand=expand,
                     top=top,
                     api_version=api_version,
-                    template_url=self.list_by_resource_group.metadata["url"],
                     headers=_headers,
                     params=_params,
                 )
-                request = _convert_request(request)
-                request.url = self._client.format_url(request.url)
+                _request.url = self._client.format_url(_request.url)
 
             else:
                 # make call to next link with the client's api-version
@@ -3109,14 +2812,13 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
                         for key, value in urllib.parse.parse_qs(_parsed_next_link.query).items()
                     }
                 )
-                _next_request_params["api-version"] = self._config.api_version
-                request = HttpRequest(
+                _next_request_params["api-version"] = self._api_version
+                _request = HttpRequest(
                     "GET", urllib.parse.urljoin(next_link, _parsed_next_link.path), params=_next_request_params
                 )
-                request = _convert_request(request)
-                request.url = self._client.format_url(request.url)
-                request.method = "GET"
-            return request
+                _request.url = self._client.format_url(_request.url)
+                _request.method = "GET"
+            return _request
 
         async def extract_data(pipeline_response):
             deserialized = self._deserialize("ResourceListResult", pipeline_response)
@@ -3126,11 +2828,11 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
             return deserialized.next_link or None, AsyncList(list_of_elem)
 
         async def get_next(next_link=None):
-            request = prepare_request(next_link)
+            _request = prepare_request(next_link)
 
             _stream = False
             pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-                request, stream=_stream, **kwargs
+                _request, stream=_stream, **kwargs
             )
             response = pipeline_response.http_response
 
@@ -3142,14 +2844,10 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
 
         return AsyncItemPaged(get_next, extract_data)
 
-    list_by_resource_group.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/resources"
-    }
-
-    async def _move_resources_initial(  # pylint: disable=inconsistent-return-statements
-        self, source_resource_group_name: str, parameters: Union[_models.ResourcesMoveInfo, IO], **kwargs: Any
-    ) -> None:
-        error_map = {
+    async def _move_resources_initial(
+        self, source_resource_group_name: str, parameters: Union[_models.ResourcesMoveInfo, IO[bytes]], **kwargs: Any
+    ) -> AsyncIterator[bytes]:
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -3160,9 +2858,9 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         _headers = case_insensitive_dict(kwargs.pop("headers", {}) or {})
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         content_type: Optional[str] = kwargs.pop("content_type", _headers.pop("Content-Type", None))
-        cls: ClsType[None] = kwargs.pop("cls", None)
+        cls: ClsType[AsyncIterator[bytes]] = kwargs.pop("cls", None)
 
         content_type = content_type or "application/json"
         _json = None
@@ -3172,37 +2870,40 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         else:
             _json = self._serialize.body(parameters, "ResourcesMoveInfo")
 
-        request = build_resources_move_resources_request(
+        _request = build_resources_move_resources_request(
             source_resource_group_name=source_resource_group_name,
             subscription_id=self._config.subscription_id,
             api_version=api_version,
             content_type=content_type,
             json=_json,
             content=_content,
-            template_url=self._move_resources_initial.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
-        _stream = False
+        _decompress = kwargs.pop("decompress", True)
+        _stream = True
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
 
         if response.status_code not in [202, 204]:
+            try:
+                await response.read()  # Load the body in memory and close the socket
+            except (StreamConsumedError, StreamClosedError):
+                pass
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        if cls:
-            return cls(pipeline_response, None, {})
+        deserialized = response.stream_download(self._client._pipeline, decompress=_decompress)
 
-    _move_resources_initial.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourceGroups/{sourceResourceGroupName}/moveResources"
-    }
+        if cls:
+            return cls(pipeline_response, deserialized, {})  # type: ignore
+
+        return deserialized  # type: ignore
 
     @overload
     async def begin_move_resources(
@@ -3228,14 +2929,6 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         :keyword content_type: Body Parameter content-type. Content type parameter for JSON body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be AsyncARMPolling. Pass in False for
-         this operation to not poll, or pass in your own initialized polling object for a personal
-         polling strategy.
-        :paramtype polling: bool or ~azure.core.polling.AsyncPollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of AsyncLROPoller that returns either None or the result of cls(response)
         :rtype: ~azure.core.polling.AsyncLROPoller[None]
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -3243,7 +2936,12 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
 
     @overload
     async def begin_move_resources(
-        self, source_resource_group_name: str, parameters: IO, *, content_type: str = "application/json", **kwargs: Any
+        self,
+        source_resource_group_name: str,
+        parameters: IO[bytes],
+        *,
+        content_type: str = "application/json",
+        **kwargs: Any
     ) -> AsyncLROPoller[None]:
         """Moves resources from one resource group to another resource group.
 
@@ -3256,18 +2954,10 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
          move. Required.
         :type source_resource_group_name: str
         :param parameters: Parameters for moving resources. Required.
-        :type parameters: IO
+        :type parameters: IO[bytes]
         :keyword content_type: Body Parameter content-type. Content type parameter for binary body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be AsyncARMPolling. Pass in False for
-         this operation to not poll, or pass in your own initialized polling object for a personal
-         polling strategy.
-        :paramtype polling: bool or ~azure.core.polling.AsyncPollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of AsyncLROPoller that returns either None or the result of cls(response)
         :rtype: ~azure.core.polling.AsyncLROPoller[None]
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -3275,7 +2965,7 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
 
     @distributed_trace_async
     async def begin_move_resources(
-        self, source_resource_group_name: str, parameters: Union[_models.ResourcesMoveInfo, IO], **kwargs: Any
+        self, source_resource_group_name: str, parameters: Union[_models.ResourcesMoveInfo, IO[bytes]], **kwargs: Any
     ) -> AsyncLROPoller[None]:
         """Moves resources from one resource group to another resource group.
 
@@ -3287,20 +2977,10 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         :param source_resource_group_name: The name of the resource group containing the resources to
          move. Required.
         :type source_resource_group_name: str
-        :param parameters: Parameters for moving resources. Is either a ResourcesMoveInfo type or a IO
-         type. Required.
-        :type parameters: ~azure.mgmt.resource.resources.v2019_05_01.models.ResourcesMoveInfo or IO
-        :keyword content_type: Body Parameter content-type. Known values are: 'application/json'.
-         Default value is None.
-        :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be AsyncARMPolling. Pass in False for
-         this operation to not poll, or pass in your own initialized polling object for a personal
-         polling strategy.
-        :paramtype polling: bool or ~azure.core.polling.AsyncPollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
+        :param parameters: Parameters for moving resources. Is either a ResourcesMoveInfo type or a
+         IO[bytes] type. Required.
+        :type parameters: ~azure.mgmt.resource.resources.v2019_05_01.models.ResourcesMoveInfo or
+         IO[bytes]
         :return: An instance of AsyncLROPoller that returns either None or the result of cls(response)
         :rtype: ~azure.core.polling.AsyncLROPoller[None]
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -3308,14 +2988,14 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         _headers = case_insensitive_dict(kwargs.pop("headers", {}) or {})
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         content_type: Optional[str] = kwargs.pop("content_type", _headers.pop("Content-Type", None))
         cls: ClsType[None] = kwargs.pop("cls", None)
         polling: Union[bool, AsyncPollingMethod] = kwargs.pop("polling", True)
         lro_delay = kwargs.pop("polling_interval", self._config.polling_interval)
         cont_token: Optional[str] = kwargs.pop("continuation_token", None)
         if cont_token is None:
-            raw_result = await self._move_resources_initial(  # type: ignore
+            raw_result = await self._move_resources_initial(
                 source_resource_group_name=source_resource_group_name,
                 parameters=parameters,
                 api_version=api_version,
@@ -3325,11 +3005,12 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
                 params=_params,
                 **kwargs
             )
+            await raw_result.http_response.read()  # type: ignore
         kwargs.pop("error_map", None)
 
         def get_long_running_output(pipeline_response):  # pylint: disable=inconsistent-return-statements
             if cls:
-                return cls(pipeline_response, None, {})
+                return cls(pipeline_response, None, {})  # type: ignore
 
         if polling is True:
             polling_method: AsyncPollingMethod = cast(AsyncPollingMethod, AsyncARMPolling(lro_delay, **kwargs))
@@ -3338,22 +3019,18 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         else:
             polling_method = polling
         if cont_token:
-            return AsyncLROPoller.from_continuation_token(
+            return AsyncLROPoller[None].from_continuation_token(
                 polling_method=polling_method,
                 continuation_token=cont_token,
                 client=self._client,
                 deserialization_callback=get_long_running_output,
             )
-        return AsyncLROPoller(self._client, raw_result, get_long_running_output, polling_method)  # type: ignore
+        return AsyncLROPoller[None](self._client, raw_result, get_long_running_output, polling_method)  # type: ignore
 
-    begin_move_resources.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourceGroups/{sourceResourceGroupName}/moveResources"
-    }
-
-    async def _validate_move_resources_initial(  # pylint: disable=inconsistent-return-statements
-        self, source_resource_group_name: str, parameters: Union[_models.ResourcesMoveInfo, IO], **kwargs: Any
-    ) -> None:
-        error_map = {
+    async def _validate_move_resources_initial(
+        self, source_resource_group_name: str, parameters: Union[_models.ResourcesMoveInfo, IO[bytes]], **kwargs: Any
+    ) -> AsyncIterator[bytes]:
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -3364,9 +3041,9 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         _headers = case_insensitive_dict(kwargs.pop("headers", {}) or {})
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         content_type: Optional[str] = kwargs.pop("content_type", _headers.pop("Content-Type", None))
-        cls: ClsType[None] = kwargs.pop("cls", None)
+        cls: ClsType[AsyncIterator[bytes]] = kwargs.pop("cls", None)
 
         content_type = content_type or "application/json"
         _json = None
@@ -3376,37 +3053,40 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         else:
             _json = self._serialize.body(parameters, "ResourcesMoveInfo")
 
-        request = build_resources_validate_move_resources_request(
+        _request = build_resources_validate_move_resources_request(
             source_resource_group_name=source_resource_group_name,
             subscription_id=self._config.subscription_id,
             api_version=api_version,
             content_type=content_type,
             json=_json,
             content=_content,
-            template_url=self._validate_move_resources_initial.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
-        _stream = False
+        _decompress = kwargs.pop("decompress", True)
+        _stream = True
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
 
         if response.status_code not in [202, 204, 409]:
+            try:
+                await response.read()  # Load the body in memory and close the socket
+            except (StreamConsumedError, StreamClosedError):
+                pass
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        if cls:
-            return cls(pipeline_response, None, {})
+        deserialized = response.stream_download(self._client._pipeline, decompress=_decompress)
 
-    _validate_move_resources_initial.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourceGroups/{sourceResourceGroupName}/validateMoveResources"
-    }
+        if cls:
+            return cls(pipeline_response, deserialized, {})  # type: ignore
+
+        return deserialized  # type: ignore
 
     @overload
     async def begin_validate_move_resources(
@@ -3434,14 +3114,6 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         :keyword content_type: Body Parameter content-type. Content type parameter for JSON body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be AsyncARMPolling. Pass in False for
-         this operation to not poll, or pass in your own initialized polling object for a personal
-         polling strategy.
-        :paramtype polling: bool or ~azure.core.polling.AsyncPollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of AsyncLROPoller that returns either None or the result of cls(response)
         :rtype: ~azure.core.polling.AsyncLROPoller[None]
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -3449,7 +3121,12 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
 
     @overload
     async def begin_validate_move_resources(
-        self, source_resource_group_name: str, parameters: IO, *, content_type: str = "application/json", **kwargs: Any
+        self,
+        source_resource_group_name: str,
+        parameters: IO[bytes],
+        *,
+        content_type: str = "application/json",
+        **kwargs: Any
     ) -> AsyncLROPoller[None]:
         """Validates whether resources can be moved from one resource group to another resource group.
 
@@ -3464,18 +3141,10 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
          validate for move. Required.
         :type source_resource_group_name: str
         :param parameters: Parameters for moving resources. Required.
-        :type parameters: IO
+        :type parameters: IO[bytes]
         :keyword content_type: Body Parameter content-type. Content type parameter for binary body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be AsyncARMPolling. Pass in False for
-         this operation to not poll, or pass in your own initialized polling object for a personal
-         polling strategy.
-        :paramtype polling: bool or ~azure.core.polling.AsyncPollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of AsyncLROPoller that returns either None or the result of cls(response)
         :rtype: ~azure.core.polling.AsyncLROPoller[None]
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -3483,7 +3152,7 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
 
     @distributed_trace_async
     async def begin_validate_move_resources(
-        self, source_resource_group_name: str, parameters: Union[_models.ResourcesMoveInfo, IO], **kwargs: Any
+        self, source_resource_group_name: str, parameters: Union[_models.ResourcesMoveInfo, IO[bytes]], **kwargs: Any
     ) -> AsyncLROPoller[None]:
         """Validates whether resources can be moved from one resource group to another resource group.
 
@@ -3497,20 +3166,10 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         :param source_resource_group_name: The name of the resource group containing the resources to
          validate for move. Required.
         :type source_resource_group_name: str
-        :param parameters: Parameters for moving resources. Is either a ResourcesMoveInfo type or a IO
-         type. Required.
-        :type parameters: ~azure.mgmt.resource.resources.v2019_05_01.models.ResourcesMoveInfo or IO
-        :keyword content_type: Body Parameter content-type. Known values are: 'application/json'.
-         Default value is None.
-        :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be AsyncARMPolling. Pass in False for
-         this operation to not poll, or pass in your own initialized polling object for a personal
-         polling strategy.
-        :paramtype polling: bool or ~azure.core.polling.AsyncPollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
+        :param parameters: Parameters for moving resources. Is either a ResourcesMoveInfo type or a
+         IO[bytes] type. Required.
+        :type parameters: ~azure.mgmt.resource.resources.v2019_05_01.models.ResourcesMoveInfo or
+         IO[bytes]
         :return: An instance of AsyncLROPoller that returns either None or the result of cls(response)
         :rtype: ~azure.core.polling.AsyncLROPoller[None]
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -3518,14 +3177,14 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         _headers = case_insensitive_dict(kwargs.pop("headers", {}) or {})
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         content_type: Optional[str] = kwargs.pop("content_type", _headers.pop("Content-Type", None))
         cls: ClsType[None] = kwargs.pop("cls", None)
         polling: Union[bool, AsyncPollingMethod] = kwargs.pop("polling", True)
         lro_delay = kwargs.pop("polling_interval", self._config.polling_interval)
         cont_token: Optional[str] = kwargs.pop("continuation_token", None)
         if cont_token is None:
-            raw_result = await self._validate_move_resources_initial(  # type: ignore
+            raw_result = await self._validate_move_resources_initial(
                 source_resource_group_name=source_resource_group_name,
                 parameters=parameters,
                 api_version=api_version,
@@ -3535,11 +3194,12 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
                 params=_params,
                 **kwargs
             )
+            await raw_result.http_response.read()  # type: ignore
         kwargs.pop("error_map", None)
 
         def get_long_running_output(pipeline_response):  # pylint: disable=inconsistent-return-statements
             if cls:
-                return cls(pipeline_response, None, {})
+                return cls(pipeline_response, None, {})  # type: ignore
 
         if polling is True:
             polling_method: AsyncPollingMethod = cast(AsyncPollingMethod, AsyncARMPolling(lro_delay, **kwargs))
@@ -3548,17 +3208,13 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         else:
             polling_method = polling
         if cont_token:
-            return AsyncLROPoller.from_continuation_token(
+            return AsyncLROPoller[None].from_continuation_token(
                 polling_method=polling_method,
                 continuation_token=cont_token,
                 client=self._client,
                 deserialization_callback=get_long_running_output,
             )
-        return AsyncLROPoller(self._client, raw_result, get_long_running_output, polling_method)  # type: ignore
-
-    begin_validate_move_resources.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourceGroups/{sourceResourceGroupName}/validateMoveResources"
-    }
+        return AsyncLROPoller[None](self._client, raw_result, get_long_running_output, polling_method)  # type: ignore
 
     @distributed_trace
     def list(
@@ -3582,13 +3238,12 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
          value is None.
         :type filter: str
         :param expand: Comma-separated list of additional properties to be included in the response.
-         Valid values include ``createdTime``\ , ``changedTime`` and ``provisioningState``. For example,
-         ``$expand=createdTime,changedTime``. Default value is None.
+         Valid values include ``createdTime``\\ , ``changedTime`` and ``provisioningState``. For
+         example, ``$expand=createdTime,changedTime``. Default value is None.
         :type expand: str
         :param top: The number of results to return. If null is passed, returns all resources. Default
          value is None.
         :type top: int
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: An iterator like instance of either GenericResourceExpanded or the result of
          cls(response)
         :rtype:
@@ -3598,10 +3253,10 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         cls: ClsType[_models.ResourceListResult] = kwargs.pop("cls", None)
 
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -3612,18 +3267,16 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         def prepare_request(next_link=None):
             if not next_link:
 
-                request = build_resources_list_request(
+                _request = build_resources_list_request(
                     subscription_id=self._config.subscription_id,
                     filter=filter,
                     expand=expand,
                     top=top,
                     api_version=api_version,
-                    template_url=self.list.metadata["url"],
                     headers=_headers,
                     params=_params,
                 )
-                request = _convert_request(request)
-                request.url = self._client.format_url(request.url)
+                _request.url = self._client.format_url(_request.url)
 
             else:
                 # make call to next link with the client's api-version
@@ -3634,14 +3287,13 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
                         for key, value in urllib.parse.parse_qs(_parsed_next_link.query).items()
                     }
                 )
-                _next_request_params["api-version"] = self._config.api_version
-                request = HttpRequest(
+                _next_request_params["api-version"] = self._api_version
+                _request = HttpRequest(
                     "GET", urllib.parse.urljoin(next_link, _parsed_next_link.path), params=_next_request_params
                 )
-                request = _convert_request(request)
-                request.url = self._client.format_url(request.url)
-                request.method = "GET"
-            return request
+                _request.url = self._client.format_url(_request.url)
+                _request.method = "GET"
+            return _request
 
         async def extract_data(pipeline_response):
             deserialized = self._deserialize("ResourceListResult", pipeline_response)
@@ -3651,11 +3303,11 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
             return deserialized.next_link or None, AsyncList(list_of_elem)
 
         async def get_next(next_link=None):
-            request = prepare_request(next_link)
+            _request = prepare_request(next_link)
 
             _stream = False
             pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-                request, stream=_stream, **kwargs
+                _request, stream=_stream, **kwargs
             )
             response = pipeline_response.http_response
 
@@ -3666,8 +3318,6 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
             return pipeline_response
 
         return AsyncItemPaged(get_next, extract_data)
-
-    list.metadata = {"url": "/subscriptions/{subscriptionId}/resources"}
 
     @distributed_trace_async
     async def check_existence(
@@ -3695,12 +3345,11 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         :type resource_name: str
         :param api_version: The API version to use for the operation. Required.
         :type api_version: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: bool or the result of cls(response)
         :rtype: bool
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -3713,7 +3362,7 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
 
         cls: ClsType[None] = kwargs.pop("cls", None)
 
-        request = build_resources_check_existence_request(
+        _request = build_resources_check_existence_request(
             resource_group_name=resource_group_name,
             resource_provider_namespace=resource_provider_namespace,
             parent_resource_path=parent_resource_path,
@@ -3721,16 +3370,14 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
             resource_name=resource_name,
             subscription_id=self._config.subscription_id,
             api_version=api_version,
-            template_url=self.check_existence.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -3740,14 +3387,10 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
         if cls:
-            return cls(pipeline_response, None, {})
+            return cls(pipeline_response, None, {})  # type: ignore
         return 200 <= response.status_code <= 299
 
-    check_existence.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourcegroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{parentResourcePath}/{resourceType}/{resourceName}"
-    }
-
-    async def _delete_initial(  # pylint: disable=inconsistent-return-statements
+    async def _delete_initial(
         self,
         resource_group_name: str,
         resource_provider_namespace: str,
@@ -3756,8 +3399,8 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         resource_name: str,
         api_version: str,
         **kwargs: Any
-    ) -> None:
-        error_map = {
+    ) -> AsyncIterator[bytes]:
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -3768,9 +3411,9 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         _headers = kwargs.pop("headers", {}) or {}
         _params = kwargs.pop("params", {}) or {}
 
-        cls: ClsType[None] = kwargs.pop("cls", None)
+        cls: ClsType[AsyncIterator[bytes]] = kwargs.pop("cls", None)
 
-        request = build_resources_delete_request(
+        _request = build_resources_delete_request(
             resource_group_name=resource_group_name,
             resource_provider_namespace=resource_provider_namespace,
             parent_resource_path=parent_resource_path,
@@ -3778,30 +3421,33 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
             resource_name=resource_name,
             subscription_id=self._config.subscription_id,
             api_version=api_version,
-            template_url=self._delete_initial.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
-        _stream = False
+        _decompress = kwargs.pop("decompress", True)
+        _stream = True
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
 
         if response.status_code not in [200, 202, 204]:
+            try:
+                await response.read()  # Load the body in memory and close the socket
+            except (StreamConsumedError, StreamClosedError):
+                pass
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        if cls:
-            return cls(pipeline_response, None, {})
+        deserialized = response.stream_download(self._client._pipeline, decompress=_decompress)
 
-    _delete_initial.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourcegroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{parentResourcePath}/{resourceType}/{resourceName}"
-    }
+        if cls:
+            return cls(pipeline_response, deserialized, {})  # type: ignore
+
+        return deserialized  # type: ignore
 
     @distributed_trace_async
     async def begin_delete(
@@ -3829,14 +3475,6 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         :type resource_name: str
         :param api_version: The API version to use for the operation. Required.
         :type api_version: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be AsyncARMPolling. Pass in False for
-         this operation to not poll, or pass in your own initialized polling object for a personal
-         polling strategy.
-        :paramtype polling: bool or ~azure.core.polling.AsyncPollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of AsyncLROPoller that returns either None or the result of cls(response)
         :rtype: ~azure.core.polling.AsyncLROPoller[None]
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -3849,7 +3487,7 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         lro_delay = kwargs.pop("polling_interval", self._config.polling_interval)
         cont_token: Optional[str] = kwargs.pop("continuation_token", None)
         if cont_token is None:
-            raw_result = await self._delete_initial(  # type: ignore
+            raw_result = await self._delete_initial(
                 resource_group_name=resource_group_name,
                 resource_provider_namespace=resource_provider_namespace,
                 parent_resource_path=parent_resource_path,
@@ -3861,11 +3499,12 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
                 params=_params,
                 **kwargs
             )
+            await raw_result.http_response.read()  # type: ignore
         kwargs.pop("error_map", None)
 
         def get_long_running_output(pipeline_response):  # pylint: disable=inconsistent-return-statements
             if cls:
-                return cls(pipeline_response, None, {})
+                return cls(pipeline_response, None, {})  # type: ignore
 
         if polling is True:
             polling_method: AsyncPollingMethod = cast(AsyncPollingMethod, AsyncARMPolling(lro_delay, **kwargs))
@@ -3874,17 +3513,13 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         else:
             polling_method = polling
         if cont_token:
-            return AsyncLROPoller.from_continuation_token(
+            return AsyncLROPoller[None].from_continuation_token(
                 polling_method=polling_method,
                 continuation_token=cont_token,
                 client=self._client,
                 deserialization_callback=get_long_running_output,
             )
-        return AsyncLROPoller(self._client, raw_result, get_long_running_output, polling_method)  # type: ignore
-
-    begin_delete.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourcegroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{parentResourcePath}/{resourceType}/{resourceName}"
-    }
+        return AsyncLROPoller[None](self._client, raw_result, get_long_running_output, polling_method)  # type: ignore
 
     async def _create_or_update_initial(
         self,
@@ -3894,10 +3529,10 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         resource_type: str,
         resource_name: str,
         api_version: str,
-        parameters: Union[_models.GenericResource, IO],
+        parameters: Union[_models.GenericResource, IO[bytes]],
         **kwargs: Any
-    ) -> Optional[_models.GenericResource]:
-        error_map = {
+    ) -> AsyncIterator[bytes]:
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -3909,7 +3544,7 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         _params = kwargs.pop("params", {}) or {}
 
         content_type: Optional[str] = kwargs.pop("content_type", _headers.pop("Content-Type", None))
-        cls: ClsType[Optional[_models.GenericResource]] = kwargs.pop("cls", None)
+        cls: ClsType[AsyncIterator[bytes]] = kwargs.pop("cls", None)
 
         content_type = content_type or "application/json"
         _json = None
@@ -3919,7 +3554,7 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         else:
             _json = self._serialize.body(parameters, "GenericResource")
 
-        request = build_resources_create_or_update_request(
+        _request = build_resources_create_or_update_request(
             resource_group_name=resource_group_name,
             resource_provider_namespace=resource_provider_namespace,
             parent_resource_path=parent_resource_path,
@@ -3930,39 +3565,33 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
             content_type=content_type,
             json=_json,
             content=_content,
-            template_url=self._create_or_update_initial.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
-        _stream = False
+        _decompress = kwargs.pop("decompress", True)
+        _stream = True
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
 
         if response.status_code not in [200, 201, 202]:
+            try:
+                await response.read()  # Load the body in memory and close the socket
+            except (StreamConsumedError, StreamClosedError):
+                pass
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        deserialized = None
-        if response.status_code == 200:
-            deserialized = self._deserialize("GenericResource", pipeline_response)
-
-        if response.status_code == 201:
-            deserialized = self._deserialize("GenericResource", pipeline_response)
+        deserialized = response.stream_download(self._client._pipeline, decompress=_decompress)
 
         if cls:
-            return cls(pipeline_response, deserialized, {})
+            return cls(pipeline_response, deserialized, {})  # type: ignore
 
-        return deserialized
-
-    _create_or_update_initial.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourcegroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{parentResourcePath}/{resourceType}/{resourceName}"
-    }
+        return deserialized  # type: ignore
 
     @overload
     async def begin_create_or_update(
@@ -3998,14 +3627,6 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         :keyword content_type: Body Parameter content-type. Content type parameter for JSON body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be AsyncARMPolling. Pass in False for
-         this operation to not poll, or pass in your own initialized polling object for a personal
-         polling strategy.
-        :paramtype polling: bool or ~azure.core.polling.AsyncPollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of AsyncLROPoller that returns either GenericResource or the result of
          cls(response)
         :rtype:
@@ -4022,7 +3643,7 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         resource_type: str,
         resource_name: str,
         api_version: str,
-        parameters: IO,
+        parameters: IO[bytes],
         *,
         content_type: str = "application/json",
         **kwargs: Any
@@ -4043,18 +3664,10 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         :param api_version: The API version to use for the operation. Required.
         :type api_version: str
         :param parameters: Parameters for creating or updating the resource. Required.
-        :type parameters: IO
+        :type parameters: IO[bytes]
         :keyword content_type: Body Parameter content-type. Content type parameter for binary body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be AsyncARMPolling. Pass in False for
-         this operation to not poll, or pass in your own initialized polling object for a personal
-         polling strategy.
-        :paramtype polling: bool or ~azure.core.polling.AsyncPollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of AsyncLROPoller that returns either GenericResource or the result of
          cls(response)
         :rtype:
@@ -4071,7 +3684,7 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         resource_type: str,
         resource_name: str,
         api_version: str,
-        parameters: Union[_models.GenericResource, IO],
+        parameters: Union[_models.GenericResource, IO[bytes]],
         **kwargs: Any
     ) -> AsyncLROPoller[_models.GenericResource]:
         """Creates a resource.
@@ -4090,19 +3703,9 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         :param api_version: The API version to use for the operation. Required.
         :type api_version: str
         :param parameters: Parameters for creating or updating the resource. Is either a
-         GenericResource type or a IO type. Required.
-        :type parameters: ~azure.mgmt.resource.resources.v2019_05_01.models.GenericResource or IO
-        :keyword content_type: Body Parameter content-type. Known values are: 'application/json'.
-         Default value is None.
-        :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be AsyncARMPolling. Pass in False for
-         this operation to not poll, or pass in your own initialized polling object for a personal
-         polling strategy.
-        :paramtype polling: bool or ~azure.core.polling.AsyncPollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
+         GenericResource type or a IO[bytes] type. Required.
+        :type parameters: ~azure.mgmt.resource.resources.v2019_05_01.models.GenericResource or
+         IO[bytes]
         :return: An instance of AsyncLROPoller that returns either GenericResource or the result of
          cls(response)
         :rtype:
@@ -4132,12 +3735,13 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
                 params=_params,
                 **kwargs
             )
+            await raw_result.http_response.read()  # type: ignore
         kwargs.pop("error_map", None)
 
         def get_long_running_output(pipeline_response):
-            deserialized = self._deserialize("GenericResource", pipeline_response)
+            deserialized = self._deserialize("GenericResource", pipeline_response.http_response)
             if cls:
-                return cls(pipeline_response, deserialized, {})
+                return cls(pipeline_response, deserialized, {})  # type: ignore
             return deserialized
 
         if polling is True:
@@ -4147,17 +3751,15 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         else:
             polling_method = polling
         if cont_token:
-            return AsyncLROPoller.from_continuation_token(
+            return AsyncLROPoller[_models.GenericResource].from_continuation_token(
                 polling_method=polling_method,
                 continuation_token=cont_token,
                 client=self._client,
                 deserialization_callback=get_long_running_output,
             )
-        return AsyncLROPoller(self._client, raw_result, get_long_running_output, polling_method)  # type: ignore
-
-    begin_create_or_update.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourcegroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{parentResourcePath}/{resourceType}/{resourceName}"
-    }
+        return AsyncLROPoller[_models.GenericResource](
+            self._client, raw_result, get_long_running_output, polling_method  # type: ignore
+        )
 
     async def _update_initial(
         self,
@@ -4167,10 +3769,10 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         resource_type: str,
         resource_name: str,
         api_version: str,
-        parameters: Union[_models.GenericResource, IO],
+        parameters: Union[_models.GenericResource, IO[bytes]],
         **kwargs: Any
-    ) -> Optional[_models.GenericResource]:
-        error_map = {
+    ) -> AsyncIterator[bytes]:
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -4182,7 +3784,7 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         _params = kwargs.pop("params", {}) or {}
 
         content_type: Optional[str] = kwargs.pop("content_type", _headers.pop("Content-Type", None))
-        cls: ClsType[Optional[_models.GenericResource]] = kwargs.pop("cls", None)
+        cls: ClsType[AsyncIterator[bytes]] = kwargs.pop("cls", None)
 
         content_type = content_type or "application/json"
         _json = None
@@ -4192,7 +3794,7 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         else:
             _json = self._serialize.body(parameters, "GenericResource")
 
-        request = build_resources_update_request(
+        _request = build_resources_update_request(
             resource_group_name=resource_group_name,
             resource_provider_namespace=resource_provider_namespace,
             parent_resource_path=parent_resource_path,
@@ -4203,36 +3805,33 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
             content_type=content_type,
             json=_json,
             content=_content,
-            template_url=self._update_initial.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
-        _stream = False
+        _decompress = kwargs.pop("decompress", True)
+        _stream = True
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
 
         if response.status_code not in [200, 202]:
+            try:
+                await response.read()  # Load the body in memory and close the socket
+            except (StreamConsumedError, StreamClosedError):
+                pass
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        deserialized = None
-        if response.status_code == 200:
-            deserialized = self._deserialize("GenericResource", pipeline_response)
+        deserialized = response.stream_download(self._client._pipeline, decompress=_decompress)
 
         if cls:
-            return cls(pipeline_response, deserialized, {})
+            return cls(pipeline_response, deserialized, {})  # type: ignore
 
-        return deserialized
-
-    _update_initial.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourcegroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{parentResourcePath}/{resourceType}/{resourceName}"
-    }
+        return deserialized  # type: ignore
 
     @overload
     async def begin_update(
@@ -4268,14 +3867,6 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         :keyword content_type: Body Parameter content-type. Content type parameter for JSON body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be AsyncARMPolling. Pass in False for
-         this operation to not poll, or pass in your own initialized polling object for a personal
-         polling strategy.
-        :paramtype polling: bool or ~azure.core.polling.AsyncPollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of AsyncLROPoller that returns either GenericResource or the result of
          cls(response)
         :rtype:
@@ -4292,7 +3883,7 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         resource_type: str,
         resource_name: str,
         api_version: str,
-        parameters: IO,
+        parameters: IO[bytes],
         *,
         content_type: str = "application/json",
         **kwargs: Any
@@ -4313,18 +3904,10 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         :param api_version: The API version to use for the operation. Required.
         :type api_version: str
         :param parameters: Parameters for updating the resource. Required.
-        :type parameters: IO
+        :type parameters: IO[bytes]
         :keyword content_type: Body Parameter content-type. Content type parameter for binary body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be AsyncARMPolling. Pass in False for
-         this operation to not poll, or pass in your own initialized polling object for a personal
-         polling strategy.
-        :paramtype polling: bool or ~azure.core.polling.AsyncPollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of AsyncLROPoller that returns either GenericResource or the result of
          cls(response)
         :rtype:
@@ -4341,7 +3924,7 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         resource_type: str,
         resource_name: str,
         api_version: str,
-        parameters: Union[_models.GenericResource, IO],
+        parameters: Union[_models.GenericResource, IO[bytes]],
         **kwargs: Any
     ) -> AsyncLROPoller[_models.GenericResource]:
         """Updates a resource.
@@ -4360,19 +3943,9 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         :param api_version: The API version to use for the operation. Required.
         :type api_version: str
         :param parameters: Parameters for updating the resource. Is either a GenericResource type or a
-         IO type. Required.
-        :type parameters: ~azure.mgmt.resource.resources.v2019_05_01.models.GenericResource or IO
-        :keyword content_type: Body Parameter content-type. Known values are: 'application/json'.
-         Default value is None.
-        :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be AsyncARMPolling. Pass in False for
-         this operation to not poll, or pass in your own initialized polling object for a personal
-         polling strategy.
-        :paramtype polling: bool or ~azure.core.polling.AsyncPollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
+         IO[bytes] type. Required.
+        :type parameters: ~azure.mgmt.resource.resources.v2019_05_01.models.GenericResource or
+         IO[bytes]
         :return: An instance of AsyncLROPoller that returns either GenericResource or the result of
          cls(response)
         :rtype:
@@ -4402,12 +3975,13 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
                 params=_params,
                 **kwargs
             )
+            await raw_result.http_response.read()  # type: ignore
         kwargs.pop("error_map", None)
 
         def get_long_running_output(pipeline_response):
-            deserialized = self._deserialize("GenericResource", pipeline_response)
+            deserialized = self._deserialize("GenericResource", pipeline_response.http_response)
             if cls:
-                return cls(pipeline_response, deserialized, {})
+                return cls(pipeline_response, deserialized, {})  # type: ignore
             return deserialized
 
         if polling is True:
@@ -4417,17 +3991,15 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         else:
             polling_method = polling
         if cont_token:
-            return AsyncLROPoller.from_continuation_token(
+            return AsyncLROPoller[_models.GenericResource].from_continuation_token(
                 polling_method=polling_method,
                 continuation_token=cont_token,
                 client=self._client,
                 deserialization_callback=get_long_running_output,
             )
-        return AsyncLROPoller(self._client, raw_result, get_long_running_output, polling_method)  # type: ignore
-
-    begin_update.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourcegroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{parentResourcePath}/{resourceType}/{resourceName}"
-    }
+        return AsyncLROPoller[_models.GenericResource](
+            self._client, raw_result, get_long_running_output, polling_method  # type: ignore
+        )
 
     @distributed_trace_async
     async def get(
@@ -4455,12 +4027,11 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         :type resource_name: str
         :param api_version: The API version to use for the operation. Required.
         :type api_version: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: GenericResource or the result of cls(response)
         :rtype: ~azure.mgmt.resource.resources.v2019_05_01.models.GenericResource
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -4473,7 +4044,7 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
 
         cls: ClsType[_models.GenericResource] = kwargs.pop("cls", None)
 
-        request = build_resources_get_request(
+        _request = build_resources_get_request(
             resource_group_name=resource_group_name,
             resource_provider_namespace=resource_provider_namespace,
             parent_resource_path=parent_resource_path,
@@ -4481,16 +4052,14 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
             resource_name=resource_name,
             subscription_id=self._config.subscription_id,
             api_version=api_version,
-            template_url=self.get.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -4499,16 +4068,12 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        deserialized = self._deserialize("GenericResource", pipeline_response)
+        deserialized = self._deserialize("GenericResource", pipeline_response.http_response)
 
         if cls:
-            return cls(pipeline_response, deserialized, {})
+            return cls(pipeline_response, deserialized, {})  # type: ignore
 
-        return deserialized
-
-    get.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourcegroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{parentResourcePath}/{resourceType}/{resourceName}"
-    }
+        return deserialized  # type: ignore
 
     @distributed_trace_async
     async def check_existence_by_id(self, resource_id: str, api_version: str, **kwargs: Any) -> bool:
@@ -4521,12 +4086,11 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         :type resource_id: str
         :param api_version: The API version to use for the operation. Required.
         :type api_version: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: bool or the result of cls(response)
         :rtype: bool
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -4539,19 +4103,17 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
 
         cls: ClsType[None] = kwargs.pop("cls", None)
 
-        request = build_resources_check_existence_by_id_request(
+        _request = build_resources_check_existence_by_id_request(
             resource_id=resource_id,
             api_version=api_version,
-            template_url=self.check_existence_by_id.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -4561,15 +4123,11 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
         if cls:
-            return cls(pipeline_response, None, {})
+            return cls(pipeline_response, None, {})  # type: ignore
         return 200 <= response.status_code <= 299
 
-    check_existence_by_id.metadata = {"url": "/{resourceId}"}
-
-    async def _delete_by_id_initial(  # pylint: disable=inconsistent-return-statements
-        self, resource_id: str, api_version: str, **kwargs: Any
-    ) -> None:
-        error_map = {
+    async def _delete_by_id_initial(self, resource_id: str, api_version: str, **kwargs: Any) -> AsyncIterator[bytes]:
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -4580,33 +4138,38 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         _headers = kwargs.pop("headers", {}) or {}
         _params = kwargs.pop("params", {}) or {}
 
-        cls: ClsType[None] = kwargs.pop("cls", None)
+        cls: ClsType[AsyncIterator[bytes]] = kwargs.pop("cls", None)
 
-        request = build_resources_delete_by_id_request(
+        _request = build_resources_delete_by_id_request(
             resource_id=resource_id,
             api_version=api_version,
-            template_url=self._delete_by_id_initial.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
-        _stream = False
+        _decompress = kwargs.pop("decompress", True)
+        _stream = True
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
 
         if response.status_code not in [200, 202, 204]:
+            try:
+                await response.read()  # Load the body in memory and close the socket
+            except (StreamConsumedError, StreamClosedError):
+                pass
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        if cls:
-            return cls(pipeline_response, None, {})
+        deserialized = response.stream_download(self._client._pipeline, decompress=_decompress)
 
-    _delete_by_id_initial.metadata = {"url": "/{resourceId}"}
+        if cls:
+            return cls(pipeline_response, deserialized, {})  # type: ignore
+
+        return deserialized  # type: ignore
 
     @distributed_trace_async
     async def begin_delete_by_id(self, resource_id: str, api_version: str, **kwargs: Any) -> AsyncLROPoller[None]:
@@ -4619,14 +4182,6 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         :type resource_id: str
         :param api_version: The API version to use for the operation. Required.
         :type api_version: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be AsyncARMPolling. Pass in False for
-         this operation to not poll, or pass in your own initialized polling object for a personal
-         polling strategy.
-        :paramtype polling: bool or ~azure.core.polling.AsyncPollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of AsyncLROPoller that returns either None or the result of cls(response)
         :rtype: ~azure.core.polling.AsyncLROPoller[None]
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -4639,7 +4194,7 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         lro_delay = kwargs.pop("polling_interval", self._config.polling_interval)
         cont_token: Optional[str] = kwargs.pop("continuation_token", None)
         if cont_token is None:
-            raw_result = await self._delete_by_id_initial(  # type: ignore
+            raw_result = await self._delete_by_id_initial(
                 resource_id=resource_id,
                 api_version=api_version,
                 cls=lambda x, y, z: x,
@@ -4647,11 +4202,12 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
                 params=_params,
                 **kwargs
             )
+            await raw_result.http_response.read()  # type: ignore
         kwargs.pop("error_map", None)
 
         def get_long_running_output(pipeline_response):  # pylint: disable=inconsistent-return-statements
             if cls:
-                return cls(pipeline_response, None, {})
+                return cls(pipeline_response, None, {})  # type: ignore
 
         if polling is True:
             polling_method: AsyncPollingMethod = cast(AsyncPollingMethod, AsyncARMPolling(lro_delay, **kwargs))
@@ -4660,20 +4216,18 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         else:
             polling_method = polling
         if cont_token:
-            return AsyncLROPoller.from_continuation_token(
+            return AsyncLROPoller[None].from_continuation_token(
                 polling_method=polling_method,
                 continuation_token=cont_token,
                 client=self._client,
                 deserialization_callback=get_long_running_output,
             )
-        return AsyncLROPoller(self._client, raw_result, get_long_running_output, polling_method)  # type: ignore
-
-    begin_delete_by_id.metadata = {"url": "/{resourceId}"}
+        return AsyncLROPoller[None](self._client, raw_result, get_long_running_output, polling_method)  # type: ignore
 
     async def _create_or_update_by_id_initial(
-        self, resource_id: str, api_version: str, parameters: Union[_models.GenericResource, IO], **kwargs: Any
-    ) -> Optional[_models.GenericResource]:
-        error_map = {
+        self, resource_id: str, api_version: str, parameters: Union[_models.GenericResource, IO[bytes]], **kwargs: Any
+    ) -> AsyncIterator[bytes]:
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -4685,7 +4239,7 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         _params = kwargs.pop("params", {}) or {}
 
         content_type: Optional[str] = kwargs.pop("content_type", _headers.pop("Content-Type", None))
-        cls: ClsType[Optional[_models.GenericResource]] = kwargs.pop("cls", None)
+        cls: ClsType[AsyncIterator[bytes]] = kwargs.pop("cls", None)
 
         content_type = content_type or "application/json"
         _json = None
@@ -4695,43 +4249,39 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         else:
             _json = self._serialize.body(parameters, "GenericResource")
 
-        request = build_resources_create_or_update_by_id_request(
+        _request = build_resources_create_or_update_by_id_request(
             resource_id=resource_id,
             api_version=api_version,
             content_type=content_type,
             json=_json,
             content=_content,
-            template_url=self._create_or_update_by_id_initial.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
-        _stream = False
+        _decompress = kwargs.pop("decompress", True)
+        _stream = True
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
 
         if response.status_code not in [200, 201, 202]:
+            try:
+                await response.read()  # Load the body in memory and close the socket
+            except (StreamConsumedError, StreamClosedError):
+                pass
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        deserialized = None
-        if response.status_code == 200:
-            deserialized = self._deserialize("GenericResource", pipeline_response)
-
-        if response.status_code == 201:
-            deserialized = self._deserialize("GenericResource", pipeline_response)
+        deserialized = response.stream_download(self._client._pipeline, decompress=_decompress)
 
         if cls:
-            return cls(pipeline_response, deserialized, {})
+            return cls(pipeline_response, deserialized, {})  # type: ignore
 
-        return deserialized
-
-    _create_or_update_by_id_initial.metadata = {"url": "/{resourceId}"}
+        return deserialized  # type: ignore
 
     @overload
     async def begin_create_or_update_by_id(
@@ -4757,14 +4307,6 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         :keyword content_type: Body Parameter content-type. Content type parameter for JSON body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be AsyncARMPolling. Pass in False for
-         this operation to not poll, or pass in your own initialized polling object for a personal
-         polling strategy.
-        :paramtype polling: bool or ~azure.core.polling.AsyncPollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of AsyncLROPoller that returns either GenericResource or the result of
          cls(response)
         :rtype:
@@ -4777,7 +4319,7 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         self,
         resource_id: str,
         api_version: str,
-        parameters: IO,
+        parameters: IO[bytes],
         *,
         content_type: str = "application/json",
         **kwargs: Any
@@ -4792,18 +4334,10 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         :param api_version: The API version to use for the operation. Required.
         :type api_version: str
         :param parameters: Create or update resource parameters. Required.
-        :type parameters: IO
+        :type parameters: IO[bytes]
         :keyword content_type: Body Parameter content-type. Content type parameter for binary body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be AsyncARMPolling. Pass in False for
-         this operation to not poll, or pass in your own initialized polling object for a personal
-         polling strategy.
-        :paramtype polling: bool or ~azure.core.polling.AsyncPollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of AsyncLROPoller that returns either GenericResource or the result of
          cls(response)
         :rtype:
@@ -4813,7 +4347,7 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
 
     @distributed_trace_async
     async def begin_create_or_update_by_id(
-        self, resource_id: str, api_version: str, parameters: Union[_models.GenericResource, IO], **kwargs: Any
+        self, resource_id: str, api_version: str, parameters: Union[_models.GenericResource, IO[bytes]], **kwargs: Any
     ) -> AsyncLROPoller[_models.GenericResource]:
         """Create a resource by ID.
 
@@ -4825,19 +4359,9 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         :param api_version: The API version to use for the operation. Required.
         :type api_version: str
         :param parameters: Create or update resource parameters. Is either a GenericResource type or a
-         IO type. Required.
-        :type parameters: ~azure.mgmt.resource.resources.v2019_05_01.models.GenericResource or IO
-        :keyword content_type: Body Parameter content-type. Known values are: 'application/json'.
-         Default value is None.
-        :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be AsyncARMPolling. Pass in False for
-         this operation to not poll, or pass in your own initialized polling object for a personal
-         polling strategy.
-        :paramtype polling: bool or ~azure.core.polling.AsyncPollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
+         IO[bytes] type. Required.
+        :type parameters: ~azure.mgmt.resource.resources.v2019_05_01.models.GenericResource or
+         IO[bytes]
         :return: An instance of AsyncLROPoller that returns either GenericResource or the result of
          cls(response)
         :rtype:
@@ -4863,12 +4387,13 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
                 params=_params,
                 **kwargs
             )
+            await raw_result.http_response.read()  # type: ignore
         kwargs.pop("error_map", None)
 
         def get_long_running_output(pipeline_response):
-            deserialized = self._deserialize("GenericResource", pipeline_response)
+            deserialized = self._deserialize("GenericResource", pipeline_response.http_response)
             if cls:
-                return cls(pipeline_response, deserialized, {})
+                return cls(pipeline_response, deserialized, {})  # type: ignore
             return deserialized
 
         if polling is True:
@@ -4878,20 +4403,20 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         else:
             polling_method = polling
         if cont_token:
-            return AsyncLROPoller.from_continuation_token(
+            return AsyncLROPoller[_models.GenericResource].from_continuation_token(
                 polling_method=polling_method,
                 continuation_token=cont_token,
                 client=self._client,
                 deserialization_callback=get_long_running_output,
             )
-        return AsyncLROPoller(self._client, raw_result, get_long_running_output, polling_method)  # type: ignore
-
-    begin_create_or_update_by_id.metadata = {"url": "/{resourceId}"}
+        return AsyncLROPoller[_models.GenericResource](
+            self._client, raw_result, get_long_running_output, polling_method  # type: ignore
+        )
 
     async def _update_by_id_initial(
-        self, resource_id: str, api_version: str, parameters: Union[_models.GenericResource, IO], **kwargs: Any
-    ) -> Optional[_models.GenericResource]:
-        error_map = {
+        self, resource_id: str, api_version: str, parameters: Union[_models.GenericResource, IO[bytes]], **kwargs: Any
+    ) -> AsyncIterator[bytes]:
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -4903,7 +4428,7 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         _params = kwargs.pop("params", {}) or {}
 
         content_type: Optional[str] = kwargs.pop("content_type", _headers.pop("Content-Type", None))
-        cls: ClsType[Optional[_models.GenericResource]] = kwargs.pop("cls", None)
+        cls: ClsType[AsyncIterator[bytes]] = kwargs.pop("cls", None)
 
         content_type = content_type or "application/json"
         _json = None
@@ -4913,40 +4438,39 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         else:
             _json = self._serialize.body(parameters, "GenericResource")
 
-        request = build_resources_update_by_id_request(
+        _request = build_resources_update_by_id_request(
             resource_id=resource_id,
             api_version=api_version,
             content_type=content_type,
             json=_json,
             content=_content,
-            template_url=self._update_by_id_initial.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
-        _stream = False
+        _decompress = kwargs.pop("decompress", True)
+        _stream = True
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
 
         if response.status_code not in [200, 202]:
+            try:
+                await response.read()  # Load the body in memory and close the socket
+            except (StreamConsumedError, StreamClosedError):
+                pass
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        deserialized = None
-        if response.status_code == 200:
-            deserialized = self._deserialize("GenericResource", pipeline_response)
+        deserialized = response.stream_download(self._client._pipeline, decompress=_decompress)
 
         if cls:
-            return cls(pipeline_response, deserialized, {})
+            return cls(pipeline_response, deserialized, {})  # type: ignore
 
-        return deserialized
-
-    _update_by_id_initial.metadata = {"url": "/{resourceId}"}
+        return deserialized  # type: ignore
 
     @overload
     async def begin_update_by_id(
@@ -4972,14 +4496,6 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         :keyword content_type: Body Parameter content-type. Content type parameter for JSON body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be AsyncARMPolling. Pass in False for
-         this operation to not poll, or pass in your own initialized polling object for a personal
-         polling strategy.
-        :paramtype polling: bool or ~azure.core.polling.AsyncPollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of AsyncLROPoller that returns either GenericResource or the result of
          cls(response)
         :rtype:
@@ -4992,7 +4508,7 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         self,
         resource_id: str,
         api_version: str,
-        parameters: IO,
+        parameters: IO[bytes],
         *,
         content_type: str = "application/json",
         **kwargs: Any
@@ -5007,18 +4523,10 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         :param api_version: The API version to use for the operation. Required.
         :type api_version: str
         :param parameters: Update resource parameters. Required.
-        :type parameters: IO
+        :type parameters: IO[bytes]
         :keyword content_type: Body Parameter content-type. Content type parameter for binary body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be AsyncARMPolling. Pass in False for
-         this operation to not poll, or pass in your own initialized polling object for a personal
-         polling strategy.
-        :paramtype polling: bool or ~azure.core.polling.AsyncPollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of AsyncLROPoller that returns either GenericResource or the result of
          cls(response)
         :rtype:
@@ -5028,7 +4536,7 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
 
     @distributed_trace_async
     async def begin_update_by_id(
-        self, resource_id: str, api_version: str, parameters: Union[_models.GenericResource, IO], **kwargs: Any
+        self, resource_id: str, api_version: str, parameters: Union[_models.GenericResource, IO[bytes]], **kwargs: Any
     ) -> AsyncLROPoller[_models.GenericResource]:
         """Updates a resource by ID.
 
@@ -5039,20 +4547,10 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         :type resource_id: str
         :param api_version: The API version to use for the operation. Required.
         :type api_version: str
-        :param parameters: Update resource parameters. Is either a GenericResource type or a IO type.
-         Required.
-        :type parameters: ~azure.mgmt.resource.resources.v2019_05_01.models.GenericResource or IO
-        :keyword content_type: Body Parameter content-type. Known values are: 'application/json'.
-         Default value is None.
-        :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be AsyncARMPolling. Pass in False for
-         this operation to not poll, or pass in your own initialized polling object for a personal
-         polling strategy.
-        :paramtype polling: bool or ~azure.core.polling.AsyncPollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
+        :param parameters: Update resource parameters. Is either a GenericResource type or a IO[bytes]
+         type. Required.
+        :type parameters: ~azure.mgmt.resource.resources.v2019_05_01.models.GenericResource or
+         IO[bytes]
         :return: An instance of AsyncLROPoller that returns either GenericResource or the result of
          cls(response)
         :rtype:
@@ -5078,12 +4576,13 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
                 params=_params,
                 **kwargs
             )
+            await raw_result.http_response.read()  # type: ignore
         kwargs.pop("error_map", None)
 
         def get_long_running_output(pipeline_response):
-            deserialized = self._deserialize("GenericResource", pipeline_response)
+            deserialized = self._deserialize("GenericResource", pipeline_response.http_response)
             if cls:
-                return cls(pipeline_response, deserialized, {})
+                return cls(pipeline_response, deserialized, {})  # type: ignore
             return deserialized
 
         if polling is True:
@@ -5093,15 +4592,15 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         else:
             polling_method = polling
         if cont_token:
-            return AsyncLROPoller.from_continuation_token(
+            return AsyncLROPoller[_models.GenericResource].from_continuation_token(
                 polling_method=polling_method,
                 continuation_token=cont_token,
                 client=self._client,
                 deserialization_callback=get_long_running_output,
             )
-        return AsyncLROPoller(self._client, raw_result, get_long_running_output, polling_method)  # type: ignore
-
-    begin_update_by_id.metadata = {"url": "/{resourceId}"}
+        return AsyncLROPoller[_models.GenericResource](
+            self._client, raw_result, get_long_running_output, polling_method  # type: ignore
+        )
 
     @distributed_trace_async
     async def get_by_id(self, resource_id: str, api_version: str, **kwargs: Any) -> _models.GenericResource:
@@ -5114,12 +4613,11 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
         :type resource_id: str
         :param api_version: The API version to use for the operation. Required.
         :type api_version: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: GenericResource or the result of cls(response)
         :rtype: ~azure.mgmt.resource.resources.v2019_05_01.models.GenericResource
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -5132,19 +4630,17 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
 
         cls: ClsType[_models.GenericResource] = kwargs.pop("cls", None)
 
-        request = build_resources_get_by_id_request(
+        _request = build_resources_get_by_id_request(
             resource_id=resource_id,
             api_version=api_version,
-            template_url=self.get_by_id.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -5153,14 +4649,12 @@ class ResourcesOperations:  # pylint: disable=too-many-public-methods
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        deserialized = self._deserialize("GenericResource", pipeline_response)
+        deserialized = self._deserialize("GenericResource", pipeline_response.http_response)
 
         if cls:
-            return cls(pipeline_response, deserialized, {})
+            return cls(pipeline_response, deserialized, {})  # type: ignore
 
-        return deserialized
-
-    get_by_id.metadata = {"url": "/{resourceId}"}
+        return deserialized  # type: ignore
 
 
 class ResourceGroupsOperations:
@@ -5181,6 +4675,7 @@ class ResourceGroupsOperations:
         self._config = input_args.pop(0) if input_args else kwargs.pop("config")
         self._serialize = input_args.pop(0) if input_args else kwargs.pop("serializer")
         self._deserialize = input_args.pop(0) if input_args else kwargs.pop("deserializer")
+        self._api_version = input_args.pop(0) if input_args else kwargs.pop("api_version")
 
     @distributed_trace_async
     async def check_existence(self, resource_group_name: str, **kwargs: Any) -> bool:
@@ -5189,12 +4684,11 @@ class ResourceGroupsOperations:
         :param resource_group_name: The name of the resource group to check. The name is case
          insensitive. Required.
         :type resource_group_name: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: bool or the result of cls(response)
         :rtype: bool
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -5205,23 +4699,21 @@ class ResourceGroupsOperations:
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         cls: ClsType[None] = kwargs.pop("cls", None)
 
-        request = build_resource_groups_check_existence_request(
+        _request = build_resource_groups_check_existence_request(
             resource_group_name=resource_group_name,
             subscription_id=self._config.subscription_id,
             api_version=api_version,
-            template_url=self.check_existence.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -5231,10 +4723,8 @@ class ResourceGroupsOperations:
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
         if cls:
-            return cls(pipeline_response, None, {})
+            return cls(pipeline_response, None, {})  # type: ignore
         return 200 <= response.status_code <= 299
-
-    check_existence.metadata = {"url": "/subscriptions/{subscriptionId}/resourcegroups/{resourceGroupName}"}
 
     @overload
     async def create_or_update(
@@ -5256,7 +4746,6 @@ class ResourceGroupsOperations:
         :keyword content_type: Body Parameter content-type. Content type parameter for JSON body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: ResourceGroup or the result of cls(response)
         :rtype: ~azure.mgmt.resource.resources.v2019_05_01.models.ResourceGroup
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -5264,7 +4753,7 @@ class ResourceGroupsOperations:
 
     @overload
     async def create_or_update(
-        self, resource_group_name: str, parameters: IO, *, content_type: str = "application/json", **kwargs: Any
+        self, resource_group_name: str, parameters: IO[bytes], *, content_type: str = "application/json", **kwargs: Any
     ) -> _models.ResourceGroup:
         """Creates or updates a resource group.
 
@@ -5273,11 +4762,10 @@ class ResourceGroupsOperations:
          that match the allowed characters. Required.
         :type resource_group_name: str
         :param parameters: Parameters supplied to the create or update a resource group. Required.
-        :type parameters: IO
+        :type parameters: IO[bytes]
         :keyword content_type: Body Parameter content-type. Content type parameter for binary body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: ResourceGroup or the result of cls(response)
         :rtype: ~azure.mgmt.resource.resources.v2019_05_01.models.ResourceGroup
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -5285,7 +4773,7 @@ class ResourceGroupsOperations:
 
     @distributed_trace_async
     async def create_or_update(
-        self, resource_group_name: str, parameters: Union[_models.ResourceGroup, IO], **kwargs: Any
+        self, resource_group_name: str, parameters: Union[_models.ResourceGroup, IO[bytes]], **kwargs: Any
     ) -> _models.ResourceGroup:
         """Creates or updates a resource group.
 
@@ -5294,17 +4782,13 @@ class ResourceGroupsOperations:
          that match the allowed characters. Required.
         :type resource_group_name: str
         :param parameters: Parameters supplied to the create or update a resource group. Is either a
-         ResourceGroup type or a IO type. Required.
-        :type parameters: ~azure.mgmt.resource.resources.v2019_05_01.models.ResourceGroup or IO
-        :keyword content_type: Body Parameter content-type. Known values are: 'application/json'.
-         Default value is None.
-        :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
+         ResourceGroup type or a IO[bytes] type. Required.
+        :type parameters: ~azure.mgmt.resource.resources.v2019_05_01.models.ResourceGroup or IO[bytes]
         :return: ResourceGroup or the result of cls(response)
         :rtype: ~azure.mgmt.resource.resources.v2019_05_01.models.ResourceGroup
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -5315,7 +4799,7 @@ class ResourceGroupsOperations:
         _headers = case_insensitive_dict(kwargs.pop("headers", {}) or {})
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         content_type: Optional[str] = kwargs.pop("content_type", _headers.pop("Content-Type", None))
         cls: ClsType[_models.ResourceGroup] = kwargs.pop("cls", None)
 
@@ -5327,23 +4811,21 @@ class ResourceGroupsOperations:
         else:
             _json = self._serialize.body(parameters, "ResourceGroup")
 
-        request = build_resource_groups_create_or_update_request(
+        _request = build_resource_groups_create_or_update_request(
             resource_group_name=resource_group_name,
             subscription_id=self._config.subscription_id,
             api_version=api_version,
             content_type=content_type,
             json=_json,
             content=_content,
-            template_url=self.create_or_update.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -5352,23 +4834,15 @@ class ResourceGroupsOperations:
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        if response.status_code == 200:
-            deserialized = self._deserialize("ResourceGroup", pipeline_response)
-
-        if response.status_code == 201:
-            deserialized = self._deserialize("ResourceGroup", pipeline_response)
+        deserialized = self._deserialize("ResourceGroup", pipeline_response.http_response)
 
         if cls:
             return cls(pipeline_response, deserialized, {})  # type: ignore
 
         return deserialized  # type: ignore
 
-    create_or_update.metadata = {"url": "/subscriptions/{subscriptionId}/resourcegroups/{resourceGroupName}"}
-
-    async def _delete_initial(  # pylint: disable=inconsistent-return-statements
-        self, resource_group_name: str, **kwargs: Any
-    ) -> None:
-        error_map = {
+    async def _delete_initial(self, resource_group_name: str, **kwargs: Any) -> AsyncIterator[bytes]:
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -5379,35 +4853,40 @@ class ResourceGroupsOperations:
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
-        cls: ClsType[None] = kwargs.pop("cls", None)
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
+        cls: ClsType[AsyncIterator[bytes]] = kwargs.pop("cls", None)
 
-        request = build_resource_groups_delete_request(
+        _request = build_resource_groups_delete_request(
             resource_group_name=resource_group_name,
             subscription_id=self._config.subscription_id,
             api_version=api_version,
-            template_url=self._delete_initial.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
-        _stream = False
+        _decompress = kwargs.pop("decompress", True)
+        _stream = True
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
 
         if response.status_code not in [200, 202]:
+            try:
+                await response.read()  # Load the body in memory and close the socket
+            except (StreamConsumedError, StreamClosedError):
+                pass
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        if cls:
-            return cls(pipeline_response, None, {})
+        deserialized = response.stream_download(self._client._pipeline, decompress=_decompress)
 
-    _delete_initial.metadata = {"url": "/subscriptions/{subscriptionId}/resourcegroups/{resourceGroupName}"}
+        if cls:
+            return cls(pipeline_response, deserialized, {})  # type: ignore
+
+        return deserialized  # type: ignore
 
     @distributed_trace_async
     async def begin_delete(self, resource_group_name: str, **kwargs: Any) -> AsyncLROPoller[None]:
@@ -5419,14 +4898,6 @@ class ResourceGroupsOperations:
         :param resource_group_name: The name of the resource group to delete. The name is case
          insensitive. Required.
         :type resource_group_name: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be AsyncARMPolling. Pass in False for
-         this operation to not poll, or pass in your own initialized polling object for a personal
-         polling strategy.
-        :paramtype polling: bool or ~azure.core.polling.AsyncPollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of AsyncLROPoller that returns either None or the result of cls(response)
         :rtype: ~azure.core.polling.AsyncLROPoller[None]
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -5434,13 +4905,13 @@ class ResourceGroupsOperations:
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         cls: ClsType[None] = kwargs.pop("cls", None)
         polling: Union[bool, AsyncPollingMethod] = kwargs.pop("polling", True)
         lro_delay = kwargs.pop("polling_interval", self._config.polling_interval)
         cont_token: Optional[str] = kwargs.pop("continuation_token", None)
         if cont_token is None:
-            raw_result = await self._delete_initial(  # type: ignore
+            raw_result = await self._delete_initial(
                 resource_group_name=resource_group_name,
                 api_version=api_version,
                 cls=lambda x, y, z: x,
@@ -5448,11 +4919,12 @@ class ResourceGroupsOperations:
                 params=_params,
                 **kwargs
             )
+            await raw_result.http_response.read()  # type: ignore
         kwargs.pop("error_map", None)
 
         def get_long_running_output(pipeline_response):  # pylint: disable=inconsistent-return-statements
             if cls:
-                return cls(pipeline_response, None, {})
+                return cls(pipeline_response, None, {})  # type: ignore
 
         if polling is True:
             polling_method: AsyncPollingMethod = cast(AsyncPollingMethod, AsyncARMPolling(lro_delay, **kwargs))
@@ -5461,15 +4933,13 @@ class ResourceGroupsOperations:
         else:
             polling_method = polling
         if cont_token:
-            return AsyncLROPoller.from_continuation_token(
+            return AsyncLROPoller[None].from_continuation_token(
                 polling_method=polling_method,
                 continuation_token=cont_token,
                 client=self._client,
                 deserialization_callback=get_long_running_output,
             )
-        return AsyncLROPoller(self._client, raw_result, get_long_running_output, polling_method)  # type: ignore
-
-    begin_delete.metadata = {"url": "/subscriptions/{subscriptionId}/resourcegroups/{resourceGroupName}"}
+        return AsyncLROPoller[None](self._client, raw_result, get_long_running_output, polling_method)  # type: ignore
 
     @distributed_trace_async
     async def get(self, resource_group_name: str, **kwargs: Any) -> _models.ResourceGroup:
@@ -5478,12 +4948,11 @@ class ResourceGroupsOperations:
         :param resource_group_name: The name of the resource group to get. The name is case
          insensitive. Required.
         :type resource_group_name: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: ResourceGroup or the result of cls(response)
         :rtype: ~azure.mgmt.resource.resources.v2019_05_01.models.ResourceGroup
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -5494,23 +4963,21 @@ class ResourceGroupsOperations:
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         cls: ClsType[_models.ResourceGroup] = kwargs.pop("cls", None)
 
-        request = build_resource_groups_get_request(
+        _request = build_resource_groups_get_request(
             resource_group_name=resource_group_name,
             subscription_id=self._config.subscription_id,
             api_version=api_version,
-            template_url=self.get.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -5519,14 +4986,12 @@ class ResourceGroupsOperations:
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        deserialized = self._deserialize("ResourceGroup", pipeline_response)
+        deserialized = self._deserialize("ResourceGroup", pipeline_response.http_response)
 
         if cls:
-            return cls(pipeline_response, deserialized, {})
+            return cls(pipeline_response, deserialized, {})  # type: ignore
 
-        return deserialized
-
-    get.metadata = {"url": "/subscriptions/{subscriptionId}/resourcegroups/{resourceGroupName}"}
+        return deserialized  # type: ignore
 
     @overload
     async def update(
@@ -5551,7 +5016,6 @@ class ResourceGroupsOperations:
         :keyword content_type: Body Parameter content-type. Content type parameter for JSON body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: ResourceGroup or the result of cls(response)
         :rtype: ~azure.mgmt.resource.resources.v2019_05_01.models.ResourceGroup
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -5559,7 +5023,7 @@ class ResourceGroupsOperations:
 
     @overload
     async def update(
-        self, resource_group_name: str, parameters: IO, *, content_type: str = "application/json", **kwargs: Any
+        self, resource_group_name: str, parameters: IO[bytes], *, content_type: str = "application/json", **kwargs: Any
     ) -> _models.ResourceGroup:
         """Updates a resource group.
 
@@ -5571,11 +5035,10 @@ class ResourceGroupsOperations:
          insensitive. Required.
         :type resource_group_name: str
         :param parameters: Parameters supplied to update a resource group. Required.
-        :type parameters: IO
+        :type parameters: IO[bytes]
         :keyword content_type: Body Parameter content-type. Content type parameter for binary body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: ResourceGroup or the result of cls(response)
         :rtype: ~azure.mgmt.resource.resources.v2019_05_01.models.ResourceGroup
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -5583,7 +5046,7 @@ class ResourceGroupsOperations:
 
     @distributed_trace_async
     async def update(
-        self, resource_group_name: str, parameters: Union[_models.ResourceGroupPatchable, IO], **kwargs: Any
+        self, resource_group_name: str, parameters: Union[_models.ResourceGroupPatchable, IO[bytes]], **kwargs: Any
     ) -> _models.ResourceGroup:
         """Updates a resource group.
 
@@ -5595,18 +5058,14 @@ class ResourceGroupsOperations:
          insensitive. Required.
         :type resource_group_name: str
         :param parameters: Parameters supplied to update a resource group. Is either a
-         ResourceGroupPatchable type or a IO type. Required.
+         ResourceGroupPatchable type or a IO[bytes] type. Required.
         :type parameters: ~azure.mgmt.resource.resources.v2019_05_01.models.ResourceGroupPatchable or
-         IO
-        :keyword content_type: Body Parameter content-type. Known values are: 'application/json'.
-         Default value is None.
-        :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
+         IO[bytes]
         :return: ResourceGroup or the result of cls(response)
         :rtype: ~azure.mgmt.resource.resources.v2019_05_01.models.ResourceGroup
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -5617,7 +5076,7 @@ class ResourceGroupsOperations:
         _headers = case_insensitive_dict(kwargs.pop("headers", {}) or {})
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         content_type: Optional[str] = kwargs.pop("content_type", _headers.pop("Content-Type", None))
         cls: ClsType[_models.ResourceGroup] = kwargs.pop("cls", None)
 
@@ -5629,23 +5088,21 @@ class ResourceGroupsOperations:
         else:
             _json = self._serialize.body(parameters, "ResourceGroupPatchable")
 
-        request = build_resource_groups_update_request(
+        _request = build_resource_groups_update_request(
             resource_group_name=resource_group_name,
             subscription_id=self._config.subscription_id,
             api_version=api_version,
             content_type=content_type,
             json=_json,
             content=_content,
-            template_url=self.update.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -5654,14 +5111,12 @@ class ResourceGroupsOperations:
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        deserialized = self._deserialize("ResourceGroup", pipeline_response)
+        deserialized = self._deserialize("ResourceGroup", pipeline_response.http_response)
 
         if cls:
-            return cls(pipeline_response, deserialized, {})
+            return cls(pipeline_response, deserialized, {})  # type: ignore
 
-        return deserialized
-
-    update.metadata = {"url": "/subscriptions/{subscriptionId}/resourcegroups/{resourceGroupName}"}
+        return deserialized  # type: ignore
 
     @overload
     async def export_template(
@@ -5681,7 +5136,6 @@ class ResourceGroupsOperations:
         :keyword content_type: Body Parameter content-type. Content type parameter for JSON body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: ResourceGroupExportResult or the result of cls(response)
         :rtype: ~azure.mgmt.resource.resources.v2019_05_01.models.ResourceGroupExportResult
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -5689,18 +5143,17 @@ class ResourceGroupsOperations:
 
     @overload
     async def export_template(
-        self, resource_group_name: str, parameters: IO, *, content_type: str = "application/json", **kwargs: Any
+        self, resource_group_name: str, parameters: IO[bytes], *, content_type: str = "application/json", **kwargs: Any
     ) -> _models.ResourceGroupExportResult:
         """Captures the specified resource group as a template.
 
         :param resource_group_name: The name of the resource group to export as a template. Required.
         :type resource_group_name: str
         :param parameters: Parameters for exporting the template. Required.
-        :type parameters: IO
+        :type parameters: IO[bytes]
         :keyword content_type: Body Parameter content-type. Content type parameter for binary body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: ResourceGroupExportResult or the result of cls(response)
         :rtype: ~azure.mgmt.resource.resources.v2019_05_01.models.ResourceGroupExportResult
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -5708,24 +5161,21 @@ class ResourceGroupsOperations:
 
     @distributed_trace_async
     async def export_template(
-        self, resource_group_name: str, parameters: Union[_models.ExportTemplateRequest, IO], **kwargs: Any
+        self, resource_group_name: str, parameters: Union[_models.ExportTemplateRequest, IO[bytes]], **kwargs: Any
     ) -> _models.ResourceGroupExportResult:
         """Captures the specified resource group as a template.
 
         :param resource_group_name: The name of the resource group to export as a template. Required.
         :type resource_group_name: str
         :param parameters: Parameters for exporting the template. Is either a ExportTemplateRequest
-         type or a IO type. Required.
-        :type parameters: ~azure.mgmt.resource.resources.v2019_05_01.models.ExportTemplateRequest or IO
-        :keyword content_type: Body Parameter content-type. Known values are: 'application/json'.
-         Default value is None.
-        :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
+         type or a IO[bytes] type. Required.
+        :type parameters: ~azure.mgmt.resource.resources.v2019_05_01.models.ExportTemplateRequest or
+         IO[bytes]
         :return: ResourceGroupExportResult or the result of cls(response)
         :rtype: ~azure.mgmt.resource.resources.v2019_05_01.models.ResourceGroupExportResult
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -5736,7 +5186,7 @@ class ResourceGroupsOperations:
         _headers = case_insensitive_dict(kwargs.pop("headers", {}) or {})
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         content_type: Optional[str] = kwargs.pop("content_type", _headers.pop("Content-Type", None))
         cls: ClsType[_models.ResourceGroupExportResult] = kwargs.pop("cls", None)
 
@@ -5748,23 +5198,21 @@ class ResourceGroupsOperations:
         else:
             _json = self._serialize.body(parameters, "ExportTemplateRequest")
 
-        request = build_resource_groups_export_template_request(
+        _request = build_resource_groups_export_template_request(
             resource_group_name=resource_group_name,
             subscription_id=self._config.subscription_id,
             api_version=api_version,
             content_type=content_type,
             json=_json,
             content=_content,
-            template_url=self.export_template.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -5773,16 +5221,12 @@ class ResourceGroupsOperations:
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        deserialized = self._deserialize("ResourceGroupExportResult", pipeline_response)
+        deserialized = self._deserialize("ResourceGroupExportResult", pipeline_response.http_response)
 
         if cls:
-            return cls(pipeline_response, deserialized, {})
+            return cls(pipeline_response, deserialized, {})  # type: ignore
 
-        return deserialized
-
-    export_template.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourcegroups/{resourceGroupName}/exportTemplate"
-    }
+        return deserialized  # type: ignore
 
     @distributed_trace
     def list(
@@ -5797,7 +5241,6 @@ class ResourceGroupsOperations:
         :param top: The number of results to return. If null is passed, returns all resource groups.
          Default value is None.
         :type top: int
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: An iterator like instance of either ResourceGroup or the result of cls(response)
         :rtype:
          ~azure.core.async_paging.AsyncItemPaged[~azure.mgmt.resource.resources.v2019_05_01.models.ResourceGroup]
@@ -5806,10 +5249,10 @@ class ResourceGroupsOperations:
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         cls: ClsType[_models.ResourceGroupListResult] = kwargs.pop("cls", None)
 
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -5820,17 +5263,15 @@ class ResourceGroupsOperations:
         def prepare_request(next_link=None):
             if not next_link:
 
-                request = build_resource_groups_list_request(
+                _request = build_resource_groups_list_request(
                     subscription_id=self._config.subscription_id,
                     filter=filter,
                     top=top,
                     api_version=api_version,
-                    template_url=self.list.metadata["url"],
                     headers=_headers,
                     params=_params,
                 )
-                request = _convert_request(request)
-                request.url = self._client.format_url(request.url)
+                _request.url = self._client.format_url(_request.url)
 
             else:
                 # make call to next link with the client's api-version
@@ -5841,14 +5282,13 @@ class ResourceGroupsOperations:
                         for key, value in urllib.parse.parse_qs(_parsed_next_link.query).items()
                     }
                 )
-                _next_request_params["api-version"] = self._config.api_version
-                request = HttpRequest(
+                _next_request_params["api-version"] = self._api_version
+                _request = HttpRequest(
                     "GET", urllib.parse.urljoin(next_link, _parsed_next_link.path), params=_next_request_params
                 )
-                request = _convert_request(request)
-                request.url = self._client.format_url(request.url)
-                request.method = "GET"
-            return request
+                _request.url = self._client.format_url(_request.url)
+                _request.method = "GET"
+            return _request
 
         async def extract_data(pipeline_response):
             deserialized = self._deserialize("ResourceGroupListResult", pipeline_response)
@@ -5858,11 +5298,11 @@ class ResourceGroupsOperations:
             return deserialized.next_link or None, AsyncList(list_of_elem)
 
         async def get_next(next_link=None):
-            request = prepare_request(next_link)
+            _request = prepare_request(next_link)
 
             _stream = False
             pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-                request, stream=_stream, **kwargs
+                _request, stream=_stream, **kwargs
             )
             response = pipeline_response.http_response
 
@@ -5873,8 +5313,6 @@ class ResourceGroupsOperations:
             return pipeline_response
 
         return AsyncItemPaged(get_next, extract_data)
-
-    list.metadata = {"url": "/subscriptions/{subscriptionId}/resourcegroups"}
 
 
 class TagsOperations:
@@ -5895,6 +5333,7 @@ class TagsOperations:
         self._config = input_args.pop(0) if input_args else kwargs.pop("config")
         self._serialize = input_args.pop(0) if input_args else kwargs.pop("serializer")
         self._deserialize = input_args.pop(0) if input_args else kwargs.pop("deserializer")
+        self._api_version = input_args.pop(0) if input_args else kwargs.pop("api_version")
 
     @distributed_trace_async
     async def delete_value(  # pylint: disable=inconsistent-return-statements
@@ -5906,12 +5345,11 @@ class TagsOperations:
         :type tag_name: str
         :param tag_value: The value of the tag to delete. Required.
         :type tag_value: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: None or the result of cls(response)
         :rtype: None
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -5922,24 +5360,22 @@ class TagsOperations:
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         cls: ClsType[None] = kwargs.pop("cls", None)
 
-        request = build_tags_delete_value_request(
+        _request = build_tags_delete_value_request(
             tag_name=tag_name,
             tag_value=tag_value,
             subscription_id=self._config.subscription_id,
             api_version=api_version,
-            template_url=self.delete_value.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -5949,9 +5385,7 @@ class TagsOperations:
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
         if cls:
-            return cls(pipeline_response, None, {})
-
-    delete_value.metadata = {"url": "/subscriptions/{subscriptionId}/tagNames/{tagName}/tagValues/{tagValue}"}
+            return cls(pipeline_response, None, {})  # type: ignore
 
     @distributed_trace_async
     async def create_or_update_value(self, tag_name: str, tag_value: str, **kwargs: Any) -> _models.TagValue:
@@ -5961,12 +5395,11 @@ class TagsOperations:
         :type tag_name: str
         :param tag_value: The value of the tag to create. Required.
         :type tag_value: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: TagValue or the result of cls(response)
         :rtype: ~azure.mgmt.resource.resources.v2019_05_01.models.TagValue
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -5977,24 +5410,22 @@ class TagsOperations:
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         cls: ClsType[_models.TagValue] = kwargs.pop("cls", None)
 
-        request = build_tags_create_or_update_value_request(
+        _request = build_tags_create_or_update_value_request(
             tag_name=tag_name,
             tag_value=tag_value,
             subscription_id=self._config.subscription_id,
             api_version=api_version,
-            template_url=self.create_or_update_value.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -6003,18 +5434,12 @@ class TagsOperations:
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        if response.status_code == 200:
-            deserialized = self._deserialize("TagValue", pipeline_response)
-
-        if response.status_code == 201:
-            deserialized = self._deserialize("TagValue", pipeline_response)
+        deserialized = self._deserialize("TagValue", pipeline_response.http_response)
 
         if cls:
             return cls(pipeline_response, deserialized, {})  # type: ignore
 
         return deserialized  # type: ignore
-
-    create_or_update_value.metadata = {"url": "/subscriptions/{subscriptionId}/tagNames/{tagName}/tagValues/{tagValue}"}
 
     @distributed_trace_async
     async def create_or_update(self, tag_name: str, **kwargs: Any) -> _models.TagDetails:
@@ -6026,12 +5451,11 @@ class TagsOperations:
 
         :param tag_name: The name of the tag to create. Required.
         :type tag_name: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: TagDetails or the result of cls(response)
         :rtype: ~azure.mgmt.resource.resources.v2019_05_01.models.TagDetails
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -6042,23 +5466,21 @@ class TagsOperations:
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         cls: ClsType[_models.TagDetails] = kwargs.pop("cls", None)
 
-        request = build_tags_create_or_update_request(
+        _request = build_tags_create_or_update_request(
             tag_name=tag_name,
             subscription_id=self._config.subscription_id,
             api_version=api_version,
-            template_url=self.create_or_update.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -6067,18 +5489,12 @@ class TagsOperations:
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        if response.status_code == 200:
-            deserialized = self._deserialize("TagDetails", pipeline_response)
-
-        if response.status_code == 201:
-            deserialized = self._deserialize("TagDetails", pipeline_response)
+        deserialized = self._deserialize("TagDetails", pipeline_response.http_response)
 
         if cls:
             return cls(pipeline_response, deserialized, {})  # type: ignore
 
         return deserialized  # type: ignore
-
-    create_or_update.metadata = {"url": "/subscriptions/{subscriptionId}/tagNames/{tagName}"}
 
     @distributed_trace_async
     async def delete(self, tag_name: str, **kwargs: Any) -> None:  # pylint: disable=inconsistent-return-statements
@@ -6088,12 +5504,11 @@ class TagsOperations:
 
         :param tag_name: The name of the tag. Required.
         :type tag_name: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: None or the result of cls(response)
         :rtype: None
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -6104,23 +5519,21 @@ class TagsOperations:
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         cls: ClsType[None] = kwargs.pop("cls", None)
 
-        request = build_tags_delete_request(
+        _request = build_tags_delete_request(
             tag_name=tag_name,
             subscription_id=self._config.subscription_id,
             api_version=api_version,
-            template_url=self.delete.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -6130,15 +5543,12 @@ class TagsOperations:
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
         if cls:
-            return cls(pipeline_response, None, {})
-
-    delete.metadata = {"url": "/subscriptions/{subscriptionId}/tagNames/{tagName}"}
+            return cls(pipeline_response, None, {})  # type: ignore
 
     @distributed_trace
     def list(self, **kwargs: Any) -> AsyncIterable["_models.TagDetails"]:
         """Gets the names and values of all resource tags that are defined in a subscription.
 
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: An iterator like instance of either TagDetails or the result of cls(response)
         :rtype:
          ~azure.core.async_paging.AsyncItemPaged[~azure.mgmt.resource.resources.v2019_05_01.models.TagDetails]
@@ -6147,10 +5557,10 @@ class TagsOperations:
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         cls: ClsType[_models.TagsListResult] = kwargs.pop("cls", None)
 
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -6161,15 +5571,13 @@ class TagsOperations:
         def prepare_request(next_link=None):
             if not next_link:
 
-                request = build_tags_list_request(
+                _request = build_tags_list_request(
                     subscription_id=self._config.subscription_id,
                     api_version=api_version,
-                    template_url=self.list.metadata["url"],
                     headers=_headers,
                     params=_params,
                 )
-                request = _convert_request(request)
-                request.url = self._client.format_url(request.url)
+                _request.url = self._client.format_url(_request.url)
 
             else:
                 # make call to next link with the client's api-version
@@ -6180,14 +5588,13 @@ class TagsOperations:
                         for key, value in urllib.parse.parse_qs(_parsed_next_link.query).items()
                     }
                 )
-                _next_request_params["api-version"] = self._config.api_version
-                request = HttpRequest(
+                _next_request_params["api-version"] = self._api_version
+                _request = HttpRequest(
                     "GET", urllib.parse.urljoin(next_link, _parsed_next_link.path), params=_next_request_params
                 )
-                request = _convert_request(request)
-                request.url = self._client.format_url(request.url)
-                request.method = "GET"
-            return request
+                _request.url = self._client.format_url(_request.url)
+                _request.method = "GET"
+            return _request
 
         async def extract_data(pipeline_response):
             deserialized = self._deserialize("TagsListResult", pipeline_response)
@@ -6197,11 +5604,11 @@ class TagsOperations:
             return deserialized.next_link or None, AsyncList(list_of_elem)
 
         async def get_next(next_link=None):
-            request = prepare_request(next_link)
+            _request = prepare_request(next_link)
 
             _stream = False
             pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-                request, stream=_stream, **kwargs
+                _request, stream=_stream, **kwargs
             )
             response = pipeline_response.http_response
 
@@ -6212,8 +5619,6 @@ class TagsOperations:
             return pipeline_response
 
         return AsyncItemPaged(get_next, extract_data)
-
-    list.metadata = {"url": "/subscriptions/{subscriptionId}/tagNames"}
 
 
 class DeploymentOperationsOperations:
@@ -6234,6 +5639,7 @@ class DeploymentOperationsOperations:
         self._config = input_args.pop(0) if input_args else kwargs.pop("config")
         self._serialize = input_args.pop(0) if input_args else kwargs.pop("serializer")
         self._deserialize = input_args.pop(0) if input_args else kwargs.pop("deserializer")
+        self._api_version = input_args.pop(0) if input_args else kwargs.pop("api_version")
 
     @distributed_trace_async
     async def get_at_management_group_scope(
@@ -6247,12 +5653,11 @@ class DeploymentOperationsOperations:
         :type deployment_name: str
         :param operation_id: The ID of the operation to get. Required.
         :type operation_id: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: DeploymentOperation or the result of cls(response)
         :rtype: ~azure.mgmt.resource.resources.v2019_05_01.models.DeploymentOperation
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -6263,24 +5668,22 @@ class DeploymentOperationsOperations:
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         cls: ClsType[_models.DeploymentOperation] = kwargs.pop("cls", None)
 
-        request = build_deployment_operations_get_at_management_group_scope_request(
+        _request = build_deployment_operations_get_at_management_group_scope_request(
             group_id=group_id,
             deployment_name=deployment_name,
             operation_id=operation_id,
             api_version=api_version,
-            template_url=self.get_at_management_group_scope.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -6289,16 +5692,12 @@ class DeploymentOperationsOperations:
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        deserialized = self._deserialize("DeploymentOperation", pipeline_response)
+        deserialized = self._deserialize("DeploymentOperation", pipeline_response.http_response)
 
         if cls:
-            return cls(pipeline_response, deserialized, {})
+            return cls(pipeline_response, deserialized, {})  # type: ignore
 
-        return deserialized
-
-    get_at_management_group_scope.metadata = {
-        "url": "/providers/Microsoft.Management/managementGroups/{groupId}/providers/Microsoft.Resources/deployments/{deploymentName}/operations/{operationId}"
-    }
+        return deserialized  # type: ignore
 
     @distributed_trace
     def list_at_management_group_scope(
@@ -6312,7 +5711,6 @@ class DeploymentOperationsOperations:
         :type deployment_name: str
         :param top: The number of results to return. Default value is None.
         :type top: int
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: An iterator like instance of either DeploymentOperation or the result of cls(response)
         :rtype:
          ~azure.core.async_paging.AsyncItemPaged[~azure.mgmt.resource.resources.v2019_05_01.models.DeploymentOperation]
@@ -6321,10 +5719,10 @@ class DeploymentOperationsOperations:
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         cls: ClsType[_models.DeploymentOperationsListResult] = kwargs.pop("cls", None)
 
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -6335,17 +5733,15 @@ class DeploymentOperationsOperations:
         def prepare_request(next_link=None):
             if not next_link:
 
-                request = build_deployment_operations_list_at_management_group_scope_request(
+                _request = build_deployment_operations_list_at_management_group_scope_request(
                     group_id=group_id,
                     deployment_name=deployment_name,
                     top=top,
                     api_version=api_version,
-                    template_url=self.list_at_management_group_scope.metadata["url"],
                     headers=_headers,
                     params=_params,
                 )
-                request = _convert_request(request)
-                request.url = self._client.format_url(request.url)
+                _request.url = self._client.format_url(_request.url)
 
             else:
                 # make call to next link with the client's api-version
@@ -6356,14 +5752,13 @@ class DeploymentOperationsOperations:
                         for key, value in urllib.parse.parse_qs(_parsed_next_link.query).items()
                     }
                 )
-                _next_request_params["api-version"] = self._config.api_version
-                request = HttpRequest(
+                _next_request_params["api-version"] = self._api_version
+                _request = HttpRequest(
                     "GET", urllib.parse.urljoin(next_link, _parsed_next_link.path), params=_next_request_params
                 )
-                request = _convert_request(request)
-                request.url = self._client.format_url(request.url)
-                request.method = "GET"
-            return request
+                _request.url = self._client.format_url(_request.url)
+                _request.method = "GET"
+            return _request
 
         async def extract_data(pipeline_response):
             deserialized = self._deserialize("DeploymentOperationsListResult", pipeline_response)
@@ -6373,11 +5768,11 @@ class DeploymentOperationsOperations:
             return deserialized.next_link or None, AsyncList(list_of_elem)
 
         async def get_next(next_link=None):
-            request = prepare_request(next_link)
+            _request = prepare_request(next_link)
 
             _stream = False
             pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-                request, stream=_stream, **kwargs
+                _request, stream=_stream, **kwargs
             )
             response = pipeline_response.http_response
 
@@ -6388,10 +5783,6 @@ class DeploymentOperationsOperations:
             return pipeline_response
 
         return AsyncItemPaged(get_next, extract_data)
-
-    list_at_management_group_scope.metadata = {
-        "url": "/providers/Microsoft.Management/managementGroups/{groupId}/providers/Microsoft.Resources/deployments/{deploymentName}/operations"
-    }
 
     @distributed_trace_async
     async def get_at_subscription_scope(
@@ -6403,12 +5794,11 @@ class DeploymentOperationsOperations:
         :type deployment_name: str
         :param operation_id: The ID of the operation to get. Required.
         :type operation_id: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: DeploymentOperation or the result of cls(response)
         :rtype: ~azure.mgmt.resource.resources.v2019_05_01.models.DeploymentOperation
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -6419,24 +5809,22 @@ class DeploymentOperationsOperations:
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         cls: ClsType[_models.DeploymentOperation] = kwargs.pop("cls", None)
 
-        request = build_deployment_operations_get_at_subscription_scope_request(
+        _request = build_deployment_operations_get_at_subscription_scope_request(
             deployment_name=deployment_name,
             operation_id=operation_id,
             subscription_id=self._config.subscription_id,
             api_version=api_version,
-            template_url=self.get_at_subscription_scope.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -6445,16 +5833,12 @@ class DeploymentOperationsOperations:
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        deserialized = self._deserialize("DeploymentOperation", pipeline_response)
+        deserialized = self._deserialize("DeploymentOperation", pipeline_response.http_response)
 
         if cls:
-            return cls(pipeline_response, deserialized, {})
+            return cls(pipeline_response, deserialized, {})  # type: ignore
 
-        return deserialized
-
-    get_at_subscription_scope.metadata = {
-        "url": "/subscriptions/{subscriptionId}/providers/Microsoft.Resources/deployments/{deploymentName}/operations/{operationId}"
-    }
+        return deserialized  # type: ignore
 
     @distributed_trace
     def list_at_subscription_scope(
@@ -6466,7 +5850,6 @@ class DeploymentOperationsOperations:
         :type deployment_name: str
         :param top: The number of results to return. Default value is None.
         :type top: int
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: An iterator like instance of either DeploymentOperation or the result of cls(response)
         :rtype:
          ~azure.core.async_paging.AsyncItemPaged[~azure.mgmt.resource.resources.v2019_05_01.models.DeploymentOperation]
@@ -6475,10 +5858,10 @@ class DeploymentOperationsOperations:
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         cls: ClsType[_models.DeploymentOperationsListResult] = kwargs.pop("cls", None)
 
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -6489,17 +5872,15 @@ class DeploymentOperationsOperations:
         def prepare_request(next_link=None):
             if not next_link:
 
-                request = build_deployment_operations_list_at_subscription_scope_request(
+                _request = build_deployment_operations_list_at_subscription_scope_request(
                     deployment_name=deployment_name,
                     subscription_id=self._config.subscription_id,
                     top=top,
                     api_version=api_version,
-                    template_url=self.list_at_subscription_scope.metadata["url"],
                     headers=_headers,
                     params=_params,
                 )
-                request = _convert_request(request)
-                request.url = self._client.format_url(request.url)
+                _request.url = self._client.format_url(_request.url)
 
             else:
                 # make call to next link with the client's api-version
@@ -6510,14 +5891,13 @@ class DeploymentOperationsOperations:
                         for key, value in urllib.parse.parse_qs(_parsed_next_link.query).items()
                     }
                 )
-                _next_request_params["api-version"] = self._config.api_version
-                request = HttpRequest(
+                _next_request_params["api-version"] = self._api_version
+                _request = HttpRequest(
                     "GET", urllib.parse.urljoin(next_link, _parsed_next_link.path), params=_next_request_params
                 )
-                request = _convert_request(request)
-                request.url = self._client.format_url(request.url)
-                request.method = "GET"
-            return request
+                _request.url = self._client.format_url(_request.url)
+                _request.method = "GET"
+            return _request
 
         async def extract_data(pipeline_response):
             deserialized = self._deserialize("DeploymentOperationsListResult", pipeline_response)
@@ -6527,11 +5907,11 @@ class DeploymentOperationsOperations:
             return deserialized.next_link or None, AsyncList(list_of_elem)
 
         async def get_next(next_link=None):
-            request = prepare_request(next_link)
+            _request = prepare_request(next_link)
 
             _stream = False
             pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-                request, stream=_stream, **kwargs
+                _request, stream=_stream, **kwargs
             )
             response = pipeline_response.http_response
 
@@ -6542,10 +5922,6 @@ class DeploymentOperationsOperations:
             return pipeline_response
 
         return AsyncItemPaged(get_next, extract_data)
-
-    list_at_subscription_scope.metadata = {
-        "url": "/subscriptions/{subscriptionId}/providers/Microsoft.Resources/deployments/{deploymentName}/operations"
-    }
 
     @distributed_trace_async
     async def get(
@@ -6560,12 +5936,11 @@ class DeploymentOperationsOperations:
         :type deployment_name: str
         :param operation_id: The ID of the operation to get. Required.
         :type operation_id: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: DeploymentOperation or the result of cls(response)
         :rtype: ~azure.mgmt.resource.resources.v2019_05_01.models.DeploymentOperation
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -6576,25 +5951,23 @@ class DeploymentOperationsOperations:
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         cls: ClsType[_models.DeploymentOperation] = kwargs.pop("cls", None)
 
-        request = build_deployment_operations_get_request(
+        _request = build_deployment_operations_get_request(
             resource_group_name=resource_group_name,
             deployment_name=deployment_name,
             operation_id=operation_id,
             subscription_id=self._config.subscription_id,
             api_version=api_version,
-            template_url=self.get.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -6603,16 +5976,12 @@ class DeploymentOperationsOperations:
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        deserialized = self._deserialize("DeploymentOperation", pipeline_response)
+        deserialized = self._deserialize("DeploymentOperation", pipeline_response.http_response)
 
         if cls:
-            return cls(pipeline_response, deserialized, {})
+            return cls(pipeline_response, deserialized, {})  # type: ignore
 
-        return deserialized
-
-    get.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourcegroups/{resourceGroupName}/deployments/{deploymentName}/operations/{operationId}"
-    }
+        return deserialized  # type: ignore
 
     @distributed_trace
     def list(
@@ -6627,7 +5996,6 @@ class DeploymentOperationsOperations:
         :type deployment_name: str
         :param top: The number of results to return. Default value is None.
         :type top: int
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: An iterator like instance of either DeploymentOperation or the result of cls(response)
         :rtype:
          ~azure.core.async_paging.AsyncItemPaged[~azure.mgmt.resource.resources.v2019_05_01.models.DeploymentOperation]
@@ -6636,10 +6004,10 @@ class DeploymentOperationsOperations:
         _headers = kwargs.pop("headers", {}) or {}
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
-        api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2019-05-01"))
+        api_version: str = kwargs.pop("api_version", _params.pop("api-version", self._api_version or "2019-05-01"))
         cls: ClsType[_models.DeploymentOperationsListResult] = kwargs.pop("cls", None)
 
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -6650,18 +6018,16 @@ class DeploymentOperationsOperations:
         def prepare_request(next_link=None):
             if not next_link:
 
-                request = build_deployment_operations_list_request(
+                _request = build_deployment_operations_list_request(
                     resource_group_name=resource_group_name,
                     deployment_name=deployment_name,
                     subscription_id=self._config.subscription_id,
                     top=top,
                     api_version=api_version,
-                    template_url=self.list.metadata["url"],
                     headers=_headers,
                     params=_params,
                 )
-                request = _convert_request(request)
-                request.url = self._client.format_url(request.url)
+                _request.url = self._client.format_url(_request.url)
 
             else:
                 # make call to next link with the client's api-version
@@ -6672,14 +6038,13 @@ class DeploymentOperationsOperations:
                         for key, value in urllib.parse.parse_qs(_parsed_next_link.query).items()
                     }
                 )
-                _next_request_params["api-version"] = self._config.api_version
-                request = HttpRequest(
+                _next_request_params["api-version"] = self._api_version
+                _request = HttpRequest(
                     "GET", urllib.parse.urljoin(next_link, _parsed_next_link.path), params=_next_request_params
                 )
-                request = _convert_request(request)
-                request.url = self._client.format_url(request.url)
-                request.method = "GET"
-            return request
+                _request.url = self._client.format_url(_request.url)
+                _request.method = "GET"
+            return _request
 
         async def extract_data(pipeline_response):
             deserialized = self._deserialize("DeploymentOperationsListResult", pipeline_response)
@@ -6689,11 +6054,11 @@ class DeploymentOperationsOperations:
             return deserialized.next_link or None, AsyncList(list_of_elem)
 
         async def get_next(next_link=None):
-            request = prepare_request(next_link)
+            _request = prepare_request(next_link)
 
             _stream = False
             pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-                request, stream=_stream, **kwargs
+                _request, stream=_stream, **kwargs
             )
             response = pipeline_response.http_response
 
@@ -6704,7 +6069,3 @@ class DeploymentOperationsOperations:
             return pipeline_response
 
         return AsyncItemPaged(get_next, extract_data)
-
-    list.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourcegroups/{resourceGroupName}/deployments/{deploymentName}/operations"
-    }

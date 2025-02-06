@@ -24,7 +24,15 @@
 #
 # --------------------------------------------------------------------------
 import logging
-from typing import Iterator, Optional, Union, TypeVar, overload, cast, TYPE_CHECKING, MutableMapping
+from typing import (
+    Iterator,
+    Optional,
+    Union,
+    TypeVar,
+    overload,
+    TYPE_CHECKING,
+    MutableMapping,
+)
 from urllib3.util.retry import Retry
 from urllib3.exceptions import (
     DecodeError as CoreDecodeError,
@@ -43,7 +51,7 @@ from azure.core.exceptions import (
     HttpResponseError,
     DecodeError,
 )
-from . import HttpRequest  # pylint: disable=unused-import
+from . import HttpRequest
 
 from ._base import HttpTransport, HttpResponse, _HttpResponseBase
 from ._bigger_block_size_http_adapters import BiggerBlockSizeHTTPAdapter
@@ -71,8 +79,7 @@ def _read_raw_stream(response, chunk_size=1):
     # Special case for urllib3.
     if hasattr(response.raw, "stream"):
         try:
-            for chunk in response.raw.stream(chunk_size, decode_content=False):
-                yield chunk
+            yield from response.raw.stream(chunk_size, decode_content=False)
         except ProtocolError as e:
             raise ServiceResponseError(e, error=e) from e
         except CoreDecodeError as e:
@@ -251,12 +258,14 @@ class RequestsTransport(HttpTransport):
             raise ValueError("session_owner cannot be False if no session is provided")
         self.connection_config = ConnectionConfiguration(**kwargs)
         self._use_env_settings = kwargs.pop("use_env_settings", True)
+        # See https://github.com/Azure/azure-sdk-for-python/issues/25640 to understand why we track this
+        self._has_been_opened = False
 
     def __enter__(self) -> "RequestsTransport":
         self.open()
         return self
 
-    def __exit__(self, *args):  # pylint: disable=arguments-differ
+    def __exit__(self, *args):
         self.close()
 
     def _init_session(self, session: requests.Session) -> None:
@@ -273,16 +282,23 @@ class RequestsTransport(HttpTransport):
             session.mount(p, adapter)
 
     def open(self):
-        if not self.session and self._session_owner:
-            self.session = requests.Session()
-            self._init_session(self.session)
-        # pyright has trouble to understand that self.session is not None, since we raised at worst in the init
-        self.session = cast(requests.Session, self.session)
+        if self._has_been_opened and not self.session:
+            raise ValueError(
+                "HTTP transport has already been closed. "
+                "You may check if you're calling a function outside of the `with` of your client creation, "
+                "or if you called `close()` on your client already."
+            )
+        if not self.session:
+            if self._session_owner:
+                self.session = requests.Session()
+                self._init_session(self.session)
+            else:
+                raise ValueError("session_owner cannot be False and no session is available")
+        self._has_been_opened = True
 
     def close(self):
         if self._session_owner and self.session:
             self.session.close()
-            self._session_owner = False
             self.session = None
 
     @overload
@@ -313,7 +329,7 @@ class RequestsTransport(HttpTransport):
         :keyword MutableMapping proxies: will define the proxy to use. Proxy is a dict (protocol, url)
         """
 
-    def send(
+    def send(  # pylint: disable=too-many-statements
         self,
         request: Union[HttpRequest, "RestHttpRequest"],
         *,
@@ -359,6 +375,13 @@ class RequestsTransport(HttpTransport):
             )
             response.raw.enforce_content_length = True
 
+        except AttributeError as err:
+            if self.session is None:
+                raise ValueError(
+                    "No session available for request. "
+                    "Please report this issue to https://github.com/Azure/azure-sdk-for-python/issues."
+                ) from err
+            raise
         except (
             NewConnectionError,
             ConnectTimeoutError,

@@ -2,10 +2,10 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # ---------------------------------------------------------
 
-# pylint: disable=protected-access,no-value-for-parameter
+# pylint: disable=protected-access
 
 from contextlib import contextmanager
-from typing import Any, Iterable, Optional, Union
+from typing import Any, Generator, Iterable, Optional, Union, cast
 
 from marshmallow.exceptions import ValidationError as SchemaValidationError
 
@@ -26,7 +26,7 @@ from azure.ai.ml._telemetry import ActivityType, monitor_with_activity
 from azure.ai.ml._utils._asset_utils import (
     _archive_or_restore,
     _get_latest,
-    _get_next_version_from_container,
+    _get_next_latest_versions_from_container,
     _resolve_label_to_asset,
 )
 from azure.ai.ml._utils._experimental import experimental
@@ -39,10 +39,10 @@ from azure.ai.ml._utils._registry_utils import (
 from azure.ai.ml.constants._common import ARM_ID_PREFIX, ASSET_ID_FORMAT, AzureMLResourceType
 from azure.ai.ml.entities._assets import Environment, WorkspaceAssetReference
 from azure.ai.ml.exceptions import ErrorCategory, ErrorTarget, ValidationErrorType, ValidationException
-from azure.core.exceptions import ResourceNotFoundError
+from azure.core.exceptions import ResourceExistsError, ResourceNotFoundError
 
 ops_logger = OpsLogger(__name__)
-logger, module_logger = ops_logger.package_logger, ops_logger.module_logger
+module_logger = ops_logger.module_logger
 
 
 class EnvironmentOperations(_ScopeDependentOperations):
@@ -75,7 +75,7 @@ class EnvironmentOperations(_ScopeDependentOperations):
         **kwargs: Any,
     ):
         super(EnvironmentOperations, self).__init__(operation_scope, operation_config)
-        ops_logger.update_info(kwargs)
+        ops_logger.update_filter()
         self._kwargs = kwargs
         self._containers_operations = service_client.environment_containers
         self._version_operations = service_client.environment_versions
@@ -87,8 +87,8 @@ class EnvironmentOperations(_ScopeDependentOperations):
         # returns the asset associated with the label
         self._managed_label_resolver = {"latest": self._get_latest_version}
 
-    @monitor_with_activity(logger, "Environment.CreateOrUpdate", ActivityType.PUBLICAPI)
-    def create_or_update(self, environment: Environment) -> Environment:
+    @monitor_with_activity(ops_logger, "Environment.CreateOrUpdate", ActivityType.PUBLICAPI)
+    def create_or_update(self, environment: Environment) -> Environment:  # type: ignore
         """Returns created or updated environment asset.
 
         :param environment: Environment object
@@ -110,7 +110,8 @@ class EnvironmentOperations(_ScopeDependentOperations):
         """
         try:
             if not environment.version and environment._auto_increment_version:
-                environment.version = _get_next_version_from_container(
+
+                next_version, latest_version = _get_next_latest_versions_from_container(
                     name=environment.name,
                     container_operation=self._containers_operations,
                     resource_group_name=self._operation_scope.resource_group_name,
@@ -118,6 +119,9 @@ class EnvironmentOperations(_ScopeDependentOperations):
                     registry_name=self._registry_name,
                     **self._kwargs,
                 )
+                # If user not passing the version, SDK will try to update the latest version
+                return self._try_update_latest_version(next_version, latest_version, environment)
+
             sas_uri = None
             if self._registry_name:
                 if isinstance(environment, WorkspaceAssetReference):
@@ -129,7 +133,7 @@ class EnvironmentOperations(_ScopeDependentOperations):
                             resource_group_name=self._resource_group_name,
                             registry_name=self._registry_name,
                         )
-                    except Exception as err:  # pylint: disable=broad-except
+                    except Exception as err:  # pylint: disable=W0718
                         if isinstance(err, ResourceNotFoundError):
                             pass
                         else:
@@ -169,12 +173,15 @@ class EnvironmentOperations(_ScopeDependentOperations):
                     ),
                 )
 
-            environment = _check_and_upload_env_build_context(
-                environment=environment,
-                operations=self,
-                sas_uri=sas_uri,
-                show_progress=self._show_progress,
-            )
+            # upload only in case of when its not registry
+            # or successfully acquire sas_uri
+            if not self._registry_name or sas_uri:
+                environment = _check_and_upload_env_build_context(
+                    environment=environment,
+                    operations=self,
+                    sas_uri=sas_uri,
+                    show_progress=self._show_progress,
+                )
             env_version_resource = environment._to_rest_object()
             env_rest_obj = (
                 self._version_operations.begin_create_or_update(
@@ -196,13 +203,32 @@ class EnvironmentOperations(_ScopeDependentOperations):
                 )
             )
             if not env_rest_obj and self._registry_name:
-                env_rest_obj = self._get(name=environment.name, version=environment.version)
+                env_rest_obj = self._get(name=str(environment.name), version=environment.version)
             return Environment._from_rest_object(env_rest_obj)
-        except Exception as ex:  # pylint: disable=broad-except
+        except Exception as ex:  # pylint: disable=W0718
             if isinstance(ex, SchemaValidationError):
                 log_and_raise_error(ex)
             else:
                 raise ex
+
+    def _try_update_latest_version(
+        self, next_version: str, latest_version: str, environment: Environment
+    ) -> Environment:
+        env = None
+        if self._registry_name:
+            environment.version = next_version
+            env = self.create_or_update(environment)
+        else:
+            environment.version = latest_version
+            try:  # Try to update the latest version
+                env = self.create_or_update(environment)
+            except Exception as ex:  # pylint: disable=W0718
+                if isinstance(ex, ResourceExistsError):
+                    environment.version = next_version
+                    env = self.create_or_update(environment)
+                else:
+                    raise ex
+        return env
 
     def _get(self, name: str, version: Optional[str] = None) -> EnvironmentVersion:
         if version:
@@ -239,7 +265,7 @@ class EnvironmentOperations(_ScopeDependentOperations):
             )
         )
 
-    @monitor_with_activity(logger, "Environment.Get", ActivityType.PUBLICAPI)
+    @monitor_with_activity(ops_logger, "Environment.Get", ActivityType.PUBLICAPI)
     def get(self, name: str, version: Optional[str] = None, label: Optional[str] = None) -> Environment:
         """Returns the specified environment asset.
 
@@ -290,7 +316,7 @@ class EnvironmentOperations(_ScopeDependentOperations):
 
         return Environment._from_rest_object(env_version_resource)
 
-    @monitor_with_activity(logger, "Environment.List", ActivityType.PUBLICAPI)
+    @monitor_with_activity(ops_logger, "Environment.List", ActivityType.PUBLICAPI)
     def list(
         self,
         name: Optional[str] = None,
@@ -317,48 +343,55 @@ class EnvironmentOperations(_ScopeDependentOperations):
                 :caption: List example.
         """
         if name:
-            return (
-                self._version_operations.list(
-                    name=name,
+            return cast(
+                Iterable[Environment],
+                (
+                    self._version_operations.list(
+                        name=name,
+                        registry_name=self._registry_name,
+                        cls=lambda objs: [Environment._from_rest_object(obj) for obj in objs],
+                        **self._scope_kwargs,
+                        **self._kwargs,
+                    )
+                    if self._registry_name
+                    else self._version_operations.list(
+                        name=name,
+                        workspace_name=self._workspace_name,
+                        cls=lambda objs: [Environment._from_rest_object(obj) for obj in objs],
+                        list_view_type=list_view_type,
+                        **self._scope_kwargs,
+                        **self._kwargs,
+                    )
+                ),
+            )
+        return cast(
+            Iterable[Environment],
+            (
+                self._containers_operations.list(
                     registry_name=self._registry_name,
-                    cls=lambda objs: [Environment._from_rest_object(obj) for obj in objs],
+                    cls=lambda objs: [Environment._from_container_rest_object(obj) for obj in objs],
                     **self._scope_kwargs,
                     **self._kwargs,
                 )
                 if self._registry_name
-                else self._version_operations.list(
-                    name=name,
+                else self._containers_operations.list(
                     workspace_name=self._workspace_name,
-                    cls=lambda objs: [Environment._from_rest_object(obj) for obj in objs],
+                    cls=lambda objs: [Environment._from_container_rest_object(obj) for obj in objs],
                     list_view_type=list_view_type,
                     **self._scope_kwargs,
                     **self._kwargs,
                 )
-            )
-        return (
-            self._containers_operations.list(
-                registry_name=self._registry_name,
-                cls=lambda objs: [Environment._from_container_rest_object(obj) for obj in objs],
-                **self._scope_kwargs,
-                **self._kwargs,
-            )
-            if self._registry_name
-            else self._containers_operations.list(
-                workspace_name=self._workspace_name,
-                cls=lambda objs: [Environment._from_container_rest_object(obj) for obj in objs],
-                list_view_type=list_view_type,
-                **self._scope_kwargs,
-                **self._kwargs,
-            )
+            ),
         )
 
-    @monitor_with_activity(logger, "Environment.Delete", ActivityType.PUBLICAPI)
+    @monitor_with_activity(ops_logger, "Environment.Delete", ActivityType.PUBLICAPI)
     def archive(
         self,
         name: str,
         version: Optional[str] = None,
         label: Optional[str] = None,
-        **kwargs,  # pylint:disable=unused-argument
+        # pylint:disable=unused-argument
+        **kwargs: Any,
     ) -> None:
         """Archive an environment or an environment version.
 
@@ -389,13 +422,14 @@ class EnvironmentOperations(_ScopeDependentOperations):
             label=label,
         )
 
-    @monitor_with_activity(logger, "Environment.Restore", ActivityType.PUBLICAPI)
+    @monitor_with_activity(ops_logger, "Environment.Restore", ActivityType.PUBLICAPI)
     def restore(
         self,
         name: str,
         version: Optional[str] = None,
         label: Optional[str] = None,
-        **kwargs,  # pylint:disable=unused-argument
+        # pylint:disable=unused-argument
+        **kwargs: Any,
     ) -> None:
         """Restore an archived environment version.
 
@@ -446,7 +480,7 @@ class EnvironmentOperations(_ScopeDependentOperations):
         )
         return Environment._from_rest_object(result)
 
-    @monitor_with_activity(logger, "Environment.Share", ActivityType.PUBLICAPI)
+    @monitor_with_activity(ops_logger, "Environment.Share", ActivityType.PUBLICAPI)
     @experimental
     def share(
         self,
@@ -501,7 +535,7 @@ class EnvironmentOperations(_ScopeDependentOperations):
 
     @contextmanager
     # pylint: disable-next=docstring-missing-return,docstring-missing-rtype
-    def _set_registry_client(self, registry_name: str) -> Iterable[None]:
+    def _set_registry_client(self, registry_name: str) -> Generator:
         """Sets the registry client for the environment operations.
 
         :param registry_name: Name of the registry.

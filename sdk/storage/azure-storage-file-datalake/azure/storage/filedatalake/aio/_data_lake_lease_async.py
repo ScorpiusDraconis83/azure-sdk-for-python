@@ -3,9 +3,9 @@
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
 # --------------------------------------------------------------------------
-# pylint: disable=invalid-overridden-method
+# pylint: disable=invalid-overridden-method, docstring-keyword-should-match-keyword-only
 
-from typing import (  # pylint: disable=unused-import
+from typing import (
     Union, Optional, Any,
     TypeVar, TYPE_CHECKING
 )
@@ -50,9 +50,9 @@ class DataLakeLeaseClient(DataLakeLeaseClientBase):  # pylint: disable=client-ac
         super(DataLakeLeaseClient, self).__init__(client, lease_id)
 
         if hasattr(client, '_blob_client'):
-            _client = client._blob_client  # type: ignore # pylint: disable=protected-access
+            _client = client._blob_client  # type: ignore
         elif hasattr(client, '_container_client'):
-            _client = client._container_client  # type: ignore # pylint: disable=protected-access
+            _client = client._container_client  # type: ignore
         else:
             raise TypeError("Lease must use any of FileSystemClient DataLakeDirectoryClient, or DataLakeFileClient.")
 

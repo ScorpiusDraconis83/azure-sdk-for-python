@@ -111,6 +111,7 @@ class SearchIndexingBufferedSender(SearchIndexingBufferedSenderBase, HeadersMixi
     @distributed_trace
     def close(self, **kwargs) -> None:  # pylint: disable=unused-argument
         """Close the session.
+
         :return: None
         :rtype: None
         """
@@ -166,7 +167,11 @@ class SearchIndexingBufferedSender(SearchIndexingBufferedSenderBase, HeadersMixi
             for result in results:
                 try:
                     assert self._index_key is not None  # Hint for mypy
-                    action = next(x for x in actions if x.additional_properties.get(self._index_key) == result.key)
+                    action = next(
+                        x
+                        for x in actions
+                        if x.additional_properties and x.additional_properties.get(self._index_key) == result.key
+                    )
                     if result.succeeded:
                         self._callback_succeed(action)
                     elif is_retryable_status_code(result.status_code):
@@ -266,7 +271,7 @@ class SearchIndexingBufferedSender(SearchIndexingBufferedSenderBase, HeadersMixi
         :return: Indexing result of each action in the batch.
         :rtype:  list[IndexingResult]
 
-        :raises ~azure.search.documents.RequestEntityTooLargeError
+        :raises ~azure.search.documents.RequestEntityTooLargeError: The request is too large.
         """
         return self._index_documents_actions(actions=batch.actions, **kwargs)
 
@@ -323,7 +328,7 @@ class SearchIndexingBufferedSender(SearchIndexingBufferedSenderBase, HeadersMixi
         if not self._index_key:
             self._callback_fail(action)
             return
-        key = action.additional_properties.get(self._index_key)
+        key = cast(str, action.additional_properties.get(self._index_key) if action.additional_properties else "")
         counter = self._retry_counter.get(key)
         if not counter:
             # first time that fails

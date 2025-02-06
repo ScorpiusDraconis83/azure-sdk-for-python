@@ -52,6 +52,7 @@ class _DocumentProducer(object):
         self._is_finished = False
         self._has_started = False
         self._cur_item = None
+        self._query = query
         # initiate execution context
 
         path = _base.GetPathFromLink(collection_link, "docs")
@@ -222,10 +223,6 @@ class _OrderByDocumentProducerComparator(_PartitionKeyRangeDocumentProducerCompa
 
         :param list sort_order:
             List of sort orders (i.e., Ascending, Descending)
-
-        :ivar list sort_order:
-            List of sort orders (i.e., Ascending, Descending)
-
         """
         self._sort_order = sort_order
 
@@ -276,3 +273,26 @@ class _OrderByDocumentProducerComparator(_PartitionKeyRangeDocumentProducerCompa
             type2 = _OrderByHelper.getTypeStr(elt2)
             if type1 != type2:
                 raise ValueError("Expected {}, but got {}.".format(type1, type2))
+
+
+class _NonStreamingItemResultProducer:
+    """This class takes care of handling of the items to be sorted in a non-streaming context.
+
+    One instance of this document producer goes attached to every item coming in for the priority queue to be able
+    to properly sort items as they get inserted.
+    """
+
+    def __init__(self, item_result, sort_order):
+        """
+        Constructor
+        """
+        self._item_result = item_result
+        self._sort_order = sort_order
+
+    def __lt__(self, other):
+        res = _OrderByHelper.compare(self._item_result["orderByItems"][0],
+                                               other._item_result["orderByItems"][0])
+        if res != 0:
+            if self._sort_order[0] == "Descending":
+                res = -res
+        return res < 0

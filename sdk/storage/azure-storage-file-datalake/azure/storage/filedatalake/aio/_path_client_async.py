@@ -3,11 +3,13 @@
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
 # --------------------------------------------------------------------------
-# pylint: disable=invalid-overridden-method
+# pylint: disable=invalid-overridden-method, docstring-keyword-should-match-keyword-only
+
 from datetime import datetime
-from typing import ( # pylint: disable=unused-import
+from typing import (
     Any, Dict, Optional, Union,
-    TYPE_CHECKING)
+    TYPE_CHECKING
+)
 
 from azure.core.exceptions import AzureError, HttpResponseError
 from azure.core.tracing.decorator_async import distributed_trace_async
@@ -48,6 +50,11 @@ class PathClient(AsyncStorageAccountHostsMixin, PathClientBase):
         - except in the case of AzureSasCredential, where the conflicting SAS tokens will raise a ValueError.
         If using an instance of AzureNamedKeyCredential, "name" should be the storage account name, and "key"
         should be the storage account key.
+    :type credential:
+        ~azure.core.credentials.AzureNamedKeyCredential or
+        ~azure.core.credentials.AzureSasCredential or
+        ~azure.core.credentials_async.AsyncTokenCredential or
+        str or dict[str, str] or None
     :keyword str api_version:
         The Storage API version to use for requests. Default value is the most recent service version that is
         compatible with the current SDK. Setting to an older version may result in reduced feature compatibility.
@@ -74,21 +81,23 @@ class PathClient(AsyncStorageAccountHostsMixin, PathClientBase):
         self._blob_client = BlobClient(account_url=self._blob_account_url, container_name=self.file_system_name,
                                        blob_name=self.path_name,
                                        credential=credential,
-                                       _hosts=self._blob_client._hosts,  # pylint: disable=protected-access
+                                       _hosts=self._blob_client._hosts,
                                        **kwargs)
-
-        self._client = AzureDataLakeStorageRESTAPI(self.url, base_url=self.url, file_system=self.file_system_name,
-                                                   path=self.path_name, pipeline=self._pipeline)
-        self._datalake_client_for_blob_operation = AzureDataLakeStorageRESTAPI(self._blob_client.url,
-                                                                               base_url=self._blob_client.url,
-                                                                               file_system=self.file_system_name,
-                                                                               path=self.path_name,
-                                                                               pipeline=self._pipeline)
-        api_version = get_api_version(kwargs)
-        self._client._config.version = api_version  # pylint: disable=protected-access
-        self._datalake_client_for_blob_operation._config.version = api_version  # pylint: disable=protected-access
-
+        self._api_version = get_api_version(kwargs)
+        self._client = self._build_generated_client(self.url)
+        self._datalake_client_for_blob_operation = self._build_generated_client(self._blob_client.url)
         self._loop = kwargs.get('loop', None)
+
+    def _build_generated_client(self, url: str) -> AzureDataLakeStorageRESTAPI:
+        client = AzureDataLakeStorageRESTAPI(
+            url,
+            base_url=url,
+            file_system=self.file_system_name,
+            path=self.path_name,
+            pipeline=self._pipeline
+        )
+        client._config.version = self._api_version  # pylint: disable=protected-access
+        return client
 
     async def __aexit__(self, *args):
         await self._blob_client.close()
@@ -191,7 +200,7 @@ class PathClient(AsyncStorageAccountHostsMixin, PathClientBase):
         :return: A dictionary of response headers.
         :keyword str encryption_context:
             Specifies the encryption context to set on the file.
-        :rtype: Dict[str, Union[str, datetime]]
+        :rtype: dict[str, Union[str, datetime]]
         """
         lease_id = kwargs.get('lease_id', None)
         lease_duration = kwargs.get('lease_duration', None)
@@ -242,7 +251,7 @@ class PathClient(AsyncStorageAccountHostsMixin, PathClientBase):
             see `here <https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/storage/azure-storage-file-datalake
             #other-client--per-operation-configuration>`_.
         :returns: A dictionary containing information about the deleted path.
-        :rtype: Dict[str, Any]
+        :rtype: dict[str, Any]
         """
         # Perform paginated delete only if using OAuth, deleting a directory, and api version is 2023-08-03 or later
         # The pagination is only for ACL checks, the final request remains the atomic delete operation
@@ -325,7 +334,8 @@ class PathClient(AsyncStorageAccountHostsMixin, PathClientBase):
             This value is not tracked or validated on the client. To configure client-side network timesouts
             see `here <https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/storage/azure-storage-file-datalake
             #other-client--per-operation-configuration>`_.
-        :keyword: response dict (Etag and last modified).
+        :returns: dict containing access control options after setting modifications (Etag and last modified).
+        :rtype: dict[str, str] or dict[str, ~datetime.datetime]
         """
         options = self._set_access_control_options(owner=owner, group=group, permissions=permissions, acl=acl, **kwargs)
         try:
@@ -377,7 +387,8 @@ class PathClient(AsyncStorageAccountHostsMixin, PathClientBase):
             This value is not tracked or validated on the client. To configure client-side network timesouts
             see `here <https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/storage/azure-storage-file-datalake
             #other-client--per-operation-configuration>`_.
-        :keyword: response dict.
+        :returns: response dict containing access control options (Etag and last modified).
+        :rtype: dict[str, str] or dict[str, ~datetime.datetime]
         """
         options = self._get_access_control_options(upn=upn, **kwargs)
         try:
@@ -668,6 +679,8 @@ class PathClient(AsyncStorageAccountHostsMixin, PathClientBase):
             This value is not tracked or validated on the client. To configure client-side network timesouts
             see `here <https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/storage/azure-storage-file-datalake
             #other-client--per-operation-configuration>`_.
+        :returns: response dict containing information about the renamed path.
+        :rtype: dict[str, Any]
         """
         options = self._rename_path_options(
             rename_source,
@@ -707,14 +720,29 @@ class PathClient(AsyncStorageAccountHostsMixin, PathClientBase):
             Decrypts the data on the service-side with the given key.
             Use of customer-provided keys must be done over HTTPS.
             Required if the file/directory was created with a customer-provided key.
+        :keyword bool upn:
+            If True, the user identity values returned in the x-ms-owner, x-ms-group,
+            and x-ms-acl response headers will be transformed from Azure Active Directory Object IDs to User 
+            Principal Names in the owner, group, and acl fields of the respective property object returned.
+            If False, the values will be returned as Azure Active Directory Object IDs.
+            The default value is False. Note that group and application Object IDs are not translate
+            because they do not have unique friendly names.
         :keyword int timeout:
             Sets the server-side timeout for the operation in seconds. For more details see
             https://learn.microsoft.com/rest/api/storageservices/setting-timeouts-for-blob-service-operations.
             This value is not tracked or validated on the client. To configure client-side network timesouts
             see `here <https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/storage/azure-storage-file-datalake
             #other-client--per-operation-configuration>`_.
+        :returns:
+            Information including user-defined metadata, standard HTTP properties,
+            and system properties for the file or directory.
         :rtype: DirectoryProperties or FileProperties
         """
+        upn = kwargs.pop('upn', None)
+        if upn:
+            headers = kwargs.pop('headers', {})
+            headers['x-ms-upn'] = str(upn)
+            kwargs['headers'] = headers
         path_properties = await self._blob_client.get_blob_properties(**kwargs)
         return path_properties
 
@@ -778,6 +806,7 @@ class PathClient(AsyncStorageAccountHostsMixin, PathClientBase):
             see `here <https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/storage/azure-storage-file-datalake
             #other-client--per-operation-configuration>`_.
         :returns: file system-updated property dict (Etag and last modified).
+        :rtype: dict[str, str] or dict[str, ~datetime.datetime]
         """
         return await self._blob_client.set_blob_metadata(metadata=metadata, **kwargs)
 
@@ -819,7 +848,7 @@ class PathClient(AsyncStorageAccountHostsMixin, PathClientBase):
             see `here <https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/storage/azure-storage-file-datalake
             #other-client--per-operation-configuration>`_.
         :returns: file/directory-updated property dict (Etag and last modified)
-        :rtype: Dict[str, Any]
+        :rtype: dict[str, Any]
         """
         return await self._blob_client.set_http_headers(content_settings=content_settings, **kwargs)
 
@@ -866,15 +895,6 @@ class PathClient(AsyncStorageAccountHostsMixin, PathClientBase):
             #other-client--per-operation-configuration>`_.
         :returns: A DataLakeLeaseClient object, that can be run in a context manager.
         :rtype: ~azure.storage.filedatalake.aio.DataLakeLeaseClient
-
-        .. admonition:: Example:
-
-            .. literalinclude:: ../samples/test_file_system_samples.py
-                :start-after: [START acquire_lease_on_file_system]
-                :end-before: [END acquire_lease_on_file_system]
-                :language: python
-                :dedent: 8
-                :caption: Acquiring a lease on the file_system.
         """
         lease = DataLakeLeaseClient(self, lease_id=lease_id)  # type: ignore
         await lease.acquire(lease_duration=lease_duration, **kwargs)

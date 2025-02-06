@@ -1,5 +1,5 @@
-# coding=utf-8
 # pylint: disable=too-many-lines
+# coding=utf-8
 # --------------------------------------------------------------------------
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License. See License.txt in the project root for license information.
@@ -8,18 +8,11 @@
 # --------------------------------------------------------------------------
 
 import datetime
-import sys
-from typing import Any, List, Optional, TYPE_CHECKING
+from typing import Any, List, Literal, Optional, TYPE_CHECKING
 
 from .. import _serialization
 
-if sys.version_info >= (3, 8):
-    from typing import Literal  # pylint: disable=no-name-in-module, ungrouped-imports
-else:
-    from typing_extensions import Literal  # type: ignore  # pylint: disable=ungrouped-imports
-
 if TYPE_CHECKING:
-    # pylint: disable=unused-import,ungrouped-imports
     from .. import models as _models
 
 
@@ -65,7 +58,7 @@ class AclFailedEntry(_serialization.Model):
 class BlobHierarchyListSegment(_serialization.Model):
     """BlobHierarchyListSegment.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar blob_prefixes:
     :vartype blob_prefixes: list[~azure.storage.filedatalake.models.BlobPrefix]
@@ -104,7 +97,7 @@ class BlobHierarchyListSegment(_serialization.Model):
 class BlobItemInternal(_serialization.Model):
     """An Azure Storage blob.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar name: Required.
     :vartype name: str
@@ -181,7 +174,7 @@ class BlobItemInternal(_serialization.Model):
 class BlobPrefix(_serialization.Model):
     """BlobPrefix.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar name: Required.
     :vartype name: str
@@ -204,10 +197,10 @@ class BlobPrefix(_serialization.Model):
         self.name = name
 
 
-class BlobPropertiesInternal(_serialization.Model):  # pylint: disable=too-many-instance-attributes
+class BlobPropertiesInternal(_serialization.Model):
     """Properties of a blob.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar creation_time:
     :vartype creation_time: ~datetime.datetime
@@ -573,7 +566,7 @@ class LeaseAccessConditions(_serialization.Model):
 class ListBlobsHierarchySegmentResponse(_serialization.Model):
     """An enumeration of blobs.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar service_endpoint: Required.
     :vartype service_endpoint: str
@@ -704,7 +697,7 @@ class ModifiedAccessConditions(_serialization.Model):
         self.if_none_match = if_none_match
 
 
-class Path(_serialization.Model):  # pylint: disable=too-many-instance-attributes
+class Path(_serialization.Model):
     """Path.
 
     :ivar name:

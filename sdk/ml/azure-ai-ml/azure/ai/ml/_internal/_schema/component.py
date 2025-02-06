@@ -13,10 +13,10 @@ from ..._schema.job.parameterized_spark import SparkEntryClassSchema, SparkEntry
 from ..._utils._arm_id_utils import parse_name_label
 from ..._utils.utils import get_valid_dot_keys_with_wildcard
 from ...constants._common import (
-    DefaultOpenEncoding,
     LABELLED_RESOURCE_NAME,
     SOURCE_PATH_CONTEXT_KEY,
     AzureMLResourceType,
+    DefaultOpenEncoding,
 )
 from ...constants._component import NodeType as PublicNodeType
 from .._utils import yaml_safe_load_with_base_resolver
@@ -27,6 +27,7 @@ from .input_output import (
     InternalOutputPortSchema,
     InternalParameterSchema,
     InternalPrimitiveOutputSchema,
+    InternalSparkParameterSchema,
 )
 
 
@@ -118,7 +119,6 @@ class InternalComponentSchema(ComponentSchema):
         return ["properties"]
 
     def _serialize(self, obj, *, many: bool = False):
-        # pylint: disable=no-member
         if many and obj is not None:
             return super(InternalComponentSchema, self)._serialize(obj, many=many)
         ret = super(InternalComponentSchema, self)._serialize(obj)
@@ -186,6 +186,18 @@ class InternalSparkComponentSchema(InternalComponentSchema):
         allowed_values=PublicNodeType.SPARK,
         casing_transform=lambda x: parse_name_label(x)[0].lower(),
         pass_original=True,
+    )
+
+    # override inputs:
+    # https://componentsdk.azurewebsites.net/components/spark_component.html#differences-with-other-component-types
+    inputs = fields.Dict(
+        keys=fields.Str(),
+        values=UnionField(
+            [
+                NestedField(InternalSparkParameterSchema),
+                NestedField(InternalInputPortSchema),
+            ]
+        ),
     )
 
     environment = EnvironmentField(

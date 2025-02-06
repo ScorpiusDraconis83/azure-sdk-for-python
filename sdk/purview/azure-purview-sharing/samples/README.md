@@ -3,7 +3,7 @@ page_type: sample
 languages:
 - python
 products:
-# Including relevant stubs from https://review.docs.microsoft.com/help/contribute/metadata-taxonomies#product
+# Including relevant stubs from https://review.learn.microsoft.com/help/platform/metadata-taxonomies#product
 - azure
 name: Azure.Purview.Sharing samples for python
 description: Samples for the Azure.Purview.Sharing client library.
@@ -59,5 +59,5 @@ pip install azure-purview-sharing
 
 ## Next steps
 
-Check out the [API reference documentation](https://aka.ms/azsdk-purview-sharing-ref) to learn more about
+Check out the [API reference documentation](https://aka.ms/azsdk/python/purviewcatalog/ref-docs) to learn more about
 what you can do with the Azure Purview Sharing API client library.

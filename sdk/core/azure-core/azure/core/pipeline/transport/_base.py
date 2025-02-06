@@ -76,6 +76,7 @@ DataType = Union[bytes, str, Dict[str, Union[str, int]]]
 if TYPE_CHECKING:
     # We need a transport to define a pipeline, this "if" avoid a circular import
     from azure.core.pipeline import Pipeline
+    from azure.core.rest._helpers import FileContent
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -249,7 +250,7 @@ class HttpRequest:
         self.data = value
 
     @staticmethod
-    def _format_data(data: Union[str, IO]) -> Union[Tuple[None, str], Tuple[Optional[str], IO, str]]:
+    def _format_data(data: Union[str, IO]) -> Union[Tuple[Optional[str], str], Tuple[Optional[str], FileContent, str]]:
         """Format field data according to whether it is a stream or
         a string for a form-data request.
 
@@ -505,7 +506,7 @@ class _HttpResponseBase:
         return "<{}: {} {}{}>".format(type(self).__name__, self.status_code, self.reason, content_type_str)
 
 
-class HttpResponse(_HttpResponseBase):  # pylint: disable=abstract-method
+class HttpResponse(_HttpResponseBase):
     def stream_download(self, pipeline: Pipeline[HttpRequest, "HttpResponse"], **kwargs: Any) -> Iterator[bytes]:
         """Generator for streaming request body data.
 

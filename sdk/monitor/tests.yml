@@ -1,15 +1,13 @@
 trigger: none
 
-stages:
-  - template: /eng/pipelines/templates/stages/archetype-sdk-tests.yml
+extends:
+    template: /eng/pipelines/templates/stages/archetype-sdk-tests.yml
     parameters:
       ServiceDirectory: monitor
       TestTimeoutInMinutes: 300
       BuildTargetingString: azure-monitor-*
+      PersistOidcToken: true
       EnvVars:
         AZURE_SUBSCRIPTION_ID: $(MONITOR_SUBSCRIPTION_ID)
-        AZURE_TENANT_ID: $(MONITOR_TENANT_ID)
-        AZURE_CLIENT_ID: $(MONITOR_CLIENT_ID)
-        AZURE_CLIENT_SECRET: $(MONITOR_CLIENT_SECRET)
         AZURE_TEST_RUN_LIVE: 'true'
         AZURE_SKIP_LIVE_RECORDING: 'true'

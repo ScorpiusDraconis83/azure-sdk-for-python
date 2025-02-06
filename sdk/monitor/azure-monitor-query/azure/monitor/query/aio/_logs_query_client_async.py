@@ -43,6 +43,15 @@ class LogsQueryClient(object):  # pylint: disable=client-accepts-api-version-key
             :language: python
             :dedent: 4
             :caption: Creating the asynchronous LogsQueryClient with a TokenCredential.
+
+    .. admonition:: Example:
+
+        .. literalinclude:: ../samples/async_samples/sample_authentication_async.py
+            :start-after: [START create_logs_query_client_sovereign_cloud_async]
+            :end-before: [END create_logs_query_client_sovereign_cloud_async]
+            :language: python
+            :dedent: 4
+            :caption: Creating the LogsQueryClient for use with a sovereign cloud (i.e. non-public cloud).
     """
 
     def __init__(self, credential: AsyncTokenCredential, **kwargs: Any) -> None:
@@ -119,7 +128,7 @@ class LogsQueryClient(object):  # pylint: disable=client-accepts-api-version-key
 
         generated_response: JSON = {}
         try:
-            generated_response = await self._query_op.execute(  # pylint: disable=protected-access
+            generated_response = await self._query_op.execute(
                 workspace_id=workspace_id, body=body, prefer=prefer, **kwargs
             )
         except HttpResponseError as err:
@@ -240,7 +249,7 @@ class LogsQueryClient(object):  # pylint: disable=client-accepts-api-version-key
 
         generated_response: JSON = {}
         try:
-            generated_response = await self._query_op.resource_execute(  # pylint: disable=protected-access
+            generated_response = await self._query_op.resource_execute(
                 resource_id=resource_id, body=body, prefer=prefer, **kwargs
             )
         except HttpResponseError as err:

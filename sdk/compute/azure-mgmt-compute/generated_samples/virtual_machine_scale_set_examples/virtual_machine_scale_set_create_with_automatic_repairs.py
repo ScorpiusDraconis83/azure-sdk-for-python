@@ -7,6 +7,7 @@
 # --------------------------------------------------------------------------
 
 from azure.identity import DefaultAzureCredential
+
 from azure.mgmt.compute import ComputeManagementClient
 
 """
@@ -37,6 +38,11 @@ def main():
             "properties": {
                 "automaticRepairsPolicy": {"enabled": True, "gracePeriod": "PT10M"},
                 "overprovision": True,
+                "scheduledEventsPolicy": {
+                    "scheduledEventsAdditionalPublishingTargets": {"eventGridAndResourceGraph": {"enable": True}},
+                    "userInitiatedReboot": {"automaticallyApprove": True},
+                    "userInitiatedRedeploy": {"automaticallyApprove": True},
+                },
                 "upgradePolicy": {"mode": "Manual"},
                 "virtualMachineProfile": {
                     "networkProfile": {
@@ -86,6 +92,6 @@ def main():
     print(response)
 
 
-# x-ms-original-file: specification/compute/resource-manager/Microsoft.Compute/ComputeRP/stable/2023-09-01/examples/virtualMachineScaleSetExamples/VirtualMachineScaleSet_Create_WithAutomaticRepairs.json
+# x-ms-original-file: specification/compute/resource-manager/Microsoft.Compute/ComputeRP/stable/2024-07-01/examples/virtualMachineScaleSetExamples/VirtualMachineScaleSet_Create_WithAutomaticRepairs.json
 if __name__ == "__main__":
     main()

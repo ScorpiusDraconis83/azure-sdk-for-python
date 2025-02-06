@@ -3,14 +3,28 @@
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
 # --------------------------------------------------------------------------
-from typing import TYPE_CHECKING
-
+from typing import Any, Dict, Union, List, Optional, MutableMapping, Callable, cast
+from typing_extensions import Self
 from .._generated import _serialization
 from ._edm import Collection, ComplexType, String
 from .._generated.models import (
     SearchField as _SearchField,
     SearchIndex as _SearchIndex,
     PatternTokenizer as _PatternTokenizer,
+    LexicalAnalyzerName,
+    VectorEncodingFormat,
+    SearchFieldDataType,
+    ScoringProfile,
+    CorsOptions,
+    SearchSuggester,
+    LexicalAnalyzer,
+    LexicalTokenizer,
+    TokenFilter,
+    CharFilter,
+    LexicalNormalizer,
+    SimilarityAlgorithm,
+    SemanticSearch,
+    VectorSearch,
 )
 from ._models import (
     pack_analyzer,
@@ -19,8 +33,6 @@ from ._models import (
     SearchResourceEncryptionKey,
 )
 
-if TYPE_CHECKING:
-    from typing import Any, Dict
 
 __all__ = ("ComplexField", "SearchableField", "SimpleField")
 
@@ -36,13 +48,22 @@ class SearchField(_serialization.Model):
     :vartype name: str
     :ivar type: The data type of the field. Required. Known values are: "Edm.String", "Edm.Int32",
         "Edm.Int64", "Edm.Double", "Edm.Boolean", "Edm.DateTimeOffset", "Edm.GeographyPoint",
-        "Edm.ComplexType", and "Edm.Single".
+        "Edm.ComplexType", "Edm.Single", "Edm.Half", "Edm.Int16", "Edm.SByte", and "Edm.Byte".
     :vartype type: str or ~azure.search.documents.indexes.models.SearchFieldDataType
     :ivar key: A value indicating whether the field uniquely identifies documents in the index.
         Exactly one top-level field in each index must be chosen as the key field and it must be of
         type Edm.String. Key fields can be used to look up documents directly and update or delete
         specific documents. Default is false for simple fields and null for complex fields.
     :vartype key: bool
+    :ivar stored: An immutable value indicating whether the field will be persisted separately on
+       disk to be returned in a search result. You can disable this option if you don't plan to return
+       the field contents in a search response to save on storage overhead. This can only be set
+       during index creation and only for vector fields. This property cannot be changed for existing
+       fields or set as false for new fields. If this property is set as false, the property
+       'hidden' must be set to true. This property must be true or unset for key fields,
+       for new fields, and for non-vector fields, and it must be null for complex fields. Disabling
+       this property will reduce index storage requirements. The default is true for vector fields.
+    :vartype stored: bool
     :ivar searchable: A value indicating whether the field is full-text searchable. This means it
         will undergo analysis such as word-breaking during indexing. If you set a searchable field to a
         value like "sunny day", internally it will be split into the individual tokens "sunny" and
@@ -145,11 +166,11 @@ class SearchField(_serialization.Model):
         "standard.lucene", "standardasciifolding.lucene", "keyword", "pattern", "simple", "stop", and
         "whitespace".
     :vartype index_analyzer_name: str or ~azure.search.documents.indexes.models.LexicalAnalyzerName
-    :ivar normalizer: The name of the normalizer to use for the field. This option can be used only
+    :ivar normalizer_name: The name of the normalizer to use for the field. This option can be used only
         with fields with filterable, sortable, or facetable enabled. Once the normalizer is chosen, it
         cannot be changed for the field. Must be null for complex fields. Known values are:
         "asciifolding", "elision", "lowercase", "standard", and "uppercase".
-    :vartype normalizer: str or ~azure.search.documents.indexes.models.LexicalNormalizerName
+    :vartype normalizer_name: str or ~azure.search.documents.indexes.models.LexicalNormalizerName
     :ivar vector_search_dimensions: The dimensionality of the vector field.
     :vartype vector_search_dimensions: int
     :ivar vector_search_profile_name: The name of the vector search profile that specifies the algorithm
@@ -164,53 +185,52 @@ class SearchField(_serialization.Model):
     :ivar fields: A list of sub-fields if this is a field of type Edm.ComplexType or
         Collection(Edm.ComplexType). Must be null or empty for simple fields.
     :vartype fields: list[~azure.search.documents.indexes.models.SearchField]
+    :ivar vector_encoding_format: The encoding format to interpret the field contents. "packedBit"
+    :vartype vector_encoding_format: str or ~azure.search.documents.indexes.models.VectorEncodingFormat
     """
 
-    _validation = {
-        "name": {"required": True},
-        "type": {"required": True},
-    }
-
-    _attribute_map = {
-        "name": {"key": "name", "type": "str"},
-        "type": {"key": "type", "type": "str"},
-        "key": {"key": "key", "type": "bool"},
-        "hidden": {"key": "hidden", "type": "bool"},
-        "searchable": {"key": "searchable", "type": "bool"},
-        "filterable": {"key": "filterable", "type": "bool"},
-        "sortable": {"key": "sortable", "type": "bool"},
-        "facetable": {"key": "facetable", "type": "bool"},
-        "analyzer_name": {"key": "analyzerName", "type": "str"},
-        "search_analyzer_name": {"key": "searchAnalyzerName", "type": "str"},
-        "index_analyzer_name": {"key": "indexAnalyzerName", "type": "str"},
-        "normalizer_name": {"key": "normalizerName", "type": "str"},
-        "synonym_map_names": {"key": "synonymMapNames", "type": "[str]"},
-        "fields": {"key": "fields", "type": "[SearchField]"},
-        "vector_search_dimensions": {"key": "vectorSearchDimensions", "type": "int"},
-        "vector_search_profile_name": {
-            "key": "vectorSearchProfile",
-            "type": "str",
-        },
-    }
-
-    def __init__(self, **kwargs):
-        super(SearchField, self).__init__(**kwargs)
-        self.name = kwargs["name"]
-        self.type = kwargs["type"]
-        self.key = kwargs.get("key", None)
-        self.hidden = kwargs.get("hidden", None)
-        self.searchable = kwargs.get("searchable", None)
-        self.filterable = kwargs.get("filterable", None)
-        self.sortable = kwargs.get("sortable", None)
-        self.facetable = kwargs.get("facetable", None)
-        self.analyzer_name = kwargs.get("analyzer_name", None)
-        self.search_analyzer_name = kwargs.get("search_analyzer_name", None)
-        self.index_analyzer_name = kwargs.get("index_analyzer_name", None)
-        self.normalizer_name = kwargs.get("normalizer_name", None)
-        self.synonym_map_names = kwargs.get("synonym_map_names", None)
-        self.fields = kwargs.get("fields", None)
-        self.vector_search_dimensions = kwargs.get("vector_search_dimensions", None)
-        self.vector_search_profile_name = kwargs.get("vector_search_profile_name", None)
+    def __init__(
+        self,
+        *,
+        name: str,
+        type: Union[str, SearchFieldDataType],
+        key: Optional[bool] = None,
+        hidden: Optional[bool] = None,
+        stored: Optional[bool] = None,
+        searchable: Optional[bool] = None,
+        filterable: Optional[bool] = None,
+        sortable: Optional[bool] = None,
+        facetable: Optional[bool] = None,
+        analyzer_name: Optional[Union[str, LexicalAnalyzerName]] = None,
+        search_analyzer_name: Optional[Union[str, LexicalAnalyzerName]] = None,
+        index_analyzer_name: Optional[Union[str, LexicalAnalyzerName]] = None,
+        synonym_map_names: Optional[List[str]] = None,
+        fields: Optional[List["SearchField"]] = None,
+        normalizer_name: Optional[Union[str, LexicalAnalyzerName]] = None,
+        vector_search_dimensions: Optional[int] = None,
+        vector_search_profile_name: Optional[str] = None,
+        vector_encoding_format: Optional[Union[str, VectorEncodingFormat]] = None,
+        **kwargs
+    ):
+        super().__init__(**kwargs)
+        self.name = name
+        self.type = type
+        self.key = key
+        self.hidden = hidden
+        self.stored = stored
+        self.searchable = searchable
+        self.filterable = filterable
+        self.sortable = sortable
+        self.facetable = facetable
+        self.analyzer_name = analyzer_name
+        self.search_analyzer_name = search_analyzer_name
+        self.index_analyzer_name = index_analyzer_name
+        self.synonym_map_names = synonym_map_names
+        self.fields = fields
+        self.normalizer_name = normalizer_name
+        self.vector_search_dimensions = vector_search_dimensions
+        self.vector_search_profile_name = vector_search_profile_name
+        self.vector_encoding_format = vector_encoding_format
 
     def _to_generated(self) -> _SearchField:
         fields = [pack_search_field(x) for x in self.fields] if self.fields else None
@@ -220,6 +240,7 @@ class SearchField(_serialization.Model):
             type=self.type,
             key=self.key,
             retrievable=retrievable,
+            stored=self.stored,
             searchable=self.searchable,
             filterable=self.filterable,
             sortable=self.sortable,
@@ -232,14 +253,19 @@ class SearchField(_serialization.Model):
             fields=fields,
             vector_search_dimensions=self.vector_search_dimensions,
             vector_search_profile_name=self.vector_search_profile_name,
+            vector_encoding_format=self.vector_encoding_format,
         )
 
     @classmethod
-    def _from_generated(cls, search_field):
+    def _from_generated(cls, search_field) -> Optional[Self]:
         if not search_field:
             return None
         # pylint:disable=protected-access
-        fields = [SearchField._from_generated(x) for x in search_field.fields] if search_field.fields else None
+        fields = (
+            [cast(SearchField, SearchField._from_generated(x)) for x in search_field.fields]
+            if search_field.fields
+            else None
+        )
         hidden = not search_field.retrievable if search_field.retrievable is not None else None
         try:
             normalizer = search_field.normalizer
@@ -250,6 +276,7 @@ class SearchField(_serialization.Model):
             type=search_field.type,
             key=search_field.key,
             hidden=hidden,
+            stored=search_field.stored,
             searchable=search_field.searchable,
             filterable=search_field.filterable,
             sortable=search_field.sortable,
@@ -262,11 +289,82 @@ class SearchField(_serialization.Model):
             fields=fields,
             vector_search_dimensions=search_field.vector_search_dimensions,
             vector_search_profile_name=search_field.vector_search_profile_name,
+            vector_encoding_format=search_field.vector_encoding_format,
+        )
+
+    def serialize(self, keep_readonly: bool = False, **kwargs: Any) -> MutableMapping[str, Any]:
+        """Return the JSON that would be sent to server from this model.
+
+        :param bool keep_readonly: If you want to serialize the readonly attributes
+        :returns: A dict JSON compatible object
+        :rtype: dict
+        """
+        return self._to_generated().serialize(keep_readonly=keep_readonly, **kwargs)
+
+    @classmethod
+    def deserialize(cls, data: Any, content_type: Optional[str] = None) -> Optional[Self]:  # type: ignore
+        """Parse a str using the RestAPI syntax and return a SearchField instance.
+
+        :param str data: A str using RestAPI structure. JSON by default.
+        :param str content_type: JSON by default, set application/xml if XML.
+        :returns: A SearchField instance
+        :raises DeserializationError: if something went wrong
+        """
+        return cls._from_generated(_SearchField.deserialize(data, content_type=content_type))
+
+    def as_dict(
+        self,
+        keep_readonly: bool = True,
+        key_transformer: Callable[[str, Dict[str, Any], Any], Any] = _serialization.attribute_transformer,
+        **kwargs: Any
+    ) -> MutableMapping[str, Any]:
+        """Return a dict that can be serialized using json.dump.
+
+        :param bool keep_readonly: If you want to serialize the readonly attributes
+        :param Callable key_transformer: A callable that will transform the key of the dict
+        :returns: A dict JSON compatible object
+        :rtype: dict
+        """
+        return self._to_generated().as_dict(  # type: ignore
+            keep_readonly=keep_readonly, key_transformer=key_transformer, **kwargs
+        )
+
+    @classmethod
+    def from_dict(  # type: ignore
+        cls,
+        data: Any,
+        key_extractors: Optional[Callable[[str, Dict[str, Any], Any], Any]] = None,
+        content_type: Optional[str] = None,
+    ) -> Optional[Self]:
+        """Parse a dict using given key extractor return a model.
+
+        By default consider key
+        extractors (rest_key_case_insensitive_extractor, attribute_key_case_insensitive_extractor
+        and last_rest_key_case_insensitive_extractor)
+
+        :param dict data: A dict using RestAPI structure
+        :param Callable key_extractors: A callable that will extract a key from a dict
+        :param str content_type: JSON by default, set application/xml if XML.
+        :returns: A SearchField instance
+        :rtype: SearchField
+        :raises DeserializationError: if something went wrong
+        """
+        return cls._from_generated(
+            _SearchField.from_dict(data, content_type=content_type, key_extractors=key_extractors)
         )
 
 
-def SimpleField(**kw):
-    # type: (**Any) -> SearchField
+def SimpleField(
+    *,
+    name: str,
+    type: str,
+    key: bool = False,
+    hidden: bool = False,
+    filterable: bool = False,
+    sortable: bool = False,
+    facetable: bool = False,
+    **kw  # pylint:disable=unused-argument
+) -> SearchField:
     """Configure a simple field for an Azure Search Index
 
     :keyword name: Required. The name of the field, which must be unique within the fields collection
@@ -311,19 +409,38 @@ def SimpleField(**kw):
         on). Fields of type SearchFieldDataType.GeographyPoint or
         Collection(SearchFieldDataType.GeographyPoint) cannot be facetable. Default is False.
     :paramtype facetable: bool
+    :return: The search field object.
+    :rtype:  SearchField
     """
-    result = {"name": kw.get("name"), "type": kw.get("type")}  # type: Dict[str, Any]
-    result["key"] = kw.get("key", False)
-    result["searchable"] = False
-    result["filterable"] = kw.get("filterable", False)
-    result["facetable"] = kw.get("facetable", False)
-    result["sortable"] = kw.get("sortable", False)
-    result["hidden"] = kw.get("hidden", False)
+    result: Dict[str, Any] = {
+        "name": name,
+        "type": type,
+        "key": key,
+        "searchable": False,
+        "filterable": filterable,
+        "facetable": facetable,
+        "sortable": sortable,
+        "hidden": hidden,
+    }
     return SearchField(**result)
 
 
-def SearchableField(**kw):
-    # type: (**Any) -> SearchField
+def SearchableField(
+    *,
+    name: str,
+    collection: bool = False,
+    key: bool = False,
+    hidden: bool = False,
+    searchable: bool = True,
+    filterable: bool = False,
+    sortable: bool = False,
+    facetable: bool = False,
+    analyzer_name: Optional[Union[str, LexicalAnalyzerName]] = None,
+    search_analyzer_name: Optional[Union[str, LexicalAnalyzerName]] = None,
+    index_analyzer_name: Optional[Union[str, LexicalAnalyzerName]] = None,
+    synonym_map_names: Optional[List[str]] = None,
+    **kw  # pylint:disable=unused-argument
+) -> SearchField:
     """Configure a searchable text field for an Azure Search Index
 
     :keyword name: Required. The name of the field, which must be unique within the fields collection
@@ -438,45 +555,52 @@ def SearchableField(**kw):
         query terms targeting that field are expanded at query-time using the rules in the synonym map.
         This attribute can be changed on existing fields.
     :paramtype synonym_map_names: list[str]
-
+    :return: The search field object.
+    :rtype:  SearchField
     """
-    typ = Collection(String) if kw.get("collection", False) else String
-    result = {"name": kw.get("name"), "type": typ}  # type: Dict[str, Any]
-    result["key"] = kw.get("key", False)
-    result["searchable"] = kw.get("searchable", True)
-    result["filterable"] = kw.get("filterable", False)
-    result["facetable"] = kw.get("facetable", False)
-    result["sortable"] = kw.get("sortable", False)
-    result["hidden"] = kw.get("hidden", False)
-    if "analyzer_name" in kw:
-        result["analyzer_name"] = kw["analyzer_name"]
-    if "search_analyzer_name" in kw:
-        result["search_analyzer_name"] = kw["search_analyzer_name"]
-    if "index_analyzer_name" in kw:
-        result["index_analyzer_name"] = kw["index_analyzer_name"]
-    if "synonym_map_names" in kw:
-        result["synonym_map_names"] = kw["synonym_map_names"]
+    typ = Collection(String) if collection else String
+    result: Dict[str, Any] = {
+        "name": name,
+        "type": typ,
+        "key": key,
+        "searchable": searchable,
+        "filterable": filterable,
+        "facetable": facetable,
+        "sortable": sortable,
+        "hidden": hidden,
+    }
+    if analyzer_name:
+        result["analyzer_name"] = analyzer_name
+    if search_analyzer_name:
+        result["search_analyzer_name"] = search_analyzer_name
+    if index_analyzer_name:
+        result["index_analyzer_name"] = index_analyzer_name
+    if synonym_map_names:
+        result["synonym_map_names"] = synonym_map_names
     return SearchField(**result)
 
 
-def ComplexField(**kw):
-    # type: (**Any) -> SearchField
-    """Configure a Complex or Complex collection field for an Azure Search
-    Index
+def ComplexField(
+    *,
+    name: str,
+    collection: bool = False,
+    fields: Optional[List[SearchField]] = None,
+    **kw  # pylint:disable=unused-argument
+) -> SearchField:
+    """Configure a Complex or Complex collection field for an Azure Search Index
 
     :keyword name: Required. The name of the field, which must be unique within the fields collection
         of the index or parent field.
     :paramtype name: str
     :keyword collection: Whether this complex field is a collection (default False)
     :paramtype collection: bool
-    :paramtype type: str or ~azure.search.documents.indexes.models.DataType
     :keyword fields: A list of sub-fields
-    :paramtype fields: list[~azure.search.documents.indexes.models.Field]
-
+    :paramtype fields: list[~azure.search.documents.indexes.models.SearchField]
+    :return: The search field object.
+    :rtype:  SearchField
     """
-    typ = Collection(ComplexType) if kw.get("collection", False) else ComplexType
-    result = {"name": kw.get("name"), "type": typ}  # type: Dict[str, Any]
-    result["fields"] = kw.get("fields")
+    typ = Collection(ComplexType) if collection else ComplexType
+    result: Dict[str, Any] = {"name": name, "type": typ, "fields": fields}
     return SearchField(**result)
 
 
@@ -532,51 +656,44 @@ class SearchIndex(_serialization.Model):
     :vartype e_tag: str
     """
 
-    _validation = {
-        "name": {"required": True},
-        "fields": {"required": True},
-    }
-
-    _attribute_map = {
-        "name": {"key": "name", "type": "str"},
-        "fields": {"key": "fields", "type": "[SearchField]"},
-        "scoring_profiles": {"key": "scoringProfiles", "type": "[ScoringProfile]"},
-        "default_scoring_profile": {"key": "defaultScoringProfile", "type": "str"},
-        "cors_options": {"key": "corsOptions", "type": "CorsOptions"},
-        "suggesters": {"key": "suggesters", "type": "[SearchSuggester]"},
-        "analyzers": {"key": "analyzers", "type": "[LexicalAnalyzer]"},
-        "tokenizers": {"key": "tokenizers", "type": "[LexicalTokenizer]"},
-        "token_filters": {"key": "tokenFilters", "type": "[TokenFilter]"},
-        "char_filters": {"key": "charFilters", "type": "[CharFilter]"},
-        "normalizers": {"key": "normalizers", "type": "[LexicalNormalizer]"},
-        "encryption_key": {
-            "key": "encryptionKey",
-            "type": "SearchResourceEncryptionKey",
-        },
-        "similarity": {"key": "similarity", "type": "SimilarityAlgorithm"},
-        "semantic_search": {"key": "semantic", "type": "SemanticSearch"},
-        "vector_search": {"key": "vectorSearch", "type": "VectorSearch"},
-        "e_tag": {"key": "@odata\\.etag", "type": "str"},
-    }
-
-    def __init__(self, **kwargs):
-        super(SearchIndex, self).__init__(**kwargs)
-        self.name = kwargs["name"]
-        self.fields = kwargs["fields"]
-        self.scoring_profiles = kwargs.get("scoring_profiles", None)
-        self.default_scoring_profile = kwargs.get("default_scoring_profile", None)
-        self.cors_options = kwargs.get("cors_options", None)
-        self.suggesters = kwargs.get("suggesters", None)
-        self.analyzers = kwargs.get("analyzers", None)
-        self.tokenizers = kwargs.get("tokenizers", None)
-        self.token_filters = kwargs.get("token_filters", None)
-        self.char_filters = kwargs.get("char_filters", None)
-        self.normalizers = kwargs.get("normalizers", None)
-        self.encryption_key = kwargs.get("encryption_key", None)
-        self.similarity = kwargs.get("similarity", None)
-        self.semantic_search = kwargs.get("semantic_search", None)
-        self.vector_search = kwargs.get("vector_search", None)
-        self.e_tag = kwargs.get("e_tag", None)
+    def __init__(
+        self,
+        *,
+        name: str,
+        fields: List[SearchField],
+        scoring_profiles: Optional[List[ScoringProfile]] = None,
+        default_scoring_profile: Optional[str] = None,
+        cors_options: Optional[CorsOptions] = None,
+        suggesters: Optional[List[SearchSuggester]] = None,
+        analyzers: Optional[List[LexicalAnalyzer]] = None,
+        tokenizers: Optional[List[LexicalTokenizer]] = None,
+        token_filters: Optional[List[TokenFilter]] = None,
+        char_filters: Optional[List[CharFilter]] = None,
+        normalizers: Optional[List[LexicalNormalizer]] = None,
+        encryption_key: Optional[SearchResourceEncryptionKey] = None,
+        similarity: Optional[SimilarityAlgorithm] = None,
+        semantic_search: Optional[SemanticSearch] = None,
+        vector_search: Optional[VectorSearch] = None,
+        e_tag: Optional[str] = None,
+        **kwargs
+    ):
+        super().__init__(**kwargs)
+        self.name = name
+        self.fields = fields
+        self.scoring_profiles = scoring_profiles
+        self.default_scoring_profile = default_scoring_profile
+        self.cors_options = cors_options
+        self.suggesters = suggesters
+        self.analyzers = analyzers
+        self.tokenizers = tokenizers
+        self.token_filters = token_filters
+        self.char_filters = char_filters
+        self.normalizers = normalizers
+        self.encryption_key = encryption_key
+        self.similarity = similarity
+        self.semantic_search = semantic_search
+        self.vector_search = vector_search
+        self.e_tag = e_tag
 
     def _to_generated(self) -> _SearchIndex:
         if self.analyzers:
@@ -615,24 +732,29 @@ class SearchIndex(_serialization.Model):
         )
 
     @classmethod
-    def _from_generated(cls, search_index) -> "SearchIndex":
+    def _from_generated(cls, search_index) -> Optional[Self]:
+        if not search_index:
+            return None
         if search_index.analyzers:
             analyzers = [unpack_analyzer(x) for x in search_index.analyzers]  # type: ignore
         else:
             analyzers = None
         if search_index.tokenizers:
             tokenizers = [
-                PatternTokenizer._from_generated(x)  # pylint:disable=protected-access
-                if isinstance(x, _PatternTokenizer)
-                else x
+                (
+                    PatternTokenizer._from_generated(x)  # pylint:disable=protected-access
+                    if isinstance(x, _PatternTokenizer)
+                    else x
+                )
                 for x in search_index.tokenizers
             ]
         else:
             tokenizers = None
         if search_index.fields:
-            fields = [SearchField._from_generated(x) for x in search_index.fields]  # pylint:disable=protected-access
+            # pylint:disable=protected-access
+            fields = [cast(SearchField, SearchField._from_generated(x)) for x in search_index.fields]
         else:
-            fields = None
+            fields = []
         try:
             normalizers = search_index.normalizers
         except AttributeError:
@@ -655,6 +777,68 @@ class SearchIndex(_serialization.Model):
             semantic_search=search_index.semantic_search,
             e_tag=search_index.e_tag,
             vector_search=search_index.vector_search,
+        )
+
+    def serialize(self, keep_readonly: bool = False, **kwargs: Any) -> MutableMapping[str, Any]:
+        """Return the JSON that would be sent to server from this model.
+
+        :param bool keep_readonly: If you want to serialize the readonly attributes
+        :returns: A dict JSON compatible object
+        :rtype: dict
+        """
+        return self._to_generated().serialize(keep_readonly=keep_readonly, **kwargs)
+
+    @classmethod
+    def deserialize(cls, data: Any, content_type: Optional[str] = None) -> Optional[Self]:  # type: ignore
+        """Parse a str using the RestAPI syntax and return a SearchIndex instance.
+
+        :param str data: A str using RestAPI structure. JSON by default.
+        :param str content_type: JSON by default, set application/xml if XML.
+        :returns: A SearchIndex instance
+        :rtype: SearchIndex
+        :raises DeserializationError: if something went wrong
+        """
+        return cls._from_generated(_SearchIndex.deserialize(data, content_type=content_type))
+
+    def as_dict(
+        self,
+        keep_readonly: bool = True,
+        key_transformer: Callable[[str, Dict[str, Any], Any], Any] = _serialization.attribute_transformer,
+        **kwargs: Any
+    ) -> MutableMapping[str, Any]:
+        """Return a dict that can be serialized using json.dump.
+
+        :param bool keep_readonly: If you want to serialize the readonly attributes
+        :param Callable key_transformer: A callable that will transform the key of the dict
+        :returns: A dict JSON compatible object
+        :rtype: dict
+        """
+        return self._to_generated().as_dict(  # type: ignore
+            keep_readonly=keep_readonly, key_transformer=key_transformer, **kwargs
+        )
+
+    @classmethod
+    def from_dict(  # type: ignore
+        cls,
+        data: Any,
+        key_extractors: Optional[Callable[[str, Dict[str, Any], Any], Any]] = None,
+        content_type: Optional[str] = None,
+    ) -> Optional[Self]:
+        """Parse a dict using given key extractor return a model.
+
+        By default consider key
+        extractors (rest_key_case_insensitive_extractor, attribute_key_case_insensitive_extractor
+        and last_rest_key_case_insensitive_extractor)
+
+        :param dict data: A dict using RestAPI structure
+        :param Callable key_extractors: A callable that will extract a key from a dict
+        :param str content_type: JSON by default, set application/xml if XML.
+        :returns: A SearchIndex instance
+        :rtype: SearchIndex
+        :raises DeserializationError: if something went wrong
+        """
+        return cls._from_generated(
+            _SearchIndex.from_dict(data, content_type=content_type, key_extractors=key_extractors)
         )
 
 

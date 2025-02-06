@@ -7,6 +7,7 @@
 # --------------------------------------------------------------------------
 
 from azure.identity import DefaultAzureCredential
+
 from azure.mgmt.network import NetworkManagementClient
 
 """
@@ -37,6 +38,7 @@ def main():
             "properties": {
                 "authorizationKey": "b0be57f5-1fba-463b-adec-ffe767354cdd",
                 "bandwidthInGbps": 10,
+                "enableDirectPortRateLimit": False,
                 "expressRoutePort": {
                     "id": "/subscriptions/subid/resourceGroups/rg1/providers/Microsoft.Network/expressRoutePorts/portName"
                 },
@@ -47,6 +49,6 @@ def main():
     print(response)
 
 
-# x-ms-original-file: specification/network/resource-manager/Microsoft.Network/stable/2023-06-01/examples/ExpressRouteCircuitCreateOnExpressRoutePort.json
+# x-ms-original-file: specification/network/resource-manager/Microsoft.Network/stable/2024-05-01/examples/ExpressRouteCircuitCreateOnExpressRoutePort.json
 if __name__ == "__main__":
     main()

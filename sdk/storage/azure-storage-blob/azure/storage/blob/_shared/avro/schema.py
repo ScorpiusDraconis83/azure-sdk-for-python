@@ -194,7 +194,7 @@ class Schema(metaclass=abc.ABCMeta):
     # re-defining schemas that are already listed in the parameter names.
     @abc.abstractmethod
     def to_json(self, names):
-        raise Exception('Cannot run abstract method.')
+        ...
 
 
 # ------------------------------------------------------------------------------
@@ -433,7 +433,7 @@ class NamedSchema(Schema):
     # of not re-defining schemas that are already listed in the parameter names.
     @abc.abstractmethod
     def to_json(self, names):
-        raise Exception('Cannot run abstract method.')
+        ...
 
 # ------------------------------------------------------------------------------
 
@@ -957,6 +957,7 @@ class RecordSchema(NamedSchema):
             raise SchemaParseException(
                 f'Invalid record type: {record_type!r}.')
 
+        nested_names = []
         if record_type in [RECORD, ERROR]:
             avro_name = names.get_name(name=name, namespace=namespace)
             nested_names = names.new_with_default_namespace(namespace=avro_name.namespace)
@@ -1086,7 +1087,7 @@ def _schema_from_json_object(json_object, names):
                 other_props=other_props,
             )
         else:
-            raise Exception(f'Internal error: unknown type {data_type!r}.')
+            raise ValueError(f'Internal error: unknown type {data_type!r}.')
 
     elif data_type in VALID_TYPES:
         # Unnamed, non-primitive Avro type:
@@ -1118,7 +1119,7 @@ def _schema_from_json_object(json_object, names):
             result = ErrorUnionSchema(schemas=error_schemas)
 
         else:
-            raise Exception(f'Internal error: unknown type {data_type!r}.')
+            raise ValueError(f'Internal error: unknown type {data_type!r}.')
     else:
         raise SchemaParseException(f'Invalid JSON descriptor for an Avro schema: {json_object!r}')
     return result

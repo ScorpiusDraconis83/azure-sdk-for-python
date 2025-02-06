@@ -17,6 +17,7 @@ from ._models_py3 import BackupShortTermRetentionPolicyListResult
 from ._models_py3 import Baseline
 from ._models_py3 import BaselineAdjustedResult
 from ._models_py3 import BenchmarkReference
+from ._models_py3 import CertificateInfo
 from ._models_py3 import ChangeLongTermRetentionBackupAccessTierParameters
 from ._models_py3 import CheckNameAvailabilityRequest
 from ._models_py3 import CheckNameAvailabilityResponse
@@ -66,6 +67,9 @@ from ._models_py3 import DatabaseVulnerabilityAssessmentScansExport
 from ._models_py3 import DeletedServer
 from ._models_py3 import DeletedServerListResult
 from ._models_py3 import DistributedAvailabilityGroup
+from ._models_py3 import DistributedAvailabilityGroupDatabase
+from ._models_py3 import DistributedAvailabilityGroupSetRole
+from ._models_py3 import DistributedAvailabilityGroupsFailoverRequest
 from ._models_py3 import DistributedAvailabilityGroupsListResult
 from ._models_py3 import EditionCapability
 from ._models_py3 import ElasticPool
@@ -258,6 +262,7 @@ from ._models_py3 import OutboundFirewallRuleListResult
 from ._models_py3 import PartnerInfo
 from ._models_py3 import PartnerRegionInfo
 from ._models_py3 import PerformanceLevelCapability
+from ._models_py3 import PhaseDetails
 from ._models_py3 import PrivateEndpointConnection
 from ._models_py3 import PrivateEndpointConnectionListResult
 from ._models_py3 import PrivateEndpointConnectionProperties
@@ -293,6 +298,7 @@ from ._models_py3 import RefreshExternalGovernanceStatusOperationResultMI
 from ._models_py3 import Remediation
 from ._models_py3 import ReplicationLink
 from ._models_py3 import ReplicationLinkListResult
+from ._models_py3 import ReplicationLinkUpdate
 from ._models_py3 import Resource
 from ._models_py3 import ResourceIdentity
 from ._models_py3 import ResourceMoveDefinition
@@ -469,7 +475,10 @@ from ._sql_management_client_enums import ElasticPoolLicenseType
 from ._sql_management_client_enums import ElasticPoolState
 from ._sql_management_client_enums import EncryptionProtectorName
 from ._sql_management_client_enums import ExternalGovernanceStatus
+from ._sql_management_client_enums import FailoverGroupDatabasesSecondaryType
 from ._sql_management_client_enums import FailoverGroupReplicationRole
+from ._sql_management_client_enums import FailoverModeType
+from ._sql_management_client_enums import FailoverType
 from ._sql_management_client_enums import FreeLimitExhaustionBehavior
 from ._sql_management_client_enums import FreemiumType
 from ._sql_management_client_enums import GeoBackupPolicyName
@@ -480,6 +489,7 @@ from ._sql_management_client_enums import IdentityType
 from ._sql_management_client_enums import ImplementationMethod
 from ._sql_management_client_enums import InstanceFailoverGroupReplicationRole
 from ._sql_management_client_enums import InstancePoolLicenseType
+from ._sql_management_client_enums import InstanceRole
 from ._sql_management_client_enums import IsRetryable
 from ._sql_management_client_enums import JobAgentState
 from ._sql_management_client_enums import JobExecutionLifecycle
@@ -491,6 +501,7 @@ from ._sql_management_client_enums import JobTargetGroupMembershipType
 from ._sql_management_client_enums import JobTargetType
 from ._sql_management_client_enums import LedgerDigestUploadsName
 from ._sql_management_client_enums import LedgerDigestUploadsState
+from ._sql_management_client_enums import LinkRole
 from ._sql_management_client_enums import LogSizeUnit
 from ._sql_management_client_enums import LongTermRetentionPolicyName
 from ._sql_management_client_enums import ManagedDatabaseCreateMode
@@ -513,6 +524,7 @@ from ._sql_management_client_enums import OperationMode
 from ._sql_management_client_enums import OperationOrigin
 from ._sql_management_client_enums import PauseDelayTimeUnit
 from ._sql_management_client_enums import PerformanceLevelUnit
+from ._sql_management_client_enums import Phase
 from ._sql_management_client_enums import PrimaryAggregationType
 from ._sql_management_client_enums import PrincipalType
 from ._sql_management_client_enums import PrivateEndpointProvisioningState
@@ -526,13 +538,16 @@ from ._sql_management_client_enums import ReadWriteEndpointFailoverPolicy
 from ._sql_management_client_enums import RecommendedActionCurrentState
 from ._sql_management_client_enums import RecommendedActionInitiatedBy
 from ._sql_management_client_enums import RecommendedSensitivityLabelUpdateKind
+from ._sql_management_client_enums import ReplicaConnectedState
+from ._sql_management_client_enums import ReplicaSynchronizationHealth
 from ._sql_management_client_enums import ReplicaType
 from ._sql_management_client_enums import ReplicationLinkType
-from ._sql_management_client_enums import ReplicationMode
+from ._sql_management_client_enums import ReplicationModeType
 from ._sql_management_client_enums import ReplicationRole
 from ._sql_management_client_enums import ReplicationState
 from ._sql_management_client_enums import RestoreDetailsName
 from ._sql_management_client_enums import RestorePointType
+from ._sql_management_client_enums import RoleChangeType
 from ._sql_management_client_enums import RuleSeverity
 from ._sql_management_client_enums import RuleStatus
 from ._sql_management_client_enums import RuleType
@@ -543,6 +558,7 @@ from ._sql_management_client_enums import SecurityAlertPolicyName
 from ._sql_management_client_enums import SecurityAlertPolicyState
 from ._sql_management_client_enums import SecurityAlertsPolicyState
 from ._sql_management_client_enums import SecurityEventType
+from ._sql_management_client_enums import SeedingModeType
 from ._sql_management_client_enums import SensitivityLabelRank
 from ._sql_management_client_enums import SensitivityLabelSource
 from ._sql_management_client_enums import SensitivityLabelUpdateKind
@@ -597,6 +613,7 @@ __all__ = [
     "Baseline",
     "BaselineAdjustedResult",
     "BenchmarkReference",
+    "CertificateInfo",
     "ChangeLongTermRetentionBackupAccessTierParameters",
     "CheckNameAvailabilityRequest",
     "CheckNameAvailabilityResponse",
@@ -646,6 +663,9 @@ __all__ = [
     "DeletedServer",
     "DeletedServerListResult",
     "DistributedAvailabilityGroup",
+    "DistributedAvailabilityGroupDatabase",
+    "DistributedAvailabilityGroupSetRole",
+    "DistributedAvailabilityGroupsFailoverRequest",
     "DistributedAvailabilityGroupsListResult",
     "EditionCapability",
     "ElasticPool",
@@ -838,6 +858,7 @@ __all__ = [
     "PartnerInfo",
     "PartnerRegionInfo",
     "PerformanceLevelCapability",
+    "PhaseDetails",
     "PrivateEndpointConnection",
     "PrivateEndpointConnectionListResult",
     "PrivateEndpointConnectionProperties",
@@ -873,6 +894,7 @@ __all__ = [
     "Remediation",
     "ReplicationLink",
     "ReplicationLinkListResult",
+    "ReplicationLinkUpdate",
     "Resource",
     "ResourceIdentity",
     "ResourceMoveDefinition",
@@ -1048,7 +1070,10 @@ __all__ = [
     "ElasticPoolState",
     "EncryptionProtectorName",
     "ExternalGovernanceStatus",
+    "FailoverGroupDatabasesSecondaryType",
     "FailoverGroupReplicationRole",
+    "FailoverModeType",
+    "FailoverType",
     "FreeLimitExhaustionBehavior",
     "FreemiumType",
     "GeoBackupPolicyName",
@@ -1059,6 +1084,7 @@ __all__ = [
     "ImplementationMethod",
     "InstanceFailoverGroupReplicationRole",
     "InstancePoolLicenseType",
+    "InstanceRole",
     "IsRetryable",
     "JobAgentState",
     "JobExecutionLifecycle",
@@ -1070,6 +1096,7 @@ __all__ = [
     "JobTargetType",
     "LedgerDigestUploadsName",
     "LedgerDigestUploadsState",
+    "LinkRole",
     "LogSizeUnit",
     "LongTermRetentionPolicyName",
     "ManagedDatabaseCreateMode",
@@ -1092,6 +1119,7 @@ __all__ = [
     "OperationOrigin",
     "PauseDelayTimeUnit",
     "PerformanceLevelUnit",
+    "Phase",
     "PrimaryAggregationType",
     "PrincipalType",
     "PrivateEndpointProvisioningState",
@@ -1105,13 +1133,16 @@ __all__ = [
     "RecommendedActionCurrentState",
     "RecommendedActionInitiatedBy",
     "RecommendedSensitivityLabelUpdateKind",
+    "ReplicaConnectedState",
+    "ReplicaSynchronizationHealth",
     "ReplicaType",
     "ReplicationLinkType",
-    "ReplicationMode",
+    "ReplicationModeType",
     "ReplicationRole",
     "ReplicationState",
     "RestoreDetailsName",
     "RestorePointType",
+    "RoleChangeType",
     "RuleSeverity",
     "RuleStatus",
     "RuleType",
@@ -1122,6 +1153,7 @@ __all__ = [
     "SecurityAlertPolicyState",
     "SecurityAlertsPolicyState",
     "SecurityEventType",
+    "SeedingModeType",
     "SensitivityLabelRank",
     "SensitivityLabelSource",
     "SensitivityLabelUpdateKind",

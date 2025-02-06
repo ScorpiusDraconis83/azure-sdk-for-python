@@ -48,6 +48,15 @@ class LogsQueryClient(object):  # pylint: disable=client-accepts-api-version-key
             :language: python
             :dedent: 4
             :caption: Creating the LogsQueryClient with a TokenCredential.
+
+    .. admonition:: Example:
+
+        .. literalinclude:: ../samples/sample_authentication.py
+            :start-after: [START create_logs_query_client_sovereign_cloud]
+            :end-before: [END create_logs_query_client_sovereign_cloud]
+            :language: python
+            :dedent: 4
+            :caption: Creating the LogsQueryClient for use with a sovereign cloud (i.e. non-public cloud).
     """
 
     def __init__(self, credential: TokenCredential, **kwargs: Any) -> None:
@@ -123,7 +132,7 @@ class LogsQueryClient(object):  # pylint: disable=client-accepts-api-version-key
 
         generated_response: JSON = {}
         try:
-            generated_response = self._query_op.execute(  # pylint: disable=protected-access
+            generated_response = self._query_op.execute(
                 workspace_id=workspace_id, body=body, prefer=prefer, **kwargs
             )
         except HttpResponseError as err:
@@ -241,7 +250,7 @@ class LogsQueryClient(object):  # pylint: disable=client-accepts-api-version-key
 
         generated_response: JSON = {}
         try:
-            generated_response = self._query_op.resource_execute(  # pylint: disable=protected-access
+            generated_response = self._query_op.resource_execute(
                 resource_id=resource_id, body=body, prefer=prefer, **kwargs
             )
         except HttpResponseError as err:
@@ -261,8 +270,8 @@ class LogsQueryClient(object):  # pylint: disable=client-accepts-api-version-key
         return self._client.close()
 
     def __enter__(self) -> "LogsQueryClient":
-        self._client.__enter__()  # pylint:disable=no-member
+        self._client.__enter__()
         return self
 
     def __exit__(self, *args: Any) -> None:
-        self._client.__exit__(*args)  # pylint:disable=no-member
+        self._client.__exit__(*args)

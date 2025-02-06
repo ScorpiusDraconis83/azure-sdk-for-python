@@ -7,6 +7,7 @@
 # --------------------------------------------------------------------------
 
 from azure.identity import DefaultAzureCredential
+
 from azure.mgmt.storage import StorageManagementClient
 
 """
@@ -36,6 +37,7 @@ def main():
             "kind": "BlockBlobStorage",
             "location": "eastus",
             "properties": {
+                "enableExtendedGroups": True,
                 "isHnsEnabled": True,
                 "isNfsV3Enabled": True,
                 "networkAcls": {
@@ -56,6 +58,6 @@ def main():
     print(response)
 
 
-# x-ms-original-file: specification/storage/resource-manager/Microsoft.Storage/stable/2023-01-01/examples/NfsV3AccountCreate.json
+# x-ms-original-file: specification/storage/resource-manager/Microsoft.Storage/stable/2023-05-01/examples/NfsV3AccountCreate.json
 if __name__ == "__main__":
     main()

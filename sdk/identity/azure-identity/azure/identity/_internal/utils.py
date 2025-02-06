@@ -20,6 +20,7 @@ _LOGGER = logging.getLogger(__name__)
 
 VALID_TENANT_ID_CHARACTERS = frozenset(ascii_letters + digits + "-.")
 VALID_SCOPE_CHARACTERS = frozenset(ascii_letters + digits + "_-.:/")
+VALID_SUBSCRIPTION_CHARACTERS = frozenset(ascii_letters + digits + "_-. ")
 
 
 def normalize_authority(authority: str) -> str:
@@ -68,12 +69,30 @@ def validate_tenant_id(tenant_id: str) -> None:
     if not tenant_id or any(c not in VALID_TENANT_ID_CHARACTERS for c in tenant_id):
         raise ValueError(
             "Invalid tenant ID provided. You can locate your tenant ID by following the instructions here: "
-            + "https://learn.microsoft.com/partner-center/find-ids-and-domain-names"
+            "https://learn.microsoft.com/partner-center/find-ids-and-domain-names"
+        )
+
+
+def validate_subscription(subscription: str) -> None:
+    """Raise ValueError if subscription is empty or contains a character invalid for a subscription name/ID.
+
+    :param str subscription: subscription ID to validate
+    :raises: ValueError if subscription is empty or contains a character invalid for a subscription ID.
+    """
+    if not subscription or any(c not in VALID_SUBSCRIPTION_CHARACTERS for c in subscription):
+        raise ValueError(
+            f"Subscription '{subscription}' contains invalid characters. If this is the name of a subscription, use "
+            "its ID instead. You can locate your subscription by following the instructions listed here: "
+            "https://learn.microsoft.com/azure/azure-portal/get-subscription-tenant-id"
         )
 
 
 def resolve_tenant(
-    default_tenant: str, tenant_id: Optional[str] = None, *, additionally_allowed_tenants: List[str] = [], **_
+    default_tenant: str,
+    tenant_id: Optional[str] = None,
+    *,
+    additionally_allowed_tenants: Optional[List[str]] = None,
+    **_,
 ) -> str:
     """Returns the correct tenant for a token request given a credential's configuration.
 
@@ -97,6 +116,8 @@ def resolve_tenant(
         return default_tenant
     if not default_tenant:
         return tenant_id
+    if additionally_allowed_tenants is None:
+        additionally_allowed_tenants = []
     if "*" in additionally_allowed_tenants or tenant_id in additionally_allowed_tenants:
         _LOGGER.info(
             "A token was requested for a different tenant than was configured on the credential, "

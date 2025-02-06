@@ -7,6 +7,7 @@
 # --------------------------------------------------------------------------
 
 from azure.identity import DefaultAzureCredential
+
 from azure.mgmt.batch import BatchManagementClient
 
 """
@@ -51,6 +52,7 @@ def main():
                     }
                 },
                 "scaleSettings": {"fixedScale": {"targetDedicatedNodes": 2, "targetLowPriorityNodes": 0}},
+                "upgradePolicy": {"automaticOSUpgradePolicy": {"enableAutomaticOSUpgrade": True}, "mode": "automatic"},
                 "vmSize": "Standard_d4s_v3",
             }
         },
@@ -58,6 +60,6 @@ def main():
     print(response)
 
 
-# x-ms-original-file: specification/batch/resource-manager/Microsoft.Batch/stable/2023-11-01/examples/PoolCreate_VirtualMachineConfiguration_ServiceArtifactReference.json
+# x-ms-original-file: specification/batch/resource-manager/Microsoft.Batch/stable/2024-07-01/examples/PoolCreate_VirtualMachineConfiguration_ServiceArtifactReference.json
 if __name__ == "__main__":
     main()

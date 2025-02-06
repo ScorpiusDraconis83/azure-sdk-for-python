@@ -1,5 +1,5 @@
-# coding=utf-8
 # pylint: disable=too-many-lines
+# coding=utf-8
 # --------------------------------------------------------------------------
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License. See License.txt in the project root for license information.
@@ -13,7 +13,6 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING, Union
 from ... import _serialization
 
 if TYPE_CHECKING:
-    # pylint: disable=unused-import,ungrouped-imports
     from .. import models as _models
 
 
@@ -275,7 +274,7 @@ class ApplicationStackCollection(_serialization.Model):
 
     Variables are only populated by the server, and will be ignored when sending a request.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar value: Collection of resources. Required.
     :vartype value: list[~azure.mgmt.web.v2016_03_01.models.ApplicationStack]
@@ -303,12 +302,12 @@ class ApplicationStackCollection(_serialization.Model):
         self.next_link = None
 
 
-class AppServiceEnvironment(_serialization.Model):  # pylint: disable=too-many-instance-attributes
+class AppServiceEnvironment(_serialization.Model):
     """Description of an App Service Environment.
 
     Variables are only populated by the server, and will be ignored when sending a request.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar name: Name of the App Service Environment. Required.
     :vartype name: str
@@ -592,7 +591,7 @@ class Resource(_serialization.Model):
 
     Variables are only populated by the server, and will be ignored when sending a request.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar id: Resource Id.
     :vartype id: str
@@ -644,12 +643,12 @@ class Resource(_serialization.Model):
         self.tags = tags
 
 
-class AppServicePlan(Resource):  # pylint: disable=too-many-instance-attributes
+class AppServicePlan(Resource):
     """App Service plan.
 
     Variables are only populated by the server, and will be ignored when sending a request.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar id: Resource Id.
     :vartype id: str
@@ -834,7 +833,7 @@ class AppServicePlan(Resource):  # pylint: disable=too-many-instance-attributes
 class AppServicePlanCollection(_serialization.Model):
     """Collection of App Service plans.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar value: Collection of resources. Required.
     :vartype value: list[~azure.mgmt.web.v2016_03_01.models.AppServicePlan]
@@ -1095,7 +1094,7 @@ class BillingMeterCollection(_serialization.Model):
 
     Variables are only populated by the server, and will be ignored when sending a request.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar value: Collection of Billing Meters. Required.
     :vartype value: list[~azure.mgmt.web.v2016_03_01.models.BillingMeter]
@@ -1157,12 +1156,12 @@ class Capability(_serialization.Model):
         self.reason = reason
 
 
-class Certificate(Resource):  # pylint: disable=too-many-instance-attributes
+class Certificate(Resource):
     """SSL certificate for an app.
 
     Variables are only populated by the server, and will be ignored when sending a request.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar id: Resource Id.
     :vartype id: str
@@ -1222,7 +1221,7 @@ class Certificate(Resource):  # pylint: disable=too-many-instance-attributes
     :ivar geo_region: Region of the certificate.
     :vartype geo_region: str
     :ivar server_farm_id: Resource ID of the associated App Service plan, formatted as:
-     "/subscriptions/{subscriptionID}/resourceGroups/{groupName}/providers/Microsoft.Web/serverfarms/{appServicePlanName}".
+     "/subscriptions/{subscriptionID}/resourceGroups/{groupName}/providers/Microsoft.Web/serverfarms/{appServicePlanName}".  # pylint: disable=line-too-long
     :vartype server_farm_id: str
     """
 
@@ -1311,7 +1310,7 @@ class Certificate(Resource):  # pylint: disable=too-many-instance-attributes
         :keyword key_vault_secret_name: Key Vault secret name.
         :paramtype key_vault_secret_name: str
         :keyword server_farm_id: Resource ID of the associated App Service plan, formatted as:
-         "/subscriptions/{subscriptionID}/resourceGroups/{groupName}/providers/Microsoft.Web/serverfarms/{appServicePlanName}".
+         "/subscriptions/{subscriptionID}/resourceGroups/{groupName}/providers/Microsoft.Web/serverfarms/{appServicePlanName}".  # pylint: disable=line-too-long
         :paramtype server_farm_id: str
         """
         super().__init__(kind=kind, location=location, tags=tags, **kwargs)
@@ -1342,7 +1341,7 @@ class CertificateCollection(_serialization.Model):
 
     Variables are only populated by the server, and will be ignored when sending a request.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar value: Collection of resources. Required.
     :vartype value: list[~azure.mgmt.web.v2016_03_01.models.Certificate]
@@ -1370,7 +1369,7 @@ class CertificateCollection(_serialization.Model):
         self.next_link = None
 
 
-class CertificatePatchResource(ProxyOnlyResource):  # pylint: disable=too-many-instance-attributes
+class CertificatePatchResource(ProxyOnlyResource):
     """ARM resource for a certificate.
 
     Variables are only populated by the server, and will be ignored when sending a request.
@@ -1429,7 +1428,7 @@ class CertificatePatchResource(ProxyOnlyResource):  # pylint: disable=too-many-i
     :ivar geo_region: Region of the certificate.
     :vartype geo_region: str
     :ivar server_farm_id: Resource ID of the associated App Service plan, formatted as:
-     "/subscriptions/{subscriptionID}/resourceGroups/{groupName}/providers/Microsoft.Web/serverfarms/{appServicePlanName}".
+     "/subscriptions/{subscriptionID}/resourceGroups/{groupName}/providers/Microsoft.Web/serverfarms/{appServicePlanName}".  # pylint: disable=line-too-long
     :vartype server_farm_id: str
     """
 
@@ -1509,7 +1508,7 @@ class CertificatePatchResource(ProxyOnlyResource):  # pylint: disable=too-many-i
         :keyword key_vault_secret_name: Key Vault secret name.
         :paramtype key_vault_secret_name: str
         :keyword server_farm_id: Resource ID of the associated App Service plan, formatted as:
-         "/subscriptions/{subscriptionID}/resourceGroups/{groupName}/providers/Microsoft.Web/serverfarms/{appServicePlanName}".
+         "/subscriptions/{subscriptionID}/resourceGroups/{groupName}/providers/Microsoft.Web/serverfarms/{appServicePlanName}".  # pylint: disable=line-too-long
         :paramtype server_farm_id: str
         """
         super().__init__(kind=kind, **kwargs)
@@ -1535,10 +1534,10 @@ class CertificatePatchResource(ProxyOnlyResource):  # pylint: disable=too-many-i
         self.server_farm_id = server_farm_id
 
 
-class CloningInfo(_serialization.Model):  # pylint: disable=too-many-instance-attributes
+class CloningInfo(_serialization.Model):
     """Information needed for cloning operation.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar correlation_id: Correlation ID of cloning operation. This ID ties multiple cloning
      operations
@@ -1570,7 +1569,7 @@ class CloningInfo(_serialization.Model):  # pylint: disable=too-many-instance-at
     :vartype configure_load_balancing: bool
     :ivar traffic_manager_profile_id: ARM resource ID of the Traffic Manager profile to use, if it
      exists. Traffic Manager resource ID is of the form
-    /subscriptions/{subId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/trafficManagerProfiles/{profileName}.
+    /subscriptions/{subId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/trafficManagerProfiles/{profileName}.  # pylint: disable=line-too-long
     :vartype traffic_manager_profile_id: str
     :ivar traffic_manager_profile_name: Name of Traffic Manager profile to create. This is only
      needed if Traffic Manager profile does not already exist.
@@ -1645,7 +1644,7 @@ class CloningInfo(_serialization.Model):  # pylint: disable=too-many-instance-at
         :paramtype configure_load_balancing: bool
         :keyword traffic_manager_profile_id: ARM resource ID of the Traffic Manager profile to use, if
          it exists. Traffic Manager resource ID is of the form
-        /subscriptions/{subId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/trafficManagerProfiles/{profileName}.
+        /subscriptions/{subId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/trafficManagerProfiles/{profileName}.  # pylint: disable=line-too-long
         :paramtype traffic_manager_profile_id: str
         :keyword traffic_manager_profile_name: Name of Traffic Manager profile to create. This is only
          needed if Traffic Manager profile does not already exist.
@@ -1771,7 +1770,7 @@ class CsmOperationCollection(_serialization.Model):
 
     Variables are only populated by the server, and will be ignored when sending a request.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar value: Collection of resources. Required.
     :vartype value: list[~azure.mgmt.web.v2016_03_01.models.CsmOperationDescription]
@@ -1973,7 +1972,7 @@ class CsmUsageQuotaCollection(_serialization.Model):
 
     Variables are only populated by the server, and will be ignored when sending a request.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar value: Collection of resources. Required.
     :vartype value: list[~azure.mgmt.web.v2016_03_01.models.CsmUsageQuota]
@@ -2270,7 +2269,7 @@ class DeletedWebAppCollection(_serialization.Model):
 
     Variables are only populated by the server, and will be ignored when sending a request.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar value: Collection of resources. Required.
     :vartype value: list[~azure.mgmt.web.v2016_03_01.models.DeletedSite]
@@ -2579,7 +2578,7 @@ class DetectorResponseCollection(_serialization.Model):
 
     Variables are only populated by the server, and will be ignored when sending a request.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar value: Collection of resources. Required.
     :vartype value: list[~azure.mgmt.web.v2016_03_01.models.DetectorResponse]
@@ -2689,7 +2688,7 @@ class DiagnosticAnalysisCollection(_serialization.Model):
 
     Variables are only populated by the server, and will be ignored when sending a request.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar value: Collection of resources. Required.
     :vartype value: list[~azure.mgmt.web.v2016_03_01.models.AnalysisDefinition]
@@ -2763,7 +2762,7 @@ class DiagnosticCategoryCollection(_serialization.Model):
 
     Variables are only populated by the server, and will be ignored when sending a request.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar value: Collection of resources. Required.
     :vartype value: list[~azure.mgmt.web.v2016_03_01.models.DiagnosticCategory]
@@ -2828,7 +2827,7 @@ class DiagnosticDetectorCollection(_serialization.Model):
 
     Variables are only populated by the server, and will be ignored when sending a request.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar value: Collection of resources. Required.
     :vartype value: list[~azure.mgmt.web.v2016_03_01.models.DetectorDefinition]
@@ -2856,7 +2855,7 @@ class DiagnosticDetectorCollection(_serialization.Model):
         self.next_link = None
 
 
-class DiagnosticDetectorResponse(ProxyOnlyResource):  # pylint: disable=too-many-instance-attributes
+class DiagnosticDetectorResponse(ProxyOnlyResource):
     """Class representing Response from Diagnostic Detectors.
 
     Variables are only populated by the server, and will be ignored when sending a request.
@@ -3268,7 +3267,7 @@ class GeoRegionCollection(_serialization.Model):
 
     Variables are only populated by the server, and will be ignored when sending a request.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar value: Collection of resources. Required.
     :vartype value: list[~azure.mgmt.web.v2016_03_01.models.GeoRegion]
@@ -3530,7 +3529,7 @@ class HostNameSslState(_serialization.Model):
         self.host_type = host_type
 
 
-class HybridConnection(ProxyOnlyResource):  # pylint: disable=too-many-instance-attributes
+class HybridConnection(ProxyOnlyResource):
     """Hybrid Connection contract. This is used to configure a Hybrid Connection.
 
     Variables are only populated by the server, and will be ignored when sending a request.
@@ -3728,7 +3727,7 @@ class IdentifierCollection(_serialization.Model):
 
     Variables are only populated by the server, and will be ignored when sending a request.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar value: Collection of resources. Required.
     :vartype value: list[~azure.mgmt.web.v2016_03_01.models.Identifier]
@@ -3759,7 +3758,7 @@ class IdentifierCollection(_serialization.Model):
 class IpSecurityRestriction(_serialization.Model):
     """IP security restriction on an app.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar ip_address: IP address the security restriction is valid for. Required.
     :vartype ip_address: str
@@ -3877,7 +3876,7 @@ class MetricAvailability(_serialization.Model):
         self.blob_duration = blob_duration
 
 
-class MetricSpecification(_serialization.Model):  # pylint: disable=too-many-instance-attributes
+class MetricSpecification(_serialization.Model):
     """Definition of a single resource metric.
 
     :ivar name:
@@ -4168,7 +4167,7 @@ class Operation(_serialization.Model):
         self.geo_master_operation_id = geo_master_operation_id
 
 
-class PremierAddOnOffer(ProxyOnlyResource):  # pylint: disable=too-many-instance-attributes
+class PremierAddOnOffer(ProxyOnlyResource):
     """Premier add-on offer.
 
     Variables are only populated by the server, and will be ignored when sending a request.
@@ -4297,7 +4296,7 @@ class PremierAddOnOfferCollection(_serialization.Model):
 
     Variables are only populated by the server, and will be ignored when sending a request.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar value: Collection of resources. Required.
     :vartype value: list[~azure.mgmt.web.v2016_03_01.models.PremierAddOnOffer]
@@ -4507,7 +4506,7 @@ class RampUpRule(_serialization.Model):
         self.name = name
 
 
-class Recommendation(ProxyOnlyResource):  # pylint: disable=too-many-instance-attributes
+class Recommendation(ProxyOnlyResource):
     """Represents a recommendation result generated by the recommendation engine.
 
     Variables are only populated by the server, and will be ignored when sending a request.
@@ -4712,7 +4711,7 @@ class RecommendationCollection(_serialization.Model):
 
     Variables are only populated by the server, and will be ignored when sending a request.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar value: Collection of resources. Required.
     :vartype value: list[~azure.mgmt.web.v2016_03_01.models.Recommendation]
@@ -4740,7 +4739,7 @@ class RecommendationCollection(_serialization.Model):
         self.next_link = None
 
 
-class RecommendationRule(ProxyOnlyResource):  # pylint: disable=too-many-instance-attributes
+class RecommendationRule(ProxyOnlyResource):
     """Represents a recommendation rule that the recommendation engine can perform.
 
     Variables are only populated by the server, and will be ignored when sending a request.
@@ -5010,7 +5009,7 @@ class ResourceHealthMetadataCollection(_serialization.Model):
 
     Variables are only populated by the server, and will be ignored when sending a request.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar value: Collection of resources. Required.
     :vartype value: list[~azure.mgmt.web.v2016_03_01.models.ResourceHealthMetadata]
@@ -5134,7 +5133,7 @@ class ResourceMetricCollection(_serialization.Model):
 
     Variables are only populated by the server, and will be ignored when sending a request.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar value: Collection of resources. Required.
     :vartype value: list[~azure.mgmt.web.v2016_03_01.models.ResourceMetric]
@@ -5162,7 +5161,7 @@ class ResourceMetricCollection(_serialization.Model):
         self.next_link = None
 
 
-class ResourceMetricDefinition(ProxyOnlyResource):  # pylint: disable=too-many-instance-attributes
+class ResourceMetricDefinition(ProxyOnlyResource):
     """Metadata for the metrics.
 
     Variables are only populated by the server, and will be ignored when sending a request.
@@ -5240,7 +5239,7 @@ class ResourceMetricDefinitionCollection(_serialization.Model):
 
     Variables are only populated by the server, and will be ignored when sending a request.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar value: Collection of resources. Required.
     :vartype value: list[~azure.mgmt.web.v2016_03_01.models.ResourceMetricDefinition]
@@ -5429,7 +5428,7 @@ class ResourceNameAvailability(_serialization.Model):
 class ResourceNameAvailabilityRequest(_serialization.Model):
     """Resource name availability request content.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar name: Resource name to verify. Required.
     :vartype name: str
@@ -5518,12 +5517,12 @@ class ServiceSpecification(_serialization.Model):
         self.metric_specifications = metric_specifications
 
 
-class Site(Resource):  # pylint: disable=too-many-instance-attributes
+class Site(Resource):
     """A web app, a mobile app backend, or an API app.
 
     Variables are only populated by the server, and will be ignored when sending a request.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar id: Resource Id.
     :vartype id: str
@@ -5563,7 +5562,7 @@ class Site(Resource):  # pylint: disable=too-many-instance-attributes
      hostnames.
     :vartype host_name_ssl_states: list[~azure.mgmt.web.v2016_03_01.models.HostNameSslState]
     :ivar server_farm_id: Resource ID of the associated App Service plan, formatted as:
-     "/subscriptions/{subscriptionID}/resourceGroups/{groupName}/providers/Microsoft.Web/serverfarms/{appServicePlanName}".
+     "/subscriptions/{subscriptionID}/resourceGroups/{groupName}/providers/Microsoft.Web/serverfarms/{appServicePlanName}".  # pylint: disable=line-too-long
     :vartype server_farm_id: str
     :ivar reserved: :code:`<code>true</code>` if reserved; otherwise, :code:`<code>false</code>`.
     :vartype reserved: bool
@@ -5741,7 +5740,7 @@ class Site(Resource):  # pylint: disable=too-many-instance-attributes
          app's hostnames.
         :paramtype host_name_ssl_states: list[~azure.mgmt.web.v2016_03_01.models.HostNameSslState]
         :keyword server_farm_id: Resource ID of the associated App Service plan, formatted as:
-         "/subscriptions/{subscriptionID}/resourceGroups/{groupName}/providers/Microsoft.Web/serverfarms/{appServicePlanName}".
+         "/subscriptions/{subscriptionID}/resourceGroups/{groupName}/providers/Microsoft.Web/serverfarms/{appServicePlanName}".  # pylint: disable=line-too-long
         :paramtype server_farm_id: str
         :keyword reserved: :code:`<code>true</code>` if reserved; otherwise,
          :code:`<code>false</code>`.
@@ -5817,7 +5816,7 @@ class Site(Resource):  # pylint: disable=too-many-instance-attributes
         self.https_only = https_only
 
 
-class SiteConfig(_serialization.Model):  # pylint: disable=too-many-instance-attributes
+class SiteConfig(_serialization.Model):
     """Configuration of an App Service app.
 
     Variables are only populated by the server, and will be ignored when sending a request.
@@ -6772,7 +6771,7 @@ class SourceControlCollection(_serialization.Model):
 
     Variables are only populated by the server, and will be ignored when sending a request.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar value: Collection of resources. Required.
     :vartype value: list[~azure.mgmt.web.v2016_03_01.models.SourceControl]
@@ -7124,7 +7123,7 @@ class User(ProxyOnlyResource):
 class ValidateRequest(_serialization.Model):
     """Resource validation request content.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar name: Resource name to verify. Required.
     :vartype name: str
@@ -7846,7 +7845,7 @@ class WebAppCollection(_serialization.Model):
 
     Variables are only populated by the server, and will be ignored when sending a request.
 
-    All required parameters must be populated in order to send to Azure.
+    All required parameters must be populated in order to send to server.
 
     :ivar value: Collection of resources. Required.
     :vartype value: list[~azure.mgmt.web.v2016_03_01.models.Site]

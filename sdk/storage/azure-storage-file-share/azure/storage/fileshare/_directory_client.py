@@ -3,42 +3,45 @@
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
 # --------------------------------------------------------------------------
+# pylint: disable=docstring-keyword-should-match-keyword-only
 
 import functools
 import sys
 import time
 from datetime import datetime
 from typing import (
-    Any, AnyStr, Dict, IO, Iterable, Optional, Union,
+    Any, AnyStr, cast, Dict, IO, Iterable, Optional, Union,
     TYPE_CHECKING
 )
-from urllib.parse import urlparse, quote, unquote
-
 from typing_extensions import Self
 
 from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
 from azure.core.paging import ItemPaged
 from azure.core.pipeline import Pipeline
 from azure.core.tracing.decorator import distributed_trace
-from ._generated import AzureFileStorage
-from ._shared.base_client import StorageAccountHostsMixin, TransportWrapper, parse_connection_str, parse_query
-from ._shared.request_handlers import add_metadata_headers
-from ._shared.response_handlers import return_response_headers, process_storage_error
-from ._shared.parser import _str
-from ._parser import _get_file_permission, _datetime_to_str
 from ._deserialize import deserialize_directory_properties
-from ._serialize import get_api_version, get_dest_access_conditions, get_rename_smb_properties
+from ._directory_client_helpers import (
+    _format_url,
+    _from_directory_url,
+    _parse_url
+)
 from ._file_client import ShareFileClient
-from ._models import DirectoryPropertiesPaged, HandlesPaged
+from ._generated import AzureFileStorage
+from ._models import DirectoryPropertiesPaged, Handle, HandlesPaged
+from ._parser import _datetime_to_str, _get_file_permission, _parse_snapshot
+from ._serialize import get_api_version, get_dest_access_conditions, get_rename_smb_properties
+from ._shared.base_client import parse_connection_str, parse_query, StorageAccountHostsMixin, TransportWrapper
+from ._shared.request_handlers import add_metadata_headers
+from ._shared.response_handlers import process_storage_error, return_response_headers
 
 if sys.version_info >= (3, 8):
-    from typing import Literal  # pylint: disable=no-name-in-module, ungrouped-imports
+    from typing import Literal
 else:
-    from typing_extensions import Literal  # pylint: disable=ungrouped-imports
+    from typing_extensions import Literal
 
 if TYPE_CHECKING:
     from azure.core.credentials import AzureNamedKeyCredential, AzureSasCredential, TokenCredential
-    from ._models import DirectoryProperties, Handle, NTFSAttributes
+    from ._models import DirectoryProperties, FileProperties, NTFSAttributes
 
 
 class ShareDirectoryClient(StorageAccountHostsMixin):
@@ -49,7 +52,7 @@ class ShareDirectoryClient(StorageAccountHostsMixin):
 
     For more optional configuration, please click
     `here <https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/storage/azure-storage-file-share
-    #optional-configuration>`_.
+    #optional-configuration>`__.
 
     :param str account_url:
         The URI to the storage account. In order to create a client given the full URI to the directory,
@@ -72,6 +75,11 @@ class ShareDirectoryClient(StorageAccountHostsMixin):
         - except in the case of AzureSasCredential, where the conflicting SAS tokens will raise a ValueError.
         If using an instance of AzureNamedKeyCredential, "name" should be the storage account name, and "key"
         should be the storage account key.
+    :type credential:
+        ~azure.core.credentials.AzureNamedKeyCredential or
+        ~azure.core.credentials.AzureSasCredential or
+        ~azure.core.credentials.TokenCredential or
+        str or dict[str, str] or None
     :keyword token_intent:
         Required when using `TokenCredential` for authentication and ignored for other forms of authentication.
         Specifies the intent for all requests when using `TokenCredential` authentication. Possible values are:
@@ -96,40 +104,23 @@ class ShareDirectoryClient(StorageAccountHostsMixin):
         https://storage.azure.com/ (default) or https://<account>.file.core.windows.net.
     """
     def __init__(
-            self, account_url: str,
-            share_name: str,
-            directory_path: str,
-            snapshot: Optional[Union[str, Dict[str, Any]]] = None,
-            credential: Optional[Union[str, Dict[str, str], "AzureNamedKeyCredential", "AzureSasCredential", "TokenCredential"]] = None,  # pylint: disable=line-too-long
-            *,
-            token_intent: Optional[Literal['backup']] = None,
-            **kwargs: Any
-        ) -> None:
+        self, account_url: str,
+        share_name: str,
+        directory_path: str,
+        snapshot: Optional[Union[str, Dict[str, Any]]] = None,
+        credential: Optional[Union[str, Dict[str, str], "AzureNamedKeyCredential", "AzureSasCredential", "TokenCredential"]] = None,  # pylint: disable=line-too-long
+        *,
+        token_intent: Optional[Literal['backup']] = None,
+        **kwargs: Any
+    ) -> None:
         if hasattr(credential, 'get_token') and not token_intent:
             raise ValueError("'token_intent' keyword is required when 'credential' is an TokenCredential.")
-        try:
-            if not account_url.lower().startswith('http'):
-                account_url = "https://" + account_url
-        except AttributeError as exc:
-            raise ValueError("Account URL must be a string.") from exc
-        parsed_url = urlparse(account_url.rstrip('/'))
-        if not share_name:
-            raise ValueError("Please specify a share name.")
-        if not parsed_url.netloc:
-            raise ValueError(f"Invalid URL: {account_url}")
-
+        parsed_url = _parse_url(account_url, share_name)
         path_snapshot, sas_token = parse_query(parsed_url.query)
         if not sas_token and not credential:
             raise ValueError(
                 'You need to provide either an account shared key or SAS token when creating a storage service.')
-        try:
-            self.snapshot = snapshot.snapshot # type: ignore
-        except AttributeError:
-            try:
-                self.snapshot = snapshot['snapshot'] # type: ignore
-            except TypeError:
-                self.snapshot = snapshot or path_snapshot
-
+        self.snapshot = _parse_snapshot(snapshot, path_snapshot)
         self.share_name = share_name
         self.directory_path = directory_path
 
@@ -144,15 +135,15 @@ class ShareDirectoryClient(StorageAccountHostsMixin):
                                         allow_trailing_dot=self.allow_trailing_dot,
                                         allow_source_trailing_dot=self.allow_source_trailing_dot,
                                         file_request_intent=self.file_request_intent)
-        self._client._config.version = get_api_version(kwargs)  # pylint: disable=protected-access
+        self._client._config.version = get_api_version(kwargs)  # type: ignore [assignment]
 
     @classmethod
     def from_directory_url(
-            cls, directory_url: str,
-            snapshot: Optional[Union[str, Dict[str, Any]]] = None,
-            credential: Optional[Union[str, Dict[str, str], "AzureNamedKeyCredential", "AzureSasCredential", "TokenCredential"]] = None,  # pylint: disable=line-too-long
-            **kwargs: Any
-        ) -> Self:
+        cls, directory_url: str,
+        snapshot: Optional[Union[str, Dict[str, Any]]] = None,
+        credential: Optional[Union[str, Dict[str, str], "AzureNamedKeyCredential", "AzureSasCredential", "TokenCredential"]] = None,  # pylint: disable=line-too-long
+        **kwargs: Any
+    ) -> Self:
         """Create a ShareDirectoryClient from a directory url.
 
         :param str directory_url:
@@ -169,51 +160,40 @@ class ShareDirectoryClient(StorageAccountHostsMixin):
             - except in the case of AzureSasCredential, where the conflicting SAS tokens will raise a ValueError.
             If using an instance of AzureNamedKeyCredential, "name" should be the storage account name, and "key"
             should be the storage account key.
-        :paramtype credential: Optional[Union[str, Dict[str, str], AzureNamedKeyCredential, AzureSasCredential, "TokenCredential"]] # pylint: disable=line-too-long
+        :type credential:
+            ~azure.core.credentials.AzureNamedKeyCredential or
+            ~azure.core.credentials.AzureSasCredential or
+            ~azure.core.credentials.TokenCredential or
+            str or dict[str, str] or None
         :keyword str audience: The audience to use when requesting tokens for Azure Active Directory
             authentication. Only has an effect when credential is of type TokenCredential. The value could be
             https://storage.azure.com/ (default) or https://<account>.file.core.windows.net.
         :returns: A directory client.
         :rtype: ~azure.storage.fileshare.ShareDirectoryClient
         """
-        try:
-            if not directory_url.lower().startswith('http'):
-                directory_url = "https://" + directory_url
-        except AttributeError as exc:
-            raise ValueError("Directory URL must be a string.") from exc
-        parsed_url = urlparse(directory_url.rstrip('/'))
-        if not parsed_url.path and not parsed_url.netloc:
-            raise ValueError(f"Invalid URL: {directory_url}")
-        account_url = parsed_url.netloc.rstrip('/') + "?" + parsed_url.query
-        path_snapshot, _ = parse_query(parsed_url.query)
-
-        share_name, _, path_dir = parsed_url.path.lstrip('/').partition('/')
-        share_name = unquote(share_name)
-
-        directory_path = path_dir
-        snapshot = snapshot or path_snapshot
-
+        account_url, share_name, directory_path, snapshot = _from_directory_url(directory_url, snapshot)
         return cls(
             account_url=account_url, share_name=share_name, directory_path=directory_path,
-            credential=credential, **kwargs)
+            snapshot=snapshot, credential=credential, **kwargs)
 
-    def _format_url(self, hostname):
-        share_name = self.share_name
-        if isinstance(share_name, str):
-            share_name = share_name.encode('UTF-8')
-        directory_path = ""
-        if self.directory_path:
-            directory_path = "/" + quote(self.directory_path, safe='~')
-        return f"{self.scheme}://{hostname}/{quote(share_name)}{directory_path}{self._query_str}"
+    def _format_url(self, hostname: str) -> str:
+        """Format the endpoint URL according to the current location mode hostname.
+
+        :param str hostname:
+            The hostname of the current location mode.
+        :returns: A formatted endpoint URL including the current location mode hostname.
+        :rtype: str
+        """
+        return _format_url(self.scheme, hostname, self.share_name, self.directory_path, self._query_str)
 
     @classmethod
     def from_connection_string(
-            cls, conn_str: str,
-            share_name: str,
-            directory_path: str,
-            credential: Optional[Union[str, Dict[str, str], "AzureNamedKeyCredential", "AzureSasCredential", "TokenCredential"]] = None,  # pylint: disable=line-too-long
-            **kwargs: Any
-        ) -> Self:
+        cls, conn_str: str,
+        share_name: str,
+        directory_path: str,
+        credential: Optional[Union[str, Dict[str, str], "AzureNamedKeyCredential", "AzureSasCredential", "TokenCredential"]] = None,  # pylint: disable=line-too-long
+        **kwargs: Any
+    ) -> Self:
         """Create ShareDirectoryClient from a Connection String.
 
         :param str conn_str:
@@ -231,7 +211,8 @@ class ShareDirectoryClient(StorageAccountHostsMixin):
             - except in the case of AzureSasCredential, where the conflicting SAS tokens will raise a ValueError.
             If using an instance of AzureNamedKeyCredential, "name" should be the storage account name, and "key"
             should be the storage account key.
-        :paramtype credential: Optional[Union[str, Dict[str, str], AzureNamedKeyCredential, AzureSasCredential, "TokenCredential"]] # pylint: disable=line-too-long
+        :type credential:
+            Optional[Union[str, dict[str, str], AzureNamedKeyCredential, AzureSasCredential, "TokenCredential"]]
         :keyword str audience: The audience to use when requesting tokens for Azure Active Directory
             authentication. Only has an effect when credential is of type TokenCredential. The value could be
             https://storage.azure.com/ (default) or https://<account>.file.core.windows.net.
@@ -244,8 +225,7 @@ class ShareDirectoryClient(StorageAccountHostsMixin):
         return cls(
             account_url, share_name=share_name, directory_path=directory_path, credential=credential, **kwargs)
 
-    def get_file_client(self, file_name, **kwargs):
-        # type: (str, Any) -> ShareFileClient
+    def get_file_client(self, file_name: str, **kwargs: Any) -> ShareFileClient:
         """Get a client to interact with a specific file.
 
         The file need not already exist.
@@ -258,8 +238,8 @@ class ShareDirectoryClient(StorageAccountHostsMixin):
             file_name = self.directory_path.rstrip('/') + "/" + file_name
 
         _pipeline = Pipeline(
-            transport=TransportWrapper(self._pipeline._transport), # pylint: disable = protected-access
-            policies=self._pipeline._impl_policies # pylint: disable = protected-access
+            transport=TransportWrapper(self._pipeline._transport),  # pylint: disable=protected-access
+            policies=self._pipeline._impl_policies  # pylint: disable=protected-access
         )
         return ShareFileClient(
             self.url, file_path=file_name, share_name=self.share_name, snapshot=self.snapshot,
@@ -269,8 +249,7 @@ class ShareDirectoryClient(StorageAccountHostsMixin):
             allow_trailing_dot=self.allow_trailing_dot,
             allow_source_trailing_dot=self.allow_source_trailing_dot, **kwargs)
 
-    def get_subdirectory_client(self, directory_name, **kwargs):
-        # type: (str, Any) -> ShareDirectoryClient
+    def get_subdirectory_client(self, directory_name: str, **kwargs: Any) -> "ShareDirectoryClient":
         """Get a client to interact with a specific subdirectory.
 
         The subdirectory need not already exist.
@@ -294,8 +273,8 @@ class ShareDirectoryClient(StorageAccountHostsMixin):
             directory_path = self.directory_path.rstrip('/') + "/" + directory_name
 
         _pipeline = Pipeline(
-            transport=TransportWrapper(self._pipeline._transport), # pylint: disable = protected-access
-            policies=self._pipeline._impl_policies # pylint: disable = protected-access
+            transport=TransportWrapper(self._pipeline._transport),  # pylint: disable=protected-access
+            policies=self._pipeline._impl_policies  # pylint: disable=protected-access
         )
         return ShareDirectoryClient(
             self.url, share_name=self.share_name, directory_path=directory_path, snapshot=self.snapshot,
@@ -305,8 +284,7 @@ class ShareDirectoryClient(StorageAccountHostsMixin):
             allow_source_trailing_dot=self.allow_source_trailing_dot, **kwargs)
 
     @distributed_trace
-    def create_directory(self, **kwargs):
-        # type: (Any) -> Dict[str, Any]
+    def create_directory(self, **kwargs: Any) -> Dict[str, Any]:
         """Creates a new directory under the directory referenced by the client.
 
         :keyword file_attributes:
@@ -314,13 +292,11 @@ class ShareDirectoryClient(StorageAccountHostsMixin):
             If not set, the default value would be "none" and the attributes will be set to "Archive".
             Here is an example for when the var type is str: 'Temporary|Archive'.
             file_attributes value is not case sensitive.
-        :paramtype file_attributes: str or :class:`~azure.storage.fileshare.NTFSAttributes`
-        :keyword file_creation_time:
-            Creation time for the directory. Default value: "now".
-        :paramtype file_creation_time: str or ~datetime.datetime
-        :keyword file_last_write_time:
-            Last write time for the directory. Default value: "now".
-        :paramtype file_last_write_time: str or ~datetime.datetime
+        :paramtype file_attributes: str or ~azure.storage.fileshare.NTFSAttributes or None
+        :keyword file_creation_time: Creation time for the directory.
+        :paramtype file_creation_time: str or ~datetime.datetime or None
+        :keyword file_last_write_time: Last write time for the directory.
+        :paramtype file_last_write_time: str or ~datetime.datetime or None
         :keyword str file_permission:
             If specified the permission (security descriptor) shall be set
             for the directory/file. This header can be used if Permission size is
@@ -330,23 +306,34 @@ class ShareDirectoryClient(StorageAccountHostsMixin):
         :keyword str file_permission_key:
             Key of the permission to be set for the directory/file.
             Note: Only one of the file-permission or file-permission-key should be specified.
+        :keyword file_permission_format:
+            Specifies the format in which the permission is returned. If not specified, SDDL will be the default.
+        :paramtype file_permission_format: Literal['sddl', 'binary']
         :keyword file_change_time:
             Change time for the directory. If not specified, change time will be set to the current date/time.
 
             .. versionadded:: 12.8.0
+
                 This parameter was introduced in API version '2021-06-08'.
 
         :paramtype file_change_time: str or ~datetime.datetime
-        :keyword dict(str,str) metadata:
+        :keyword metadata:
             Name-value pairs associated with the directory as metadata.
+        :paramtype metadata: Optional[dict[str, str]]
+        :keyword str owner:
+            NFS only. The owner of the directory.
+        :keyword str group:
+            NFS only. The owning group of the directory.
+        :keyword str file_mode:
+            NFS only. The file mode of the directory.
         :keyword int timeout:
             Sets the server-side timeout for the operation in seconds. For more details see
             https://learn.microsoft.com/rest/api/storageservices/setting-timeouts-for-file-service-operations.
             This value is not tracked or validated on the client. To configure client-side network timesouts
             see `here <https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/storage/azure-storage-file-share
-            #other-client--per-operation-configuration>`_.
+            #other-client--per-operation-configuration>`__.
         :returns: Directory-updated property dict (Etag and last modified).
-        :rtype: dict(str, Any)
+        :rtype: dict[str, Any]
 
         .. admonition:: Example:
 
@@ -360,19 +347,19 @@ class ShareDirectoryClient(StorageAccountHostsMixin):
         timeout = kwargs.pop('timeout', None)
         metadata = kwargs.pop('metadata', None)
         headers = kwargs.pop('headers', {})
-        headers.update(add_metadata_headers(metadata)) # type: ignore
+        headers.update(add_metadata_headers(metadata))
 
-        file_attributes = kwargs.pop('file_attributes', 'none')
-        file_creation_time = kwargs.pop('file_creation_time', 'now')
-        file_last_write_time = kwargs.pop('file_last_write_time', 'now')
+        file_attributes = kwargs.pop('file_attributes', None)
+        file_creation_time = kwargs.pop('file_creation_time', None)
+        file_last_write_time = kwargs.pop('file_last_write_time', None)
         file_change_time = kwargs.pop('file_change_time', None)
         file_permission = kwargs.pop('file_permission', None)
         file_permission_key = kwargs.pop('file_permission_key', None)
-        file_permission = _get_file_permission(file_permission, file_permission_key, 'inherit')
+        file_permission = _get_file_permission(file_permission, file_permission_key, None)
 
         try:
-            return self._client.directory.create( # type: ignore
-                file_attributes=str(file_attributes),
+            return cast(Dict[str, Any], self._client.directory.create(
+                file_attributes=str(file_attributes) if file_attributes is not None else file_attributes,
                 file_creation_time=_datetime_to_str(file_creation_time),
                 file_last_write_time=_datetime_to_str(file_last_write_time),
                 file_change_time=_datetime_to_str(file_change_time),
@@ -381,13 +368,12 @@ class ShareDirectoryClient(StorageAccountHostsMixin):
                 timeout=timeout,
                 cls=return_response_headers,
                 headers=headers,
-                **kwargs)
+                **kwargs))
         except HttpResponseError as error:
             process_storage_error(error)
 
     @distributed_trace
-    def delete_directory(self, **kwargs):
-        # type: (**Any) -> None
+    def delete_directory(self, **kwargs: Any) -> None:
         """Marks the directory for deletion. The directory is
         later deleted during garbage collection.
 
@@ -396,7 +382,7 @@ class ShareDirectoryClient(StorageAccountHostsMixin):
             https://learn.microsoft.com/rest/api/storageservices/setting-timeouts-for-file-service-operations.
             This value is not tracked or validated on the client. To configure client-side network timesouts
             see `here <https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/storage/azure-storage-file-share
-            #other-client--per-operation-configuration>`_.
+            #other-client--per-operation-configuration>`__.
         :rtype: None
 
         .. admonition:: Example:
@@ -415,11 +401,7 @@ class ShareDirectoryClient(StorageAccountHostsMixin):
             process_storage_error(error)
 
     @distributed_trace
-    def rename_directory(
-            self, new_name, # type: str
-            **kwargs # type: Any
-        ):
-        # type: (...) -> ShareDirectoryClient
+    def rename_directory(self, new_name: str, **kwargs: Any) -> "ShareDirectoryClient":
         """
         Rename the source directory.
 
@@ -430,7 +412,7 @@ class ShareDirectoryClient(StorageAccountHostsMixin):
             https://learn.microsoft.com/rest/api/storageservices/setting-timeouts-for-file-service-operations.
             This value is not tracked or validated on the client. To configure client-side network timesouts
             see `here <https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/storage/azure-storage-file-share
-            #other-client--per-operation-configuration>`_.
+            #other-client--per-operation-configuration>`__.
         :keyword bool overwrite:
             A boolean value for if the destination file already exists, whether this request will
             overwrite the file or not. If true, the rename will succeed and will overwrite the
@@ -450,19 +432,23 @@ class ShareDirectoryClient(StorageAccountHostsMixin):
         :keyword str file_permission_key:
             Key of the permission to be set for the directory.
             Note: Only one of the file-permission or file-permission-key should be specified.
+        :keyword file_permission_format:
+            Specifies the format in which the permission is returned. If not specified, SDDL will be the default.
+        :paramtype file_permission_format: Literal['sddl', 'binary']
         :keyword file_attributes:
             The file system attributes for the directory.
-        :paramtype file_attributes:~azure.storage.fileshare.NTFSAttributes or str
+        :paramtype file_attributes: ~azure.storage.fileshare.NTFSAttributes or str
         :keyword file_creation_time:
             Creation time for the directory.
-        :paramtype file_creation_time:~datetime.datetime or str
+        :paramtype file_creation_time: ~datetime.datetime or str
         :keyword file_last_write_time:
             Last write time for the file.
-        :paramtype file_last_write_time:~datetime.datetime or str
+        :paramtype file_last_write_time: ~datetime.datetime or str
         :keyword file_change_time:
             Change time for the directory. If not specified, change time will be set to the current date/time.
 
             .. versionadded:: 12.8.0
+
                 This parameter was introduced in API version '2021-06-08'.
 
         :paramtype file_change_time: str or ~datetime.datetime
@@ -518,24 +504,29 @@ class ShareDirectoryClient(StorageAccountHostsMixin):
             process_storage_error(error)
 
     @distributed_trace
-    def list_directories_and_files(self, name_starts_with=None, **kwargs):
-        # type: (Optional[str], **Any) -> ItemPaged
+    def list_directories_and_files(
+        self,
+        name_starts_with: Optional[str] = None,
+        **kwargs: Any
+    ) -> ItemPaged[Union["DirectoryProperties", "FileProperties"]]:
         """Lists all the directories and files under the directory.
 
         :param str name_starts_with:
             Filters the results to return only entities whose names
             begin with the specified prefix.
-        :keyword list[str] include:
+        :keyword List[str] include:
             Include this parameter to specify one or more datasets to include in the response.
             Possible str values are "timestamps", "Etag", "Attributes", "PermissionKey".
 
             .. versionadded:: 12.6.0
+
             This keyword argument was introduced in API version '2020-10-02'.
 
         :keyword bool include_extended_info:
             If this is set to true, file id will be returned in listed results.
 
             .. versionadded:: 12.6.0
+
             This keyword argument was introduced in API version '2020-10-02'.
 
         :keyword int timeout:
@@ -543,9 +534,9 @@ class ShareDirectoryClient(StorageAccountHostsMixin):
             https://learn.microsoft.com/rest/api/storageservices/setting-timeouts-for-file-service-operations.
             This value is not tracked or validated on the client. To configure client-side network timesouts
             see `here <https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/storage/azure-storage-file-share
-            #other-client--per-operation-configuration>`_.
+            #other-client--per-operation-configuration>`__.
         :returns: An auto-paging iterable of dict-like DirectoryProperties and FileProperties
-        :rtype: ~azure.core.paging.ItemPaged[DirectoryProperties and FileProperties]
+        :rtype: ~azure.core.paging.ItemPaged[Union[DirectoryProperties, FileProperties]]
 
         .. admonition:: Example:
 
@@ -568,8 +559,7 @@ class ShareDirectoryClient(StorageAccountHostsMixin):
             page_iterator_class=DirectoryPropertiesPaged)
 
     @distributed_trace
-    def list_handles(self, recursive=False, **kwargs):
-        # type: (bool, Any) -> ItemPaged[Handle]
+    def list_handles(self, recursive: bool = False, **kwargs: Any) -> ItemPaged[Handle]:
         """Lists opened handles on a directory or a file under the directory.
 
         :param bool recursive:
@@ -580,7 +570,7 @@ class ShareDirectoryClient(StorageAccountHostsMixin):
             https://learn.microsoft.com/rest/api/storageservices/setting-timeouts-for-file-service-operations.
             This value is not tracked or validated on the client. To configure client-side network timesouts
             see `here <https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/storage/azure-storage-file-share
-            #other-client--per-operation-configuration>`_.
+            #other-client--per-operation-configuration>`__.
         :returns: An auto-paging iterable of Handle
         :rtype: ~azure.core.paging.ItemPaged[~azure.storage.fileshare.Handle]
         """
@@ -597,8 +587,7 @@ class ShareDirectoryClient(StorageAccountHostsMixin):
             page_iterator_class=HandlesPaged)
 
     @distributed_trace
-    def close_handle(self, handle, **kwargs):
-        # type: (Union[str, Handle], Any) -> Dict[str, int]
+    def close_handle(self, handle: Union[str, Handle], **kwargs: Any) -> Dict[str, int]:
         """Close an open file handle.
 
         :param handle:
@@ -609,15 +598,15 @@ class ShareDirectoryClient(StorageAccountHostsMixin):
             https://learn.microsoft.com/rest/api/storageservices/setting-timeouts-for-file-service-operations.
             This value is not tracked or validated on the client. To configure client-side network timesouts
             see `here <https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/storage/azure-storage-file-share
-            #other-client--per-operation-configuration>`_.
+            #other-client--per-operation-configuration>`__.
         :returns:
             The number of handles closed (this may be 0 if the specified handle was not found)
             and the number of handles failed to close in a dict.
         :rtype: dict[str, int]
         """
-        try:
-            handle_id = handle.id # type: ignore
-        except AttributeError:
+        if isinstance(handle, Handle):
+            handle_id = handle.id
+        else:
             handle_id = handle
         if handle_id == '*':
             raise ValueError("Handle ID '*' is not supported. Use 'close_all_handles' instead.")
@@ -638,8 +627,7 @@ class ShareDirectoryClient(StorageAccountHostsMixin):
             process_storage_error(error)
 
     @distributed_trace
-    def close_all_handles(self, recursive=False, **kwargs):
-        # type: (bool, Any) -> Dict[str, int]
+    def close_all_handles(self, recursive: bool = False, **kwargs: Any) -> Dict[str, int]:
         """Close any open file handles.
 
         This operation will block until the service has closed all open handles.
@@ -652,7 +640,7 @@ class ShareDirectoryClient(StorageAccountHostsMixin):
             https://learn.microsoft.com/rest/api/storageservices/setting-timeouts-for-file-service-operations.
             This value is not tracked or validated on the client. To configure client-side network timesouts
             see `here <https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/storage/azure-storage-file-share
-            #other-client--per-operation-configuration>`_.
+            #other-client--per-operation-configuration>`__.
         :returns: The number of handles closed (this may be 0 if the specified handle was not found)
             and the number of handles failed to close in a dict.
         :rtype: dict[str, int]
@@ -689,8 +677,7 @@ class ShareDirectoryClient(StorageAccountHostsMixin):
         }
 
     @distributed_trace
-    def get_directory_properties(self, **kwargs):
-        # type: (Any) -> DirectoryProperties
+    def get_directory_properties(self, **kwargs: Any) -> "DirectoryProperties":
         """Returns all user-defined metadata and system properties for the
         specified directory. The data returned does not include the directory's
         list of files.
@@ -700,23 +687,22 @@ class ShareDirectoryClient(StorageAccountHostsMixin):
             https://learn.microsoft.com/rest/api/storageservices/setting-timeouts-for-file-service-operations.
             This value is not tracked or validated on the client. To configure client-side network timesouts
             see `here <https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/storage/azure-storage-file-share
-            #other-client--per-operation-configuration>`_.
+            #other-client--per-operation-configuration>`__.
         :returns: DirectoryProperties
         :rtype: ~azure.storage.fileshare.DirectoryProperties
         """
         timeout = kwargs.pop('timeout', None)
         try:
-            response = self._client.directory.get_properties(
+            response = cast("DirectoryProperties", self._client.directory.get_properties(
                 timeout=timeout,
                 cls=deserialize_directory_properties,
-                **kwargs)
+                **kwargs))
         except HttpResponseError as error:
             process_storage_error(error)
-        return response # type: ignore
+        return response
 
     @distributed_trace
-    def set_directory_metadata(self, metadata, **kwargs):
-        # type: (Dict[str, Any], Any) ->  Dict[str, Any]
+    def set_directory_metadata(self, metadata: Dict[str, Any], **kwargs: Any) -> Dict[str, Any]:
         """Sets the metadata for the directory.
 
         Each call to this operation replaces all existing metadata
@@ -725,31 +711,30 @@ class ShareDirectoryClient(StorageAccountHostsMixin):
 
         :param metadata:
             Name-value pairs associated with the directory as metadata.
-        :type metadata: dict(str, str)
+        :type metadata: dict[str, str]
         :keyword int timeout:
             Sets the server-side timeout for the operation in seconds. For more details see
             https://learn.microsoft.com/rest/api/storageservices/setting-timeouts-for-file-service-operations.
             This value is not tracked or validated on the client. To configure client-side network timesouts
             see `here <https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/storage/azure-storage-file-share
-            #other-client--per-operation-configuration>`_.
+            #other-client--per-operation-configuration>`__.
         :returns: Directory-updated property dict (Etag and last modified).
-        :rtype: dict(str, Any)
+        :rtype: dict[str, Any]
         """
         timeout = kwargs.pop('timeout', None)
         headers = kwargs.pop('headers', {})
         headers.update(add_metadata_headers(metadata))
         try:
-            return self._client.directory.set_metadata( # type: ignore
+            return cast(Dict[str, Any], self._client.directory.set_metadata(
                 timeout=timeout,
                 cls=return_response_headers,
                 headers=headers,
-                **kwargs)
+                **kwargs))
         except HttpResponseError as error:
             process_storage_error(error)
 
     @distributed_trace
-    def exists(self, **kwargs):
-        # type: (**Any) -> bool
+    def exists(self, **kwargs: Any) -> bool:
         """
         Returns True if a directory exists and returns False otherwise.
 
@@ -758,7 +743,7 @@ class ShareDirectoryClient(StorageAccountHostsMixin):
             https://learn.microsoft.com/rest/api/storageservices/setting-timeouts-for-file-service-operations.
             This value is not tracked or validated on the client. To configure client-side network timesouts
             see `here <https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/storage/azure-storage-file-share
-            #other-client--per-operation-configuration>`_.
+            #other-client--per-operation-configuration>`__.
         :returns: True if the directory exists, False otherwise.
         :rtype: bool
         """
@@ -772,27 +757,25 @@ class ShareDirectoryClient(StorageAccountHostsMixin):
                 return False
 
     @distributed_trace
-    def set_http_headers(self, file_attributes="none",  # type: Union[str, NTFSAttributes]
-                         file_creation_time="preserve",  # type: Optional[Union[str, datetime]]
-                         file_last_write_time="preserve",  # type: Optional[Union[str, datetime]]
-                         file_permission=None,   # type: Optional[str]
-                         permission_key=None,   # type: Optional[str]
-                         **kwargs  # type: Any
-                         ):
-        # type: (...) -> Dict[str, Any]
+    def set_http_headers(
+        self, file_attributes: Optional[Union[str, "NTFSAttributes"]] = None,
+        file_creation_time: Optional[Union[str, datetime]] = None,
+        file_last_write_time: Optional[Union[str, datetime]] = None,
+        file_permission: Optional[str] = None,
+        permission_key: Optional[str] = None,
+        **kwargs: Any
+    ) -> Dict[str, Any]:
         """Sets HTTP headers on the directory.
 
         :param file_attributes:
             The file system attributes for files and directories.
             If not set, indicates preservation of existing values.
             Here is an example for when the var type is str: 'Temporary|Archive'
-        :type file_attributes: str or :class:`~azure.storage.fileshare.NTFSAttributes`
+        :type file_attributes: str or ~azure.storage.fileshare.NTFSAttributes or None
         :param file_creation_time: Creation time for the file
-            Default value: Preserve.
-        :type file_creation_time: str or datetime
+        :type file_creation_time: str or ~datetime.datetime or None
         :param file_last_write_time: Last write time for the file
-            Default value: Preserve.
-        :type file_last_write_time: str or datetime
+        :type file_last_write_time: str or ~datetime.datetime or None
         :param file_permission: If specified the permission (security
             descriptor) shall be set for the directory/file. This header can be
             used if Permission size is <= 8KB, else x-ms-file-permission-key
@@ -804,28 +787,38 @@ class ShareDirectoryClient(StorageAccountHostsMixin):
             directory/file. Note: Only one of the x-ms-file-permission or
             x-ms-file-permission-key should be specified.
         :type permission_key: str
+        :keyword file_permission_format:
+            Specifies the format in which the permission is returned. If not specified, SDDL will be the default.
+        :paramtype file_permission_format: Literal['sddl', 'binary']
         :keyword file_change_time:
             Change time for the directory. If not specified, change time will be set to the current date/time.
 
             .. versionadded:: 12.8.0
+
                 This parameter was introduced in API version '2021-06-08'.
 
         :paramtype file_change_time: str or ~datetime.datetime
+        :keyword str owner:
+            NFS only. The owner of the directory.
+        :keyword str group:
+            NFS only. The owning group of the directory.
+        :keyword str file_mode:
+            NFS only. The file mode of the directory.
         :keyword int timeout:
             Sets the server-side timeout for the operation in seconds. For more details see
             https://learn.microsoft.com/rest/api/storageservices/setting-timeouts-for-file-service-operations.
             This value is not tracked or validated on the client. To configure client-side network timesouts
             see `here <https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/storage/azure-storage-file-share
-            #other-client--per-operation-configuration>`_.
+            #other-client--per-operation-configuration>`__.
         :returns: File-updated property dict (Etag and last modified).
-        :rtype: dict(str, Any)
+        :rtype: dict[str, Any]
         """
         timeout = kwargs.pop('timeout', None)
-        file_permission = _get_file_permission(file_permission, permission_key, 'preserve')
+        file_permission = _get_file_permission(file_permission, permission_key, None)
         file_change_time = kwargs.pop('file_change_time', None)
         try:
-            return self._client.directory.set_properties(  # type: ignore
-                file_attributes=_str(file_attributes),
+            return cast(Dict[str, Any], self._client.directory.set_properties(
+                file_attributes=str(file_attributes) if file_attributes is not None else file_attributes,
                 file_creation_time=_datetime_to_str(file_creation_time),
                 file_last_write_time=_datetime_to_str(file_last_write_time),
                 file_change_time=_datetime_to_str(file_change_time),
@@ -833,28 +826,26 @@ class ShareDirectoryClient(StorageAccountHostsMixin):
                 file_permission_key=permission_key,
                 timeout=timeout,
                 cls=return_response_headers,
-                **kwargs)
+                **kwargs))
         except HttpResponseError as error:
             process_storage_error(error)
 
     @distributed_trace
-    def create_subdirectory(
-            self, directory_name,  # type: str
-            **kwargs):
-        # type: (...) -> ShareDirectoryClient
+    def create_subdirectory(self, directory_name: str, **kwargs: Any) -> "ShareDirectoryClient":
         """Creates a new subdirectory and returns a client to interact
         with the subdirectory.
 
         :param str directory_name:
             The name of the subdirectory.
-        :keyword dict(str,str) metadata:
+        :keyword metadata:
             Name-value pairs associated with the subdirectory as metadata.
+        :paramtype metadata: Optional[dict[str, str]]
         :keyword int timeout:
             Sets the server-side timeout for the operation in seconds. For more details see
             https://learn.microsoft.com/rest/api/storageservices/setting-timeouts-for-file-service-operations.
             This value is not tracked or validated on the client. To configure client-side network timesouts
             see `here <https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/storage/azure-storage-file-share
-            #other-client--per-operation-configuration>`_.
+            #other-client--per-operation-configuration>`__.
         :returns: ShareDirectoryClient
         :rtype: ~azure.storage.fileshare.ShareDirectoryClient
 
@@ -871,14 +862,10 @@ class ShareDirectoryClient(StorageAccountHostsMixin):
         timeout = kwargs.pop('timeout', None)
         subdir = self.get_subdirectory_client(directory_name)
         subdir.create_directory(metadata=metadata, timeout=timeout, **kwargs)
-        return subdir # type: ignore
+        return subdir
 
     @distributed_trace
-    def delete_subdirectory(
-            self, directory_name,  # type: str
-            **kwargs
-        ):
-        # type: (...) -> None
+    def delete_subdirectory(self, directory_name: str, **kwargs: Any) -> None:
         """Deletes a subdirectory.
 
         :param str directory_name:
@@ -888,7 +875,7 @@ class ShareDirectoryClient(StorageAccountHostsMixin):
             https://learn.microsoft.com/rest/api/storageservices/setting-timeouts-for-file-service-operations.
             This value is not tracked or validated on the client. To configure client-side network timesouts
             see `here <https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/storage/azure-storage-file-share
-            #other-client--per-operation-configuration>`_.
+            #other-client--per-operation-configuration>`__.
         :rtype: None
 
         .. admonition:: Example:
@@ -906,11 +893,11 @@ class ShareDirectoryClient(StorageAccountHostsMixin):
 
     @distributed_trace
     def upload_file(
-            self, file_name: str,
-            data: Union[bytes, str, Iterable[AnyStr], IO[AnyStr]],
-            length: Optional[int] = None,
-            **kwargs
-        ) -> ShareFileClient:
+        self, file_name: str,
+        data: Union[bytes, str, Iterable[AnyStr], IO[AnyStr]],
+        length: Optional[int] = None,
+        **kwargs: Any
+    ) -> ShareFileClient:
         """Creates a new file in the directory and returns a ShareFileClient
         to interact with the file.
 
@@ -918,10 +905,12 @@ class ShareDirectoryClient(StorageAccountHostsMixin):
             The name of the file.
         :param data:
             Content of the file.
+        :type data: Union[bytes, str, Iterable[AnyStr], IO[AnyStr]]
         :param int length:
             Length of the file in bytes. Specify its maximum size, up to 1 TiB.
-        :keyword dict(str,str) metadata:
+        :keyword metadata:
             Name-value pairs associated with the file as metadata.
+        :paramtype metadata: Optional[dict[str, str]]
         :keyword ~azure.storage.fileshare.ContentSettings content_settings:
             ContentSettings object used to set file properties. Used to set content type, encoding,
             language, disposition, md5, and cache control.
@@ -944,7 +933,7 @@ class ShareDirectoryClient(StorageAccountHostsMixin):
             https://learn.microsoft.com/rest/api/storageservices/setting-timeouts-for-file-service-operations.
             This value is not tracked or validated on the client. To configure client-side network timesouts
             see `here <https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/storage/azure-storage-file-share
-            #other-client--per-operation-configuration>`_.
+            #other-client--per-operation-configuration>`__.
         :keyword str encoding:
             Defaults to UTF-8.
         :returns: ShareFileClient
@@ -967,11 +956,7 @@ class ShareDirectoryClient(StorageAccountHostsMixin):
         return file_client
 
     @distributed_trace
-    def delete_file(
-            self, file_name,  # type: str
-            **kwargs  # type: Optional[Any]
-        ):
-        # type: (...) -> None
+    def delete_file(self, file_name: str, **kwargs: Any) -> None:
         """Marks the specified file for deletion. The file is later
         deleted during garbage collection.
 
@@ -982,7 +967,7 @@ class ShareDirectoryClient(StorageAccountHostsMixin):
             https://learn.microsoft.com/rest/api/storageservices/setting-timeouts-for-file-service-operations.
             This value is not tracked or validated on the client. To configure client-side network timesouts
             see `here <https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/storage/azure-storage-file-share
-            #other-client--per-operation-configuration>`_.
+            #other-client--per-operation-configuration>`__.
         :rtype: None
 
         .. admonition:: Example:

@@ -10,14 +10,13 @@ from enum import Enum
 from azure.core import CaseInsensitiveEnumMeta
 
 
-class ContentFormat(str, Enum, metaclass=CaseInsensitiveEnumMeta):
-    """Format of the content in analyzed result."""
+class AnalyzeOutputOption(str, Enum, metaclass=CaseInsensitiveEnumMeta):
+    """Additional output to generate during analysis."""
 
-    TEXT = "text"
-    """Plain text representation of the document content without any formatting."""
-    MARKDOWN = "markdown"
-    """Markdown representation of the document content with section headings, tables,
-    #: etc."""
+    PDF = "pdf"
+    """Generate searchable PDF output."""
+    FIGURES = "figures"
+    """Generate cropped images of detected figures."""
 
 
 class ContentSourceKind(str, Enum, metaclass=CaseInsensitiveEnumMeta):
@@ -55,7 +54,7 @@ class DocumentAnalysisFeature(str, Enum, metaclass=CaseInsensitiveEnumMeta):
 class DocumentBarcodeKind(str, Enum, metaclass=CaseInsensitiveEnumMeta):
     """Barcode kind."""
 
-    Q_R_CODE = "QRCode"
+    QR_CODE = "QRCode"
     """QR code, as defined in ISO/IEC 18004:2015."""
     PDF417 = "PDF417"
     """PDF417, as defined in ISO 15438."""
@@ -81,7 +80,7 @@ class DocumentBarcodeKind(str, Enum, metaclass=CaseInsensitiveEnumMeta):
     """GS1 DataBar Expanded barcode."""
     ITF = "ITF"
     """Interleaved 2 of 5 barcode, as defined in ANSI/AIM BC2-1995."""
-    MICRO_Q_R_CODE = "MicroQRCode"
+    MICRO_QR_CODE = "MicroQRCode"
     """Micro QR code, as defined in ISO/IEC 23941:2022."""
     AZTEC = "Aztec"
     """Aztec code, as defined in ISO/IEC 24778:2008."""
@@ -98,6 +97,16 @@ class DocumentBuildMode(str, Enum, metaclass=CaseInsensitiveEnumMeta):
     """Target documents with similar visual templates."""
     NEURAL = "neural"
     """Support documents with diverse visual templates."""
+
+
+class DocumentContentFormat(str, Enum, metaclass=CaseInsensitiveEnumMeta):
+    """Format of the content in analyzed result."""
+
+    TEXT = "text"
+    """Plain text representation of the document content without any formatting."""
+    MARKDOWN = "markdown"
+    """Markdown representation of the document content with section headings, tables,
+    etc."""
 
 
 class DocumentFieldType(str, Enum, metaclass=CaseInsensitiveEnumMeta):
@@ -131,6 +140,26 @@ class DocumentFieldType(str, Enum, metaclass=CaseInsensitiveEnumMeta):
     """Parsed address."""
     BOOLEAN = "boolean"
     """Boolean value, normalized to true or false."""
+    SELECTION_GROUP = "selectionGroup"
+    """Array of selected string values."""
+
+
+class DocumentFontStyle(str, Enum, metaclass=CaseInsensitiveEnumMeta):
+    """Font style."""
+
+    NORMAL = "normal"
+    """Characters are represented normally."""
+    ITALIC = "italic"
+    """Characters are visually slanted to the right."""
+
+
+class DocumentFontWeight(str, Enum, metaclass=CaseInsensitiveEnumMeta):
+    """Font weight."""
+
+    NORMAL = "normal"
+    """Characters are represented normally."""
+    BOLD = "bold"
+    """Characters are represented with thicker strokes."""
 
 
 class DocumentFormulaKind(str, Enum, metaclass=CaseInsensitiveEnumMeta):
@@ -142,12 +171,29 @@ class DocumentFormulaKind(str, Enum, metaclass=CaseInsensitiveEnumMeta):
     """A formula in display mode that takes up an entire line."""
 
 
+class DocumentIntelligenceOperationStatus(str, Enum, metaclass=CaseInsensitiveEnumMeta):
+    """Operation status."""
+
+    NOT_STARTED = "notStarted"
+    """The operation has not started yet."""
+    RUNNING = "running"
+    """The operation is in progress."""
+    FAILED = "failed"
+    """The operation has failed."""
+    SUCCEEDED = "succeeded"
+    """The operation has succeeded."""
+    CANCELED = "canceled"
+    """The operation has been canceled."""
+    SKIPPED = "skipped"
+    """The operation has been skipped."""
+
+
 class DocumentSelectionMarkState(str, Enum, metaclass=CaseInsensitiveEnumMeta):
     """State of the selection mark."""
 
     SELECTED = "selected"
     """The selection mark is selected, often indicated by a check ✓ or cross X inside
-    #: the selection mark."""
+    the selection mark."""
     UNSELECTED = "unselected"
     """The selection mark is not selected."""
 
@@ -176,24 +222,6 @@ class DocumentTableCellKind(str, Enum, metaclass=CaseInsensitiveEnumMeta):
     """Describes the content in (parts of) the table."""
 
 
-class FontStyle(str, Enum, metaclass=CaseInsensitiveEnumMeta):
-    """Font style."""
-
-    NORMAL = "normal"
-    """Characters are represented normally."""
-    ITALIC = "italic"
-    """Characters are visually slanted to the right."""
-
-
-class FontWeight(str, Enum, metaclass=CaseInsensitiveEnumMeta):
-    """Font weight."""
-
-    NORMAL = "normal"
-    """Characters are represented normally."""
-    BOLD = "bold"
-    """Characters are represented with thicker strokes."""
-
-
 class LengthUnit(str, Enum, metaclass=CaseInsensitiveEnumMeta):
     """The unit used by the width, height, and polygon properties. For images, the unit is "pixel".
     For PDF, the unit is "inch".
@@ -214,24 +242,12 @@ class OperationKind(str, Enum, metaclass=CaseInsensitiveEnumMeta):
     """Compose a new custom document model from existing models."""
     DOCUMENT_MODEL_COPY_TO = "documentModelCopyTo"
     """Copy an existing document model to potentially a different resource, region, or
-    #: subscription."""
+    subscription."""
+    DOCUMENT_CLASSIFIER_COPY_TO = "documentClassifierCopyTo"
+    """Copy an existing document classifier to potentially a different resource, region, or
+    subscription."""
     DOCUMENT_CLASSIFIER_BUILD = "documentClassifierBuild"
     """Build a new custom classifier model."""
-
-
-class OperationStatus(str, Enum, metaclass=CaseInsensitiveEnumMeta):
-    """Operation status."""
-
-    NOT_STARTED = "notStarted"
-    """The operation has not started yet."""
-    RUNNING = "running"
-    """The operation is in progress."""
-    FAILED = "failed"
-    """The operation has failed."""
-    SUCCEEDED = "succeeded"
-    """The operation has succeeded."""
-    CANCELED = "canceled"
-    """The operation has been canceled."""
 
 
 class ParagraphRole(str, Enum, metaclass=CaseInsensitiveEnumMeta):
@@ -269,9 +285,9 @@ class StringIndexType(str, Enum, metaclass=CaseInsensitiveEnumMeta):
 
     TEXT_ELEMENTS = "textElements"
     """User-perceived display character, or grapheme cluster, as defined by Unicode
-    #: 8.0.0."""
+    8.0.0."""
     UNICODE_CODE_POINT = "unicodeCodePoint"
     """Character unit represented by a single unicode code point.  Used by Python 3."""
     UTF16_CODE_UNIT = "utf16CodeUnit"
     """Character unit represented by a 16-bit Unicode code unit.  Used by JavaScript,
-    #: Java, and .NET."""
+    Java, and .NET."""

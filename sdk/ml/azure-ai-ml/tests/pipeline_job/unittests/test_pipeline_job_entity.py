@@ -776,7 +776,7 @@ class TestPipelineJobEntity:
             "inputs": {"file_input": {"job_input_type": "literal", "value": "${{parent.inputs.iris_data}}"}},
             "name": "add_greeting_column",
             "py_files": ["utils.zip"],
-            "resources": {"instance_type": "standard_e4s_v3", "runtime_version": "3.2.0"},
+            "resources": {"instance_type": "standard_e4s_v3", "runtime_version": "3.3.0"},
             "type": "spark",
         }
         assert actual_dict == expected_dict
@@ -802,7 +802,7 @@ class TestPipelineJobEntity:
             "jars": ["scalaproj.jar"],
             "name": "count_by_row",
             "outputs": {"output": {"type": "literal", "value": "${{parent.outputs.output}}"}},
-            "resources": {"instance_type": "standard_e4s_v3", "runtime_version": "3.2.0"},
+            "resources": {"instance_type": "standard_e4s_v3", "runtime_version": "3.3.0"},
             "type": "spark",
         }
         assert actual_dict == expected_dict
@@ -1343,7 +1343,7 @@ class TestPipelineJobEntity:
                         "input1": {"job_input_type": "literal", "value": "${{parent.jobs.sample_word.outputs.output1}}"}
                     },
                     "name": "count_word",
-                    "resources": {"instance_type": "standard_e4s_v3", "runtime_version": "3.2.0"},
+                    "resources": {"instance_type": "standard_e4s_v3", "runtime_version": "3.3.0"},
                     "type": "spark",
                 },
                 "sample_word": {
@@ -1369,7 +1369,7 @@ class TestPipelineJobEntity:
                     },
                     "name": "sample_word",
                     "outputs": {"output1": {"type": "literal", "value": "${{parent.outputs.output1}}"}},
-                    "resources": {"instance_type": "standard_e4s_v3", "runtime_version": "3.2.0"},
+                    "resources": {"instance_type": "standard_e4s_v3", "runtime_version": "3.3.0"},
                     "type": "spark",
                 },
             },
@@ -1433,7 +1433,7 @@ class TestPipelineJobEntity:
             "inputs": {"file_input": {"job_input_type": "literal", "value": "${{parent.inputs.iris_data}}"}},
             "name": "kmeans_cluster",
             "outputs": {"output": {"type": "literal", "value": "${{parent.outputs.output}}"}},
-            "resources": {"instance_type": "standard_e4s_v3", "runtime_version": "3.2.0"},
+            "resources": {"instance_type": "standard_e4s_v3", "runtime_version": "3.3.0"},
             "type": "spark",
         }
         assert actual_dict == expected_dict
@@ -1984,7 +1984,7 @@ class TestPipelineJobEntity:
         assert actual_dict["jobs"] == {
             "hello_world_component": {
                 "computeId": "cpu-cluster",
-                "identity": {"type": "user_identity"},
+                "identity": {"identity_type": "UserIdentity"},
                 "inputs": {
                     "component_in_number": {"job_input_type": "literal", "value": "${{parent.inputs.job_in_number}}"},
                     "component_in_path": {"job_input_type": "literal", "value": "${{parent.inputs.job_in_path}}"},
@@ -1994,7 +1994,7 @@ class TestPipelineJobEntity:
             },
             "hello_world_component_2": {
                 "computeId": "cpu-cluster",
-                "identity": {"type": "aml_token"},
+                "identity": {"identity_type": "AMLToken"},
                 "inputs": {
                     "component_in_number": {
                         "job_input_type": "literal",
@@ -2007,7 +2007,7 @@ class TestPipelineJobEntity:
             },
             "hello_world_component_3": {
                 "computeId": "cpu-cluster",
-                "identity": {"type": "user_identity"},
+                "identity": {"identity_type": "UserIdentity"},
                 "inputs": {
                     "component_in_number": {
                         "job_input_type": "literal",
@@ -2192,5 +2192,26 @@ class TestPipelineJobEntity:
         pipeline_job_rest_object = pipeline_job._to_rest_object()
         assert pipeline_job_rest_object.properties.jobs["count_by_row"]["resources"] == {
             "instance_type": "${{parent.inputs.instance_type}}",
-            "runtime_version": "3.2.0",
+            "runtime_version": "3.3.0",
         }
+
+    def test_local_input_in_pipeline_job(self, client: MLClient, tmp_path: Path):
+        file_path = tmp_path / "mock_input_file"
+        file_path.touch(exist_ok=True)
+        component_path = "./tests/test_configs/components/1in1out.yaml"
+        component_func = load_component(source=component_path)
+
+        @pipeline()
+        def pipeline_with_local_input():
+            input_folder = Input(type="uri_folder", path=tmp_path)
+            component_func(input1=input_folder)
+
+        pipeline_obj = pipeline_with_local_input()
+        pipeline_obj.component.jobs["one_in_one_out"]._component = "mock_component_id"
+        pipeline_hash_id = pipeline_obj.component._get_anonymous_hash()
+
+        with open(file_path, "w") as f:
+            f.write("mock_file")
+
+        new_pipeline_hash_id = pipeline_obj.component._get_anonymous_hash()
+        assert new_pipeline_hash_id != pipeline_hash_id

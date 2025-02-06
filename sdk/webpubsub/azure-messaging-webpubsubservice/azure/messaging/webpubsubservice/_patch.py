@@ -24,6 +24,7 @@
 # IN THE SOFTWARE.
 #
 # --------------------------------------------------------------------------
+
 from typing import Any, TYPE_CHECKING, Optional, Union, Awaitable
 from datetime import datetime, timedelta
 import jwt
@@ -38,6 +39,7 @@ from ._operations._patch import _UTC_TZ
 
 if TYPE_CHECKING:
     # pylint: disable=unused-import,ungrouped-imports
+
     from azure.core.credentials import TokenCredential
 
 
@@ -109,7 +111,7 @@ class JwtCredentialPolicy(SansIOHTTPPolicy):
             key=self._credential.key,
             algorithm="HS256",
         )
-        return encoded.decode("utf-8")
+        return encoded
 
 
 class ApiManagementProxy(ProxyPolicy):

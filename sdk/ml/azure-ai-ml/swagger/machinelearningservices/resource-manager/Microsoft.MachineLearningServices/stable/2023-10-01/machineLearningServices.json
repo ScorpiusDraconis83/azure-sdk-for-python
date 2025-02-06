@@ -778,7 +778,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The response includes a paginated array of Machine Learning computes and a URI to the next set of results, if any. For the more information the limits of the number of items in a resource group, see https://azure.microsoft.com/en-us/documentation/articles/azure-subscription-service-limits/.",
+            "description": "The response includes a paginated array of Machine Learning computes and a URI to the next set of results, if any. For the more information the limits of the number of items in a resource group, see https://azure.microsoft.com/documentation/articles/azure-subscription-service-limits/.",
             "schema": {
               "$ref": "#/definitions/PaginatedComputeResourcesList"
             }
@@ -2580,6 +2580,10 @@
       "type": "object",
       "description": "The parameters for updating the properties of a machine learning workspace.",
       "properties": {
+        "systemDatastoresAuthMode": {
+          "description": "The auth mode used for accessing the system datastores of the workspace.",
+          "type": "string"
+        },
         "description": {
           "description": "The description of this workspace.",
           "type": "string"
@@ -2599,6 +2603,10 @@
         "primaryUserAssignedIdentity": {
           "description": "The user assigned identity resource id that represents the workspace identity.",
           "type": "string"
+        },
+        "allowRoleAssignmentOnRG": {
+          "description": "Determine whether we will allow workspace role assignment on resource group level.",
+          "type": "boolean"
         },
         "serverlessComputeSettings": {
           "description": "Settings for serverless compute created in the workspace",
@@ -5629,7 +5637,7 @@
           "x-nullable": true
         },
         "timeZone": {
-          "description": "Specifies time zone in which the schedule runs.\r\nTimeZone should follow Windows time zone format. Refer: https://docs.microsoft.com/en-us/windows-hardware/manufacture/desktop/default-time-zones?view=windows-11",
+          "description": "Specifies time zone in which the schedule runs.\r\nTimeZone should follow Windows time zone format. Refer: https://learn.microsoft.com/windows-hardware/manufacture/desktop/default-time-zones?view=windows-11",
           "default": "UTC",
           "type": "string"
         },
@@ -5778,7 +5786,7 @@
           "x-nullable": true
         },
         "timeZone": {
-          "description": "Specifies time zone in which the schedule runs.\r\nTimeZone should follow Windows time zone format. Refer: https://docs.microsoft.com/en-us/windows-hardware/manufacture/desktop/default-time-zones?view=windows-11",
+          "description": "Specifies time zone in which the schedule runs.\r\nTimeZone should follow Windows time zone format. Refer: https://learn.microsoft.com/windows-hardware/manufacture/desktop/default-time-zones?view=windows-11",
           "type": "string",
           "default": "UTC"
         },

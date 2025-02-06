@@ -43,6 +43,7 @@ from .partition_key import _Empty, _Undefined
 
 if TYPE_CHECKING:
     from ._cosmos_client_connection import CosmosClientConnection
+    from .aio._cosmos_client_connection_async import CosmosClientConnection as AsyncClientConnection
 
 
 _COMMON_OPTIONS = {
@@ -59,14 +60,16 @@ _COMMON_OPTIONS = {
     'is_query_plan_request': 'isQueryPlanRequest',
     'supported_query_features': 'supportedQueryFeatures',
     'query_version': 'queryVersion',
-    'priority_level': 'priorityLevel'
+    'priority': 'priorityLevel',
+    'no_response': 'responsePayloadOnWriteDisabled',
+    'max_item_count': 'maxItemCount',
 }
 
 # Cosmos resource ID validation regex breakdown:
 # ^ Match start of string.
-# [^/\#?]{0,255} Match any character that is not /\#? for between 0-255 characters.
+# [^/\#?] Match any character that is not /\#?\n\r\t.
 # $ End of string
-_VALID_COSMOS_RESOURCE = re.compile(r"^[^/\\#?\t\r\n]{0,255}$")
+_VALID_COSMOS_RESOURCE = re.compile(r"^[^/\\#?\t\r\n]*$")
 
 
 def _get_match_headers(kwargs: Dict[str, Any]) -> Tuple[Optional[str], Optional[str]]:
@@ -107,14 +110,16 @@ def build_options(kwargs: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def GetHeaders(  # pylint: disable=too-many-statements,too-many-branches
-        cosmos_client_connection: "CosmosClientConnection",
+        cosmos_client_connection: Union["CosmosClientConnection", "AsyncClientConnection"],
         default_headers: Mapping[str, Any],
         verb: str,
         path: str,
         resource_id: Optional[str],
         resource_type: str,
+        operation_type: str,
         options: Mapping[str, Any],
         partition_key_range_id: Optional[str] = None,
+        client_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Gets HTTP request headers.
 
@@ -124,8 +129,10 @@ def GetHeaders(  # pylint: disable=too-many-statements,too-many-branches
     :param str path:
     :param str resource_id:
     :param str resource_type:
+    :param str operation_type:
     :param dict options:
     :param str partition_key_range_id:
+    :param str client_id:
     :return: The HTTP request headers.
     :rtype: dict
     """
@@ -168,6 +175,7 @@ def GetHeaders(  # pylint: disable=too-many-statements,too-many-branches
     # set consistency level. check if set via options, this will override the default
     if options.get("consistencyLevel"):
         consistency_level = options["consistencyLevel"]
+        # TODO: move this line outside of if-else cause to remove the code duplication
         headers[http_constants.HttpHeaders.ConsistencyLevel] = consistency_level
     elif default_client_consistency_level is not None:
         consistency_level = default_client_consistency_level
@@ -225,8 +233,11 @@ def GetHeaders(  # pylint: disable=too-many-statements,too-many-branches
         # else serialize using json dumps method which apart from regular values will serialize None into null
         else:
             # single partitioning uses a string and needs to be turned into a list
-            if isinstance(options["partitionKey"], list) and options["partitionKey"]:
-                pk_val = json.dumps(options["partitionKey"], separators=(',', ':'))
+            is_sequence_not_string = (isinstance(options["partitionKey"], Sequence) and
+                                      not isinstance(options["partitionKey"], str))
+
+            if is_sequence_not_string and options["partitionKey"]:
+                pk_val = json.dumps(list(options["partitionKey"]), separators=(',', ':'))
             else:
                 pk_val = json.dumps([options["partitionKey"]])
             headers[http_constants.HttpHeaders.PartitionKey] = pk_val
@@ -244,12 +255,11 @@ def GetHeaders(  # pylint: disable=too-many-statements,too-many-branches
         headers[http_constants.HttpHeaders.ResponseContinuationTokenLimitInKb] = options[
             "responseContinuationTokenLimitInKb"]
 
-    if options.get("priorityLevel") and options["priorityLevel"].lower() in {"low", "high"}:
+    if options.get("priorityLevel"):
         headers[http_constants.HttpHeaders.PriorityLevel] = options["priorityLevel"]
 
-    if cosmos_client_connection.master_key:
-        # formatdate guarantees RFC 1123 date format regardless of current locale
-        headers[http_constants.HttpHeaders.XDate] = formatdate(timeval=None, localtime=False, usegmt=True)
+    # formatdate guarantees RFC 1123 date format regardless of current locale
+    headers[http_constants.HttpHeaders.XDate] = formatdate(timeval=None, localtime=False, usegmt=True)
 
     if cosmos_client_connection.master_key or cosmos_client_connection.resource_tokens:
         resource_type = _internal_resourcetype(resource_type)
@@ -272,6 +282,9 @@ def GetHeaders(  # pylint: disable=too-many-statements,too-many-branches
     if partition_key_range_id is not None:
         headers[http_constants.HttpHeaders.PartitionKeyRangeID] = partition_key_range_id
 
+    if client_id is not None:
+        headers[http_constants.HttpHeaders.ClientId] = client_id
+
     if options.get("enableScriptLogging"):
         headers[http_constants.HttpHeaders.EnableScriptLogging] = options["enableScriptLogging"]
 
@@ -283,19 +296,8 @@ def GetHeaders(  # pylint: disable=too-many-statements,too-many-branches
     if options.get("disableRUPerMinuteUsage"):
         headers[http_constants.HttpHeaders.DisableRUPerMinuteUsage] = options["disableRUPerMinuteUsage"]
 
-    if options.get("changeFeed") is True:
-        # On REST level, change feed is using IfNoneMatch/ETag instead of continuation.
-        if_none_match_value = None
-        if options.get("continuation"):
-            if_none_match_value = options["continuation"]
-        elif options.get("isStartFromBeginning") and not options["isStartFromBeginning"]:
-            if_none_match_value = "*"
-        if if_none_match_value:
-            headers[http_constants.HttpHeaders.IfNoneMatch] = if_none_match_value
-        headers[http_constants.HttpHeaders.AIM] = http_constants.HttpHeaders.IncrementalFeedHeaderValue
-    else:
-        if options.get("continuation"):
-            headers[http_constants.HttpHeaders.Continuation] = options["continuation"]
+    if options.get("continuation"):
+        headers[http_constants.HttpHeaders.Continuation] = options["continuation"]
 
     if options.get("populatePartitionKeyRangeStatistics"):
         headers[http_constants.HttpHeaders.PopulatePartitionKeyRangeStatistics] = options[
@@ -313,6 +315,25 @@ def GetHeaders(  # pylint: disable=too-many-statements,too-many-branches
 
     if options.get("correlatedActivityId"):
         headers[http_constants.HttpHeaders.CorrelatedActivityId] = options["correlatedActivityId"]
+
+    if resource_type == "docs" and verb != "get":
+        if "responsePayloadOnWriteDisabled" in options:
+            responsePayloadOnWriteDisabled = options["responsePayloadOnWriteDisabled"]
+        else:
+            responsePayloadOnWriteDisabled = cosmos_client_connection.connection_policy.ResponsePayloadOnWriteDisabled
+
+        if responsePayloadOnWriteDisabled:
+            headers[http_constants.HttpHeaders.Prefer] = "return=minimal"
+
+    # If it is an operation at the container level, verify the rid of the container to see if the cache needs to be
+    # refreshed.
+    if resource_type != 'dbs' and options.get("containerRID"):
+        headers[http_constants.HttpHeaders.IntendedCollectionRID] = options["containerRID"]
+
+    if resource_type == "":
+        resource_type = http_constants.ResourceType.DatabaseAccount
+    headers[http_constants.HttpHeaders.ThinClientProxyResourceType] = resource_type
+    headers[http_constants.HttpHeaders.ThinClientProxyOperationType] = operation_type
 
     return headers
 
@@ -765,8 +786,7 @@ def _replace_throughput(
             max_throughput = throughput.auto_scale_max_throughput
             increment_percent = throughput.auto_scale_increment_percent
             if max_throughput is not None:
-                new_throughput_properties['content']['offerAutopilotSettings'][
-                    'maxThroughput'] = max_throughput
+                new_throughput_properties['content']['offerAutopilotSettings']['maxThroughput'] = max_throughput
                 if increment_percent:
                     new_throughput_properties['content']['offerAutopilotSettings']['autoUpgradePolicy']['throughputPolicy']['incrementPercent'] = increment_percent  # pylint: disable=line-too-long
                 if throughput.offer_throughput:
@@ -849,3 +869,10 @@ def _format_batch_operations(
         final_operations.append(operation)
 
     return final_operations
+
+
+def _set_properties_cache(properties: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "_self": properties.get("_self", None), "_rid": properties.get("_rid", None),
+        "partitionKey": properties.get("partitionKey", None)
+    }

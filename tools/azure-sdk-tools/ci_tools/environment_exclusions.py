@@ -5,7 +5,7 @@
 # Licensed under the MIT License. See License.txt in the project root for license information.
 # --------------------------------------------------------------------------------------------
 from ci_tools.parsing import get_config_setting
-from ci_tools.variables import in_public
+from ci_tools.variables import in_public, in_analyze_weekly
 import os
 from typing import Any
 
@@ -15,8 +15,8 @@ from typing import Any
 # For CI exclusion of type checks, look into adding a pyproject.toml, as indicated in the `The pyproject.toml` section
 # of `.doc/eng_sys_checks.md`.
 
-IGNORE_FILTER = ["nspkg", "mgmt", "cognitiveservices"]
-FILTER_EXCLUSIONS = ["azure-mgmt-core"]
+IGNORE_FILTER = ["nspkg", "cognitiveservices"]
+FILTER_EXCLUSIONS = []
 IGNORE_PACKAGES = [
     "azure-applicationinsights",
     "azure-servicemanagement-legacy",
@@ -35,6 +35,10 @@ IGNORE_PACKAGES = [
     "azure-template",
 ]
 
+MUST_RUN_ENVS = ["bandit"]
+
+# all of our checks default to ON, other than the below
+CHECK_DEFAULTS = {"black": False}
 
 def is_check_enabled(package_path: str, check: str, default: Any = True) -> bool:
     """
@@ -52,8 +56,8 @@ def is_check_enabled(package_path: str, check: str, default: Any = True) -> bool
     if package_path == ".":
         package_path = os.getcwd()
 
-    ci_enabled = get_config_setting(package_path, "ci_enabled", default)
-    if not in_public() and ci_enabled is False:
+    ci_enabled = get_config_setting(package_path, "ci_enabled", True)
+    if not in_public() and not in_analyze_weekly() and ci_enabled is False:
         return False
 
     # now pull the new pyproject.toml configuration
@@ -78,7 +82,8 @@ def filter_tox_environment_string(namespace_argument: str, package_path: str) ->
         filtered_set = []
 
         for tox_env in [env.strip().lower() for env in tox_envs]:
-            if is_check_enabled(package_path, tox_env, True):
+            check_enabled = is_check_enabled(package_path, tox_env, CHECK_DEFAULTS.get(tox_env, True))
+            if check_enabled or tox_env in MUST_RUN_ENVS:
                 filtered_set.append(tox_env)
         return ",".join(filtered_set)
 

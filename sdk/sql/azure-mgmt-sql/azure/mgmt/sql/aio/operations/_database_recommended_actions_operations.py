@@ -1,4 +1,4 @@
-# pylint: disable=too-many-lines
+# pylint: disable=too-many-lines,too-many-statements
 # coding=utf-8
 # --------------------------------------------------------------------------
 # Copyright (c) Microsoft Corporation. All rights reserved.
@@ -7,7 +7,8 @@
 # Changes may cause incorrect behavior and will be lost if the code is regenerated.
 # --------------------------------------------------------------------------
 from io import IOBase
-from typing import Any, Callable, Dict, IO, List, Optional, TypeVar, Union, overload
+import sys
+from typing import Any, Callable, Dict, IO, List, Optional, Type, TypeVar, Union, overload
 
 from azure.core.exceptions import (
     ClientAuthenticationError,
@@ -18,20 +19,22 @@ from azure.core.exceptions import (
     map_error,
 )
 from azure.core.pipeline import PipelineResponse
-from azure.core.pipeline.transport import AsyncHttpResponse
-from azure.core.rest import HttpRequest
+from azure.core.rest import AsyncHttpResponse, HttpRequest
 from azure.core.tracing.decorator_async import distributed_trace_async
 from azure.core.utils import case_insensitive_dict
 from azure.mgmt.core.exceptions import ARMErrorFormat
 
 from ... import models as _models
-from ..._vendor import _convert_request
 from ...operations._database_recommended_actions_operations import (
     build_get_request,
     build_list_by_database_advisor_request,
     build_update_request,
 )
 
+if sys.version_info >= (3, 9):
+    from collections.abc import MutableMapping
+else:
+    from typing import MutableMapping  # type: ignore  # pylint: disable=ungrouped-imports
 T = TypeVar("T")
 ClsType = Optional[Callable[[PipelineResponse[HttpRequest, AsyncHttpResponse], T, Dict[str, Any]], Any]]
 
@@ -70,12 +73,11 @@ class DatabaseRecommendedActionsOperations:
         :type database_name: str
         :param advisor_name: The name of the Database Advisor. Required.
         :type advisor_name: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: list of RecommendedAction or the result of cls(response)
         :rtype: list[~azure.mgmt.sql.models.RecommendedAction]
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -89,23 +91,21 @@ class DatabaseRecommendedActionsOperations:
         api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2020-11-01-preview"))
         cls: ClsType[List[_models.RecommendedAction]] = kwargs.pop("cls", None)
 
-        request = build_list_by_database_advisor_request(
+        _request = build_list_by_database_advisor_request(
             resource_group_name=resource_group_name,
             server_name=server_name,
             database_name=database_name,
             advisor_name=advisor_name,
             subscription_id=self._config.subscription_id,
             api_version=api_version,
-            template_url=self.list_by_database_advisor.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -114,16 +114,12 @@ class DatabaseRecommendedActionsOperations:
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        deserialized = self._deserialize("[RecommendedAction]", pipeline_response)
+        deserialized = self._deserialize("[RecommendedAction]", pipeline_response.http_response)
 
         if cls:
-            return cls(pipeline_response, deserialized, {})
+            return cls(pipeline_response, deserialized, {})  # type: ignore
 
-        return deserialized
-
-    list_by_database_advisor.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Sql/servers/{serverName}/databases/{databaseName}/advisors/{advisorName}/recommendedActions"
-    }
+        return deserialized  # type: ignore
 
     @distributed_trace_async
     async def get(
@@ -148,12 +144,11 @@ class DatabaseRecommendedActionsOperations:
         :type advisor_name: str
         :param recommended_action_name: The name of Database Recommended Action. Required.
         :type recommended_action_name: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: RecommendedAction or the result of cls(response)
         :rtype: ~azure.mgmt.sql.models.RecommendedAction
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -167,7 +162,7 @@ class DatabaseRecommendedActionsOperations:
         api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2020-11-01-preview"))
         cls: ClsType[_models.RecommendedAction] = kwargs.pop("cls", None)
 
-        request = build_get_request(
+        _request = build_get_request(
             resource_group_name=resource_group_name,
             server_name=server_name,
             database_name=database_name,
@@ -175,16 +170,14 @@ class DatabaseRecommendedActionsOperations:
             recommended_action_name=recommended_action_name,
             subscription_id=self._config.subscription_id,
             api_version=api_version,
-            template_url=self.get.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -193,16 +186,12 @@ class DatabaseRecommendedActionsOperations:
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        deserialized = self._deserialize("RecommendedAction", pipeline_response)
+        deserialized = self._deserialize("RecommendedAction", pipeline_response.http_response)
 
         if cls:
-            return cls(pipeline_response, deserialized, {})
+            return cls(pipeline_response, deserialized, {})  # type: ignore
 
-        return deserialized
-
-    get.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Sql/servers/{serverName}/databases/{databaseName}/advisors/{advisorName}/recommendedActions/{recommendedActionName}"
-    }
+        return deserialized  # type: ignore
 
     @overload
     async def update(
@@ -235,7 +224,6 @@ class DatabaseRecommendedActionsOperations:
         :keyword content_type: Body Parameter content-type. Content type parameter for JSON body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: RecommendedAction or the result of cls(response)
         :rtype: ~azure.mgmt.sql.models.RecommendedAction
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -249,7 +237,7 @@ class DatabaseRecommendedActionsOperations:
         database_name: str,
         advisor_name: str,
         recommended_action_name: str,
-        parameters: IO,
+        parameters: IO[bytes],
         *,
         content_type: str = "application/json",
         **kwargs: Any
@@ -268,11 +256,10 @@ class DatabaseRecommendedActionsOperations:
         :param recommended_action_name: The name of Database Recommended Action. Required.
         :type recommended_action_name: str
         :param parameters: The requested recommended action resource state. Required.
-        :type parameters: IO
+        :type parameters: IO[bytes]
         :keyword content_type: Body Parameter content-type. Content type parameter for binary body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: RecommendedAction or the result of cls(response)
         :rtype: ~azure.mgmt.sql.models.RecommendedAction
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -286,7 +273,7 @@ class DatabaseRecommendedActionsOperations:
         database_name: str,
         advisor_name: str,
         recommended_action_name: str,
-        parameters: Union[_models.RecommendedAction, IO],
+        parameters: Union[_models.RecommendedAction, IO[bytes]],
         **kwargs: Any
     ) -> _models.RecommendedAction:
         """Updates a database recommended action.
@@ -303,17 +290,13 @@ class DatabaseRecommendedActionsOperations:
         :param recommended_action_name: The name of Database Recommended Action. Required.
         :type recommended_action_name: str
         :param parameters: The requested recommended action resource state. Is either a
-         RecommendedAction type or a IO type. Required.
-        :type parameters: ~azure.mgmt.sql.models.RecommendedAction or IO
-        :keyword content_type: Body Parameter content-type. Known values are: 'application/json'.
-         Default value is None.
-        :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
+         RecommendedAction type or a IO[bytes] type. Required.
+        :type parameters: ~azure.mgmt.sql.models.RecommendedAction or IO[bytes]
         :return: RecommendedAction or the result of cls(response)
         :rtype: ~azure.mgmt.sql.models.RecommendedAction
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -336,7 +319,7 @@ class DatabaseRecommendedActionsOperations:
         else:
             _json = self._serialize.body(parameters, "RecommendedAction")
 
-        request = build_update_request(
+        _request = build_update_request(
             resource_group_name=resource_group_name,
             server_name=server_name,
             database_name=database_name,
@@ -347,16 +330,14 @@ class DatabaseRecommendedActionsOperations:
             content_type=content_type,
             json=_json,
             content=_content,
-            template_url=self.update.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -365,13 +346,9 @@ class DatabaseRecommendedActionsOperations:
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
-        deserialized = self._deserialize("RecommendedAction", pipeline_response)
+        deserialized = self._deserialize("RecommendedAction", pipeline_response.http_response)
 
         if cls:
-            return cls(pipeline_response, deserialized, {})
+            return cls(pipeline_response, deserialized, {})  # type: ignore
 
-        return deserialized
-
-    update.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Sql/servers/{serverName}/databases/{databaseName}/advisors/{advisorName}/recommendedActions/{recommendedActionName}"
-    }
+        return deserialized  # type: ignore

@@ -11,21 +11,21 @@ from logging.handlers import RotatingFileHandler
 import time
 
 from azure.eventhub.aio import EventHubConsumerClient
-from azure.eventhub import parse_connection_string
+from azure.identity.aio import DefaultAzureCredential
 
-logger = logging.getLogger('ASYNC_RECEIVE_PERF_TEST')
+logger = logging.getLogger("ASYNC_RECEIVE_PERF_TEST")
 logger.setLevel(logging.INFO)
 logger.addHandler(RotatingFileHandler("async_receive_perf_test.log"))
 
 dotenv.load_dotenv()
-CONN_STRS = [
-    os.environ["EVENT_HUB_CONN_STR_BASIC_NORTHEU"],
-    os.environ["EVENT_HUB_CONN_STR_STANDARD_NORTHEU"],
-    os.environ["EVENT_HUB_CONN_STR_BASIC_WESTUS2"],
-    os.environ["EVENT_HUB_CONN_STR_STANDARD_WESTUS2"]
+NAMESPACES = [
+    os.environ["EVENT_HUB_NAMESPACE_BASIC_NORTHEU"],
+    os.environ["EVENT_HUB_NAMESPACE_STANDARD_NORTHEU"],
+    os.environ["EVENT_HUB_NAMESPACE_BASIC_WESTUS2"],
+    os.environ["EVENT_HUB_NAMESPACE_STANDARD_WESTUS2"],
 ]
 EH_NAME_EVENT_SIZE_PAIR = [
-    ('pyamqp_512', 512),
+    ("pyamqp_512", 512),
 ]
 
 PREFETCH_LIST = [300, 3000]
@@ -35,19 +35,21 @@ FIXED_AMOUNT = 100_000
 
 
 async def receive_fixed_time_interval(
-    conn_str,
+    fully_qualified_namespace,
     eventhub_name,
+    credential,
     single_event_size,
     prefetch=300,
     batch_receiving=False,
     description=None,
     run_duration=30,
-    partition_id="0"
+    partition_id="0",
 ):
-    consumer_client = EventHubConsumerClient.from_connection_string(
-        conn_str,
+    consumer_client = EventHubConsumerClient(
+        fully_qualified_namespace=fully_qualified_namespace,
+        eventhub_name=eventhub_name,
+        credential=credential,
         consumer_group="$Default",
-        eventhub_name=eventhub_name
     )
 
     last_received_count = [0]
@@ -74,7 +76,7 @@ async def receive_fixed_time_interval(
     kwargs = {
         "partition_id": partition_id,
         "starting_position": "-1",  # "-1" is from the beginning of the partition.
-        "prefetch": prefetch
+        "prefetch": prefetch,
     }
     if batch_receiving:
         kwargs["max_batch_size"] = prefetch
@@ -98,33 +100,35 @@ async def receive_fixed_time_interval(
         "EH Namespace: {}.\nMethod: {}, The average performance is {} events/s, throughput: {} bytes/s.\n"
         "Configs are: Single message size: {} bytes, Run duration: {} seconds, Batch: {}.\n"
         "Prefetch: {}".format(
-            parse_connection_string(conn_str).fully_qualified_namespace,
+            fully_qualified_namespace,
             description or "receive_fixed_time_interval",
             avg_perf,
             avg_perf * single_event_size,
             single_event_size,
             run_duration,
             batch_receiving,
-            prefetch
+            prefetch,
         )
     )
 
 
 async def receive_fixed_amount(
-    conn_str,
+    fully_qualified_namespace,
     eventhub_name,
+    credential,
     single_event_size,
     prefetch=300,
     batch_receiving=False,
     description=None,
     partition_id="0",
     run_times=1,
-    fixed_amount=100_000
+    fixed_amount=100_000,
 ):
-    consumer_client = EventHubConsumerClient.from_connection_string(
-        conn_str,
-        consumer_group="$Default",
+    consumer_client = EventHubConsumerClient(
+        fully_qualified_namespace=fully_qualified_namespace,
         eventhub_name=eventhub_name,
+        credential=credential,
+        consumer_group="$Default",
     )
     perf_records = []
     received_count = [0]
@@ -148,18 +152,15 @@ async def receive_fixed_amount(
                     partition_id=partition_id,
                     starting_position="-1",
                     max_batch_size=prefetch,
-                    prefetch=prefetch
+                    prefetch=prefetch,
                 )
             else:
                 await consumer_client.receive(
-                    on_event=on_event,
-                    partition_id=partition_id,
-                    starting_position="-1",
-                    prefetch=prefetch
+                    on_event=on_event, partition_id=partition_id, starting_position="-1", prefetch=prefetch
                 )
         end_time = time.time()
         total_time = end_time - start_time
-        speed = fixed_amount/total_time
+        speed = fixed_amount / total_time
         perf_records.append(speed)
         received_count[0] = 0
     avg_perf = sum(perf_records) / len(perf_records)
@@ -168,42 +169,44 @@ async def receive_fixed_amount(
         "EH Namespace: {}.\nMethod: {}, The average performance is {} events/s, throughput: {} bytes/s.\n"
         "Configs are: Single message size: {} bytes, Total events to receive: {}, Batch: {}.\n"
         "Prefetch: {}".format(
-            parse_connection_string(conn_str).fully_qualified_namespace,
+            fully_qualified_namespace,
             description or "receive_fixed_amount",
             avg_perf,
             avg_perf * single_event_size,
             single_event_size,
             fixed_amount,
             batch_receiving,
-            prefetch
+            prefetch,
         )
     )
 
 
 if __name__ == "__main__":
-    for conn_str in CONN_STRS:
+    for namespace in NAMESPACES:
         for eh_name, single_event_size in EH_NAME_EVENT_SIZE_PAIR:
             for prefetch in PREFETCH_LIST:
                 for batch_receiving in [True, False]:
-                    print('------------------- receiving fixed amount -------------------')
+                    print("------------------- receiving fixed amount -------------------")
                     asyncio.run(
                         receive_fixed_amount(
-                            conn_str=conn_str,
+                            fully_qualified_namespace=namespace,
                             eventhub_name=eh_name,
+                            credential=DefaultAzureCredential(),
                             single_event_size=single_event_size,
                             prefetch=prefetch,
                             batch_receiving=batch_receiving,
-                            fixed_amount=FIXED_AMOUNT
+                            fixed_amount=FIXED_AMOUNT,
                         )
                     )
-                    print('------------------- receiving fixed interval -------------------')
+                    print("------------------- receiving fixed interval -------------------")
                     asyncio.run(
                         receive_fixed_time_interval(
-                            conn_str=conn_str,
+                            fully_qualified_namespace=namespace,
                             eventhub_name=eh_name,
+                            credential=DefaultAzureCredential(),
                             single_event_size=single_event_size,
                             prefetch=prefetch,
                             batch_receiving=batch_receiving,
-                            run_duration=RUN_DURATION
+                            run_duration=RUN_DURATION,
                         )
                     )

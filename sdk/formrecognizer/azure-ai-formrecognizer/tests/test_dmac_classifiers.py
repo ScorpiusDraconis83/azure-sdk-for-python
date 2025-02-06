@@ -11,20 +11,19 @@ from devtools_testutils import recorded_by_proxy, set_bodiless_matcher
 from azure.core.exceptions import ResourceNotFoundError
 from azure.ai.formrecognizer import DocumentModelAdministrationClient, DocumentModelAdministrationLROPoller
 from testcase import FormRecognizerTest
-from preparers import GlobalClientPreparer as _GlobalClientPreparer
-from preparers import FormRecognizerPreparer
+from preparers import FormRecognizerPreparer, get_sync_client
 from conftest import skip_flaky_test
 from azure.ai.formrecognizer import ClassifierDocumentTypeDetails, BlobSource, BlobFileListSource, DocumentClassifierDetails
 
-DocumentModelAdministrationClientPreparer = functools.partial(_GlobalClientPreparer, DocumentModelAdministrationClient)
+get_dma_client = functools.partial(get_sync_client, DocumentModelAdministrationClient)
 
 
 class TestClassifier(FormRecognizerTest):
 
     @FormRecognizerPreparer()
-    @DocumentModelAdministrationClientPreparer()
     @recorded_by_proxy
-    def test_build_classifier(self, client, formrecognizer_training_data_classifier, **kwargs):
+    def test_build_classifier(self, formrecognizer_training_data_classifier, **kwargs):
+        client = get_dma_client()
         set_bodiless_matcher()
         poller = client.begin_build_document_classifier(
             doc_types={
@@ -69,13 +68,13 @@ class TestClassifier(FormRecognizerTest):
         assert result.description == "IRS document classifier"
         for doc_type, source in result.doc_types.items():
             assert doc_type
-            assert source.source.container_url.endswith("training-data-classifier")
+            assert source.source.container_url
             assert source.source.prefix
 
     @FormRecognizerPreparer()
-    @DocumentModelAdministrationClientPreparer()
     @recorded_by_proxy
-    def test_build_classifier_file_list(self, client, formrecognizer_training_data_classifier, **kwargs):
+    def test_build_classifier_file_list(self, formrecognizer_training_data_classifier, **kwargs):
+        client = get_dma_client()
         set_bodiless_matcher()
         classifier_id = str(uuid.uuid4())
         poller = client.begin_build_document_classifier(
@@ -124,13 +123,13 @@ class TestClassifier(FormRecognizerTest):
         assert result.description is None
         for doc_type, source in result.doc_types.items():
             assert doc_type
-            assert source.source.container_url.endswith("training-data-classifier")
+            assert source.source.container_url
             assert source.source.file_list
 
     @FormRecognizerPreparer()
-    @DocumentModelAdministrationClientPreparer()
     @recorded_by_proxy
-    def test_poller_metadata(self, client, formrecognizer_training_data_classifier, **kwargs):
+    def test_poller_metadata(self, formrecognizer_training_data_classifier, **kwargs):
+        client = get_dma_client()
         set_bodiless_matcher()
         poller = client.begin_build_document_classifier(
             doc_types={
@@ -161,9 +160,9 @@ class TestClassifier(FormRecognizerTest):
         assert details["last_updated_on"]
 
     @FormRecognizerPreparer()
-    @DocumentModelAdministrationClientPreparer()
     @recorded_by_proxy
-    def test_mgmt_classifiers(self, client, formrecognizer_training_data_classifier, **kwargs):
+    def test_mgmt_classifiers(self, formrecognizer_training_data_classifier, **kwargs):
+        client = get_dma_client()
         set_bodiless_matcher()
         poller = client.begin_build_document_classifier(
             doc_types={

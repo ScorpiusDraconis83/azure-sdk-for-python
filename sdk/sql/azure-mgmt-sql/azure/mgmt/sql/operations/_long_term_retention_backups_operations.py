@@ -1,4 +1,4 @@
-# pylint: disable=too-many-lines
+# pylint: disable=too-many-lines,too-many-statements
 # coding=utf-8
 # --------------------------------------------------------------------------
 # Copyright (c) Microsoft Corporation. All rights reserved.
@@ -7,7 +7,8 @@
 # Changes may cause incorrect behavior and will be lost if the code is regenerated.
 # --------------------------------------------------------------------------
 from io import IOBase
-from typing import Any, Callable, Dict, IO, Iterable, Optional, TypeVar, Union, cast, overload
+import sys
+from typing import Any, Callable, Dict, IO, Iterable, Iterator, Optional, Type, TypeVar, Union, cast, overload
 
 from azure.core.exceptions import (
     ClientAuthenticationError,
@@ -15,13 +16,14 @@ from azure.core.exceptions import (
     ResourceExistsError,
     ResourceNotFoundError,
     ResourceNotModifiedError,
+    StreamClosedError,
+    StreamConsumedError,
     map_error,
 )
 from azure.core.paging import ItemPaged
 from azure.core.pipeline import PipelineResponse
-from azure.core.pipeline.transport import HttpResponse
 from azure.core.polling import LROPoller, NoPolling, PollingMethod
-from azure.core.rest import HttpRequest
+from azure.core.rest import HttpRequest, HttpResponse
 from azure.core.tracing.decorator import distributed_trace
 from azure.core.utils import case_insensitive_dict
 from azure.mgmt.core.exceptions import ARMErrorFormat
@@ -29,8 +31,11 @@ from azure.mgmt.core.polling.arm_polling import ARMPolling
 
 from .. import models as _models
 from .._serialization import Serializer
-from .._vendor import _convert_request
 
+if sys.version_info >= (3, 9):
+    from collections.abc import MutableMapping
+else:
+    from typing import MutableMapping  # type: ignore  # pylint: disable=ungrouped-imports
 T = TypeVar("T")
 ClsType = Optional[Callable[[PipelineResponse[HttpRequest, HttpResponse], T, Dict[str, Any]], Any]]
 
@@ -392,7 +397,7 @@ def build_update_request(
     return HttpRequest(method="POST", url=_url, params=_params, headers=_headers, **kwargs)
 
 
-def build_list_by_resource_group_location_request(
+def build_list_by_resource_group_location_request(  # pylint: disable=name-too-long
     resource_group_name: str,
     location_name: str,
     subscription_id: str,
@@ -435,7 +440,7 @@ def build_list_by_resource_group_location_request(
     return HttpRequest(method="GET", url=_url, params=_params, headers=_headers, **kwargs)
 
 
-def build_list_by_resource_group_server_request(
+def build_list_by_resource_group_server_request(  # pylint: disable=name-too-long
     resource_group_name: str,
     location_name: str,
     long_term_retention_server_name: str,
@@ -482,7 +487,7 @@ def build_list_by_resource_group_server_request(
     return HttpRequest(method="GET", url=_url, params=_params, headers=_headers, **kwargs)
 
 
-def build_list_by_resource_group_database_request(
+def build_list_by_resource_group_database_request(  # pylint: disable=name-too-long
     resource_group_name: str,
     location_name: str,
     long_term_retention_server_name: str,
@@ -621,7 +626,7 @@ def build_delete_by_resource_group_request(
     return HttpRequest(method="DELETE", url=_url, params=_params, headers=_headers, **kwargs)
 
 
-def build_change_access_tier_by_resource_group_request(
+def build_change_access_tier_by_resource_group_request(  # pylint: disable=name-too-long
     resource_group_name: str,
     location_name: str,
     long_term_retention_server_name: str,
@@ -799,7 +804,6 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         :param database_state: Whether to query against just live databases, just deleted databases, or
          all databases. Known values are: "All", "Live", and "Deleted". Default value is None.
         :type database_state: str or ~azure.mgmt.sql.models.DatabaseState
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: An iterator like instance of either LongTermRetentionBackup or the result of
          cls(response)
         :rtype: ~azure.core.paging.ItemPaged[~azure.mgmt.sql.models.LongTermRetentionBackup]
@@ -811,7 +815,7 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2023-05-01-preview"))
         cls: ClsType[_models.LongTermRetentionBackupListResult] = kwargs.pop("cls", None)
 
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -822,25 +826,22 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         def prepare_request(next_link=None):
             if not next_link:
 
-                request = build_list_by_location_request(
+                _request = build_list_by_location_request(
                     location_name=location_name,
                     subscription_id=self._config.subscription_id,
                     only_latest_per_database=only_latest_per_database,
                     database_state=database_state,
                     api_version=api_version,
-                    template_url=self.list_by_location.metadata["url"],
                     headers=_headers,
                     params=_params,
                 )
-                request = _convert_request(request)
-                request.url = self._client.format_url(request.url)
+                _request.url = self._client.format_url(_request.url)
 
             else:
-                request = HttpRequest("GET", next_link)
-                request = _convert_request(request)
-                request.url = self._client.format_url(request.url)
-                request.method = "GET"
-            return request
+                _request = HttpRequest("GET", next_link)
+                _request.url = self._client.format_url(_request.url)
+                _request.method = "GET"
+            return _request
 
         def extract_data(pipeline_response):
             deserialized = self._deserialize("LongTermRetentionBackupListResult", pipeline_response)
@@ -850,11 +851,11 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
             return deserialized.next_link or None, iter(list_of_elem)
 
         def get_next(next_link=None):
-            request = prepare_request(next_link)
+            _request = prepare_request(next_link)
 
             _stream = False
             pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-                request, stream=_stream, **kwargs
+                _request, stream=_stream, **kwargs
             )
             response = pipeline_response.http_response
 
@@ -866,10 +867,6 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
             return pipeline_response
 
         return ItemPaged(get_next, extract_data)
-
-    list_by_location.metadata = {
-        "url": "/subscriptions/{subscriptionId}/providers/Microsoft.Sql/locations/{locationName}/longTermRetentionBackups"
-    }
 
     @distributed_trace
     def list_by_server(
@@ -892,7 +889,6 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         :param database_state: Whether to query against just live databases, just deleted databases, or
          all databases. Known values are: "All", "Live", and "Deleted". Default value is None.
         :type database_state: str or ~azure.mgmt.sql.models.DatabaseState
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: An iterator like instance of either LongTermRetentionBackup or the result of
          cls(response)
         :rtype: ~azure.core.paging.ItemPaged[~azure.mgmt.sql.models.LongTermRetentionBackup]
@@ -904,7 +900,7 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2023-05-01-preview"))
         cls: ClsType[_models.LongTermRetentionBackupListResult] = kwargs.pop("cls", None)
 
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -915,26 +911,23 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         def prepare_request(next_link=None):
             if not next_link:
 
-                request = build_list_by_server_request(
+                _request = build_list_by_server_request(
                     location_name=location_name,
                     long_term_retention_server_name=long_term_retention_server_name,
                     subscription_id=self._config.subscription_id,
                     only_latest_per_database=only_latest_per_database,
                     database_state=database_state,
                     api_version=api_version,
-                    template_url=self.list_by_server.metadata["url"],
                     headers=_headers,
                     params=_params,
                 )
-                request = _convert_request(request)
-                request.url = self._client.format_url(request.url)
+                _request.url = self._client.format_url(_request.url)
 
             else:
-                request = HttpRequest("GET", next_link)
-                request = _convert_request(request)
-                request.url = self._client.format_url(request.url)
-                request.method = "GET"
-            return request
+                _request = HttpRequest("GET", next_link)
+                _request.url = self._client.format_url(_request.url)
+                _request.method = "GET"
+            return _request
 
         def extract_data(pipeline_response):
             deserialized = self._deserialize("LongTermRetentionBackupListResult", pipeline_response)
@@ -944,11 +937,11 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
             return deserialized.next_link or None, iter(list_of_elem)
 
         def get_next(next_link=None):
-            request = prepare_request(next_link)
+            _request = prepare_request(next_link)
 
             _stream = False
             pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-                request, stream=_stream, **kwargs
+                _request, stream=_stream, **kwargs
             )
             response = pipeline_response.http_response
 
@@ -960,10 +953,6 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
             return pipeline_response
 
         return ItemPaged(get_next, extract_data)
-
-    list_by_server.metadata = {
-        "url": "/subscriptions/{subscriptionId}/providers/Microsoft.Sql/locations/{locationName}/longTermRetentionServers/{longTermRetentionServerName}/longTermRetentionBackups"
-    }
 
     @distributed_trace
     def list_by_database(
@@ -989,7 +978,6 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         :param database_state: Whether to query against just live databases, just deleted databases, or
          all databases. Known values are: "All", "Live", and "Deleted". Default value is None.
         :type database_state: str or ~azure.mgmt.sql.models.DatabaseState
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: An iterator like instance of either LongTermRetentionBackup or the result of
          cls(response)
         :rtype: ~azure.core.paging.ItemPaged[~azure.mgmt.sql.models.LongTermRetentionBackup]
@@ -1001,7 +989,7 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2023-05-01-preview"))
         cls: ClsType[_models.LongTermRetentionBackupListResult] = kwargs.pop("cls", None)
 
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -1012,7 +1000,7 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         def prepare_request(next_link=None):
             if not next_link:
 
-                request = build_list_by_database_request(
+                _request = build_list_by_database_request(
                     location_name=location_name,
                     long_term_retention_server_name=long_term_retention_server_name,
                     long_term_retention_database_name=long_term_retention_database_name,
@@ -1020,19 +1008,16 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
                     only_latest_per_database=only_latest_per_database,
                     database_state=database_state,
                     api_version=api_version,
-                    template_url=self.list_by_database.metadata["url"],
                     headers=_headers,
                     params=_params,
                 )
-                request = _convert_request(request)
-                request.url = self._client.format_url(request.url)
+                _request.url = self._client.format_url(_request.url)
 
             else:
-                request = HttpRequest("GET", next_link)
-                request = _convert_request(request)
-                request.url = self._client.format_url(request.url)
-                request.method = "GET"
-            return request
+                _request = HttpRequest("GET", next_link)
+                _request.url = self._client.format_url(_request.url)
+                _request.method = "GET"
+            return _request
 
         def extract_data(pipeline_response):
             deserialized = self._deserialize("LongTermRetentionBackupListResult", pipeline_response)
@@ -1042,11 +1027,11 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
             return deserialized.next_link or None, iter(list_of_elem)
 
         def get_next(next_link=None):
-            request = prepare_request(next_link)
+            _request = prepare_request(next_link)
 
             _stream = False
             pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-                request, stream=_stream, **kwargs
+                _request, stream=_stream, **kwargs
             )
             response = pipeline_response.http_response
 
@@ -1058,10 +1043,6 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
             return pipeline_response
 
         return ItemPaged(get_next, extract_data)
-
-    list_by_database.metadata = {
-        "url": "/subscriptions/{subscriptionId}/providers/Microsoft.Sql/locations/{locationName}/longTermRetentionServers/{longTermRetentionServerName}/longTermRetentionDatabases/{longTermRetentionDatabaseName}/longTermRetentionBackups"
-    }
 
     @distributed_trace
     def get(
@@ -1082,12 +1063,11 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         :type long_term_retention_database_name: str
         :param backup_name: The backup name. Required.
         :type backup_name: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: LongTermRetentionBackup or the result of cls(response)
         :rtype: ~azure.mgmt.sql.models.LongTermRetentionBackup
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -1101,23 +1081,21 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2023-05-01-preview"))
         cls: ClsType[_models.LongTermRetentionBackup] = kwargs.pop("cls", None)
 
-        request = build_get_request(
+        _request = build_get_request(
             location_name=location_name,
             long_term_retention_server_name=long_term_retention_server_name,
             long_term_retention_database_name=long_term_retention_database_name,
             backup_name=backup_name,
             subscription_id=self._config.subscription_id,
             api_version=api_version,
-            template_url=self.get.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -1127,26 +1105,22 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
             error = self._deserialize.failsafe_deserialize(_models.ErrorResponse, pipeline_response)
             raise HttpResponseError(response=response, model=error, error_format=ARMErrorFormat)
 
-        deserialized = self._deserialize("LongTermRetentionBackup", pipeline_response)
+        deserialized = self._deserialize("LongTermRetentionBackup", pipeline_response.http_response)
 
         if cls:
-            return cls(pipeline_response, deserialized, {})
+            return cls(pipeline_response, deserialized, {})  # type: ignore
 
-        return deserialized
+        return deserialized  # type: ignore
 
-    get.metadata = {
-        "url": "/subscriptions/{subscriptionId}/providers/Microsoft.Sql/locations/{locationName}/longTermRetentionServers/{longTermRetentionServerName}/longTermRetentionDatabases/{longTermRetentionDatabaseName}/longTermRetentionBackups/{backupName}"
-    }
-
-    def _delete_initial(  # pylint: disable=inconsistent-return-statements
+    def _delete_initial(
         self,
         location_name: str,
         long_term_retention_server_name: str,
         long_term_retention_database_name: str,
         backup_name: str,
         **kwargs: Any
-    ) -> None:
-        error_map = {
+    ) -> Iterator[bytes]:
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -1158,40 +1132,43 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
         api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2023-05-01-preview"))
-        cls: ClsType[None] = kwargs.pop("cls", None)
+        cls: ClsType[Iterator[bytes]] = kwargs.pop("cls", None)
 
-        request = build_delete_request(
+        _request = build_delete_request(
             location_name=location_name,
             long_term_retention_server_name=long_term_retention_server_name,
             long_term_retention_database_name=long_term_retention_database_name,
             backup_name=backup_name,
             subscription_id=self._config.subscription_id,
             api_version=api_version,
-            template_url=self._delete_initial.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
-        _stream = False
+        _decompress = kwargs.pop("decompress", True)
+        _stream = True
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
 
         if response.status_code not in [200, 202]:
+            try:
+                response.read()  # Load the body in memory and close the socket
+            except (StreamConsumedError, StreamClosedError):
+                pass
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             error = self._deserialize.failsafe_deserialize(_models.ErrorResponse, pipeline_response)
             raise HttpResponseError(response=response, model=error, error_format=ARMErrorFormat)
 
-        if cls:
-            return cls(pipeline_response, None, {})
+        deserialized = response.stream_download(self._client._pipeline, decompress=_decompress)
 
-    _delete_initial.metadata = {
-        "url": "/subscriptions/{subscriptionId}/providers/Microsoft.Sql/locations/{locationName}/longTermRetentionServers/{longTermRetentionServerName}/longTermRetentionDatabases/{longTermRetentionDatabaseName}/longTermRetentionBackups/{backupName}"
-    }
+        if cls:
+            return cls(pipeline_response, deserialized, {})  # type: ignore
+
+        return deserialized  # type: ignore
 
     @distributed_trace
     def begin_delete(
@@ -1212,14 +1189,6 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         :type long_term_retention_database_name: str
         :param backup_name: The backup name. Required.
         :type backup_name: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be ARMPolling. Pass in False for this
-         operation to not poll, or pass in your own initialized polling object for a personal polling
-         strategy.
-        :paramtype polling: bool or ~azure.core.polling.PollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of LROPoller that returns either None or the result of cls(response)
         :rtype: ~azure.core.polling.LROPoller[None]
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -1233,7 +1202,7 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         lro_delay = kwargs.pop("polling_interval", self._config.polling_interval)
         cont_token: Optional[str] = kwargs.pop("continuation_token", None)
         if cont_token is None:
-            raw_result = self._delete_initial(  # type: ignore
+            raw_result = self._delete_initial(
                 location_name=location_name,
                 long_term_retention_server_name=long_term_retention_server_name,
                 long_term_retention_database_name=long_term_retention_database_name,
@@ -1244,11 +1213,12 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
                 params=_params,
                 **kwargs
             )
+            raw_result.http_response.read()  # type: ignore
         kwargs.pop("error_map", None)
 
         def get_long_running_output(pipeline_response):  # pylint: disable=inconsistent-return-statements
             if cls:
-                return cls(pipeline_response, None, {})
+                return cls(pipeline_response, None, {})  # type: ignore
 
         if polling is True:
             polling_method: PollingMethod = cast(PollingMethod, ARMPolling(lro_delay, **kwargs))
@@ -1257,17 +1227,13 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         else:
             polling_method = polling
         if cont_token:
-            return LROPoller.from_continuation_token(
+            return LROPoller[None].from_continuation_token(
                 polling_method=polling_method,
                 continuation_token=cont_token,
                 client=self._client,
                 deserialization_callback=get_long_running_output,
             )
-        return LROPoller(self._client, raw_result, get_long_running_output, polling_method)  # type: ignore
-
-    begin_delete.metadata = {
-        "url": "/subscriptions/{subscriptionId}/providers/Microsoft.Sql/locations/{locationName}/longTermRetentionServers/{longTermRetentionServerName}/longTermRetentionDatabases/{longTermRetentionDatabaseName}/longTermRetentionBackups/{backupName}"
-    }
+        return LROPoller[None](self._client, raw_result, get_long_running_output, polling_method)  # type: ignore
 
     def _change_access_tier_initial(
         self,
@@ -1275,10 +1241,10 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         long_term_retention_server_name: str,
         long_term_retention_database_name: str,
         backup_name: str,
-        parameters: Union[_models.ChangeLongTermRetentionBackupAccessTierParameters, IO],
+        parameters: Union[_models.ChangeLongTermRetentionBackupAccessTierParameters, IO[bytes]],
         **kwargs: Any
-    ) -> Optional[_models.LongTermRetentionBackup]:
-        error_map = {
+    ) -> Iterator[bytes]:
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -1291,7 +1257,7 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
 
         api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2023-05-01-preview"))
         content_type: Optional[str] = kwargs.pop("content_type", _headers.pop("Content-Type", None))
-        cls: ClsType[Optional[_models.LongTermRetentionBackup]] = kwargs.pop("cls", None)
+        cls: ClsType[Iterator[bytes]] = kwargs.pop("cls", None)
 
         content_type = content_type or "application/json"
         _json = None
@@ -1301,7 +1267,7 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         else:
             _json = self._serialize.body(parameters, "ChangeLongTermRetentionBackupAccessTierParameters")
 
-        request = build_change_access_tier_request(
+        _request = build_change_access_tier_request(
             location_name=location_name,
             long_term_retention_server_name=long_term_retention_server_name,
             long_term_retention_database_name=long_term_retention_database_name,
@@ -1311,37 +1277,34 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
             content_type=content_type,
             json=_json,
             content=_content,
-            template_url=self._change_access_tier_initial.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
-        _stream = False
+        _decompress = kwargs.pop("decompress", True)
+        _stream = True
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
 
         if response.status_code not in [200, 202]:
+            try:
+                response.read()  # Load the body in memory and close the socket
+            except (StreamConsumedError, StreamClosedError):
+                pass
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             error = self._deserialize.failsafe_deserialize(_models.ErrorResponse, pipeline_response)
             raise HttpResponseError(response=response, model=error, error_format=ARMErrorFormat)
 
-        deserialized = None
-        if response.status_code == 200:
-            deserialized = self._deserialize("LongTermRetentionBackup", pipeline_response)
+        deserialized = response.stream_download(self._client._pipeline, decompress=_decompress)
 
         if cls:
-            return cls(pipeline_response, deserialized, {})
+            return cls(pipeline_response, deserialized, {})  # type: ignore
 
-        return deserialized
-
-    _change_access_tier_initial.metadata = {
-        "url": "/subscriptions/{subscriptionId}/providers/Microsoft.Sql/locations/{locationName}/longTermRetentionServers/{longTermRetentionServerName}/longTermRetentionDatabases/{longTermRetentionDatabaseName}/longTermRetentionBackups/{backupName}/changeAccessTier"
-    }
+        return deserialized  # type: ignore
 
     @overload
     def begin_change_access_tier(
@@ -1370,14 +1333,6 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         :keyword content_type: Body Parameter content-type. Content type parameter for JSON body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be ARMPolling. Pass in False for this
-         operation to not poll, or pass in your own initialized polling object for a personal polling
-         strategy.
-        :paramtype polling: bool or ~azure.core.polling.PollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of LROPoller that returns either LongTermRetentionBackup or the result of
          cls(response)
         :rtype: ~azure.core.polling.LROPoller[~azure.mgmt.sql.models.LongTermRetentionBackup]
@@ -1391,7 +1346,7 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         long_term_retention_server_name: str,
         long_term_retention_database_name: str,
         backup_name: str,
-        parameters: IO,
+        parameters: IO[bytes],
         *,
         content_type: str = "application/json",
         **kwargs: Any
@@ -1407,18 +1362,10 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         :param backup_name: Required.
         :type backup_name: str
         :param parameters: Required.
-        :type parameters: IO
+        :type parameters: IO[bytes]
         :keyword content_type: Body Parameter content-type. Content type parameter for binary body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be ARMPolling. Pass in False for this
-         operation to not poll, or pass in your own initialized polling object for a personal polling
-         strategy.
-        :paramtype polling: bool or ~azure.core.polling.PollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of LROPoller that returns either LongTermRetentionBackup or the result of
          cls(response)
         :rtype: ~azure.core.polling.LROPoller[~azure.mgmt.sql.models.LongTermRetentionBackup]
@@ -1432,7 +1379,7 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         long_term_retention_server_name: str,
         long_term_retention_database_name: str,
         backup_name: str,
-        parameters: Union[_models.ChangeLongTermRetentionBackupAccessTierParameters, IO],
+        parameters: Union[_models.ChangeLongTermRetentionBackupAccessTierParameters, IO[bytes]],
         **kwargs: Any
     ) -> LROPoller[_models.LongTermRetentionBackup]:
         """Change a long term retention backup access tier.
@@ -1445,21 +1392,10 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         :type long_term_retention_database_name: str
         :param backup_name: Required.
         :type backup_name: str
-        :param parameters: Is either a ChangeLongTermRetentionBackupAccessTierParameters type or a IO
-         type. Required.
+        :param parameters: Is either a ChangeLongTermRetentionBackupAccessTierParameters type or a
+         IO[bytes] type. Required.
         :type parameters: ~azure.mgmt.sql.models.ChangeLongTermRetentionBackupAccessTierParameters or
-         IO
-        :keyword content_type: Body Parameter content-type. Known values are: 'application/json'.
-         Default value is None.
-        :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be ARMPolling. Pass in False for this
-         operation to not poll, or pass in your own initialized polling object for a personal polling
-         strategy.
-        :paramtype polling: bool or ~azure.core.polling.PollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
+         IO[bytes]
         :return: An instance of LROPoller that returns either LongTermRetentionBackup or the result of
          cls(response)
         :rtype: ~azure.core.polling.LROPoller[~azure.mgmt.sql.models.LongTermRetentionBackup]
@@ -1488,12 +1424,13 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
                 params=_params,
                 **kwargs
             )
+            raw_result.http_response.read()  # type: ignore
         kwargs.pop("error_map", None)
 
         def get_long_running_output(pipeline_response):
-            deserialized = self._deserialize("LongTermRetentionBackup", pipeline_response)
+            deserialized = self._deserialize("LongTermRetentionBackup", pipeline_response.http_response)
             if cls:
-                return cls(pipeline_response, deserialized, {})
+                return cls(pipeline_response, deserialized, {})  # type: ignore
             return deserialized
 
         if polling is True:
@@ -1503,17 +1440,15 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         else:
             polling_method = polling
         if cont_token:
-            return LROPoller.from_continuation_token(
+            return LROPoller[_models.LongTermRetentionBackup].from_continuation_token(
                 polling_method=polling_method,
                 continuation_token=cont_token,
                 client=self._client,
                 deserialization_callback=get_long_running_output,
             )
-        return LROPoller(self._client, raw_result, get_long_running_output, polling_method)  # type: ignore
-
-    begin_change_access_tier.metadata = {
-        "url": "/subscriptions/{subscriptionId}/providers/Microsoft.Sql/locations/{locationName}/longTermRetentionServers/{longTermRetentionServerName}/longTermRetentionDatabases/{longTermRetentionDatabaseName}/longTermRetentionBackups/{backupName}/changeAccessTier"
-    }
+        return LROPoller[_models.LongTermRetentionBackup](
+            self._client, raw_result, get_long_running_output, polling_method  # type: ignore
+        )
 
     def _copy_initial(
         self,
@@ -1521,10 +1456,10 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         long_term_retention_server_name: str,
         long_term_retention_database_name: str,
         backup_name: str,
-        parameters: Union[_models.CopyLongTermRetentionBackupParameters, IO],
+        parameters: Union[_models.CopyLongTermRetentionBackupParameters, IO[bytes]],
         **kwargs: Any
-    ) -> Optional[_models.LongTermRetentionBackupOperationResult]:
-        error_map = {
+    ) -> Iterator[bytes]:
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -1537,7 +1472,7 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
 
         api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2023-05-01-preview"))
         content_type: Optional[str] = kwargs.pop("content_type", _headers.pop("Content-Type", None))
-        cls: ClsType[Optional[_models.LongTermRetentionBackupOperationResult]] = kwargs.pop("cls", None)
+        cls: ClsType[Iterator[bytes]] = kwargs.pop("cls", None)
 
         content_type = content_type or "application/json"
         _json = None
@@ -1547,7 +1482,7 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         else:
             _json = self._serialize.body(parameters, "CopyLongTermRetentionBackupParameters")
 
-        request = build_copy_request(
+        _request = build_copy_request(
             location_name=location_name,
             long_term_retention_server_name=long_term_retention_server_name,
             long_term_retention_database_name=long_term_retention_database_name,
@@ -1557,37 +1492,34 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
             content_type=content_type,
             json=_json,
             content=_content,
-            template_url=self._copy_initial.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
-        _stream = False
+        _decompress = kwargs.pop("decompress", True)
+        _stream = True
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
 
         if response.status_code not in [200, 202]:
+            try:
+                response.read()  # Load the body in memory and close the socket
+            except (StreamConsumedError, StreamClosedError):
+                pass
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             error = self._deserialize.failsafe_deserialize(_models.ErrorResponse, pipeline_response)
             raise HttpResponseError(response=response, model=error, error_format=ARMErrorFormat)
 
-        deserialized = None
-        if response.status_code == 200:
-            deserialized = self._deserialize("LongTermRetentionBackupOperationResult", pipeline_response)
+        deserialized = response.stream_download(self._client._pipeline, decompress=_decompress)
 
         if cls:
-            return cls(pipeline_response, deserialized, {})
+            return cls(pipeline_response, deserialized, {})  # type: ignore
 
-        return deserialized
-
-    _copy_initial.metadata = {
-        "url": "/subscriptions/{subscriptionId}/providers/Microsoft.Sql/locations/{locationName}/longTermRetentionServers/{longTermRetentionServerName}/longTermRetentionDatabases/{longTermRetentionDatabaseName}/longTermRetentionBackups/{backupName}/copy"
-    }
+        return deserialized  # type: ignore
 
     @overload
     def begin_copy(
@@ -1616,14 +1548,6 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         :keyword content_type: Body Parameter content-type. Content type parameter for JSON body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be ARMPolling. Pass in False for this
-         operation to not poll, or pass in your own initialized polling object for a personal polling
-         strategy.
-        :paramtype polling: bool or ~azure.core.polling.PollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of LROPoller that returns either LongTermRetentionBackupOperationResult or
          the result of cls(response)
         :rtype:
@@ -1638,7 +1562,7 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         long_term_retention_server_name: str,
         long_term_retention_database_name: str,
         backup_name: str,
-        parameters: IO,
+        parameters: IO[bytes],
         *,
         content_type: str = "application/json",
         **kwargs: Any
@@ -1654,18 +1578,10 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         :param backup_name: The backup name. Required.
         :type backup_name: str
         :param parameters: The parameters needed for long term retention copy request. Required.
-        :type parameters: IO
+        :type parameters: IO[bytes]
         :keyword content_type: Body Parameter content-type. Content type parameter for binary body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be ARMPolling. Pass in False for this
-         operation to not poll, or pass in your own initialized polling object for a personal polling
-         strategy.
-        :paramtype polling: bool or ~azure.core.polling.PollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of LROPoller that returns either LongTermRetentionBackupOperationResult or
          the result of cls(response)
         :rtype:
@@ -1680,7 +1596,7 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         long_term_retention_server_name: str,
         long_term_retention_database_name: str,
         backup_name: str,
-        parameters: Union[_models.CopyLongTermRetentionBackupParameters, IO],
+        parameters: Union[_models.CopyLongTermRetentionBackupParameters, IO[bytes]],
         **kwargs: Any
     ) -> LROPoller[_models.LongTermRetentionBackupOperationResult]:
         """Copy an existing long term retention backup.
@@ -1694,19 +1610,8 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         :param backup_name: The backup name. Required.
         :type backup_name: str
         :param parameters: The parameters needed for long term retention copy request. Is either a
-         CopyLongTermRetentionBackupParameters type or a IO type. Required.
-        :type parameters: ~azure.mgmt.sql.models.CopyLongTermRetentionBackupParameters or IO
-        :keyword content_type: Body Parameter content-type. Known values are: 'application/json'.
-         Default value is None.
-        :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be ARMPolling. Pass in False for this
-         operation to not poll, or pass in your own initialized polling object for a personal polling
-         strategy.
-        :paramtype polling: bool or ~azure.core.polling.PollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
+         CopyLongTermRetentionBackupParameters type or a IO[bytes] type. Required.
+        :type parameters: ~azure.mgmt.sql.models.CopyLongTermRetentionBackupParameters or IO[bytes]
         :return: An instance of LROPoller that returns either LongTermRetentionBackupOperationResult or
          the result of cls(response)
         :rtype:
@@ -1736,12 +1641,13 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
                 params=_params,
                 **kwargs
             )
+            raw_result.http_response.read()  # type: ignore
         kwargs.pop("error_map", None)
 
         def get_long_running_output(pipeline_response):
-            deserialized = self._deserialize("LongTermRetentionBackupOperationResult", pipeline_response)
+            deserialized = self._deserialize("LongTermRetentionBackupOperationResult", pipeline_response.http_response)
             if cls:
-                return cls(pipeline_response, deserialized, {})
+                return cls(pipeline_response, deserialized, {})  # type: ignore
             return deserialized
 
         if polling is True:
@@ -1751,17 +1657,15 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         else:
             polling_method = polling
         if cont_token:
-            return LROPoller.from_continuation_token(
+            return LROPoller[_models.LongTermRetentionBackupOperationResult].from_continuation_token(
                 polling_method=polling_method,
                 continuation_token=cont_token,
                 client=self._client,
                 deserialization_callback=get_long_running_output,
             )
-        return LROPoller(self._client, raw_result, get_long_running_output, polling_method)  # type: ignore
-
-    begin_copy.metadata = {
-        "url": "/subscriptions/{subscriptionId}/providers/Microsoft.Sql/locations/{locationName}/longTermRetentionServers/{longTermRetentionServerName}/longTermRetentionDatabases/{longTermRetentionDatabaseName}/longTermRetentionBackups/{backupName}/copy"
-    }
+        return LROPoller[_models.LongTermRetentionBackupOperationResult](
+            self._client, raw_result, get_long_running_output, polling_method  # type: ignore
+        )
 
     def _update_initial(
         self,
@@ -1769,10 +1673,10 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         long_term_retention_server_name: str,
         long_term_retention_database_name: str,
         backup_name: str,
-        parameters: Union[_models.UpdateLongTermRetentionBackupParameters, IO],
+        parameters: Union[_models.UpdateLongTermRetentionBackupParameters, IO[bytes]],
         **kwargs: Any
-    ) -> Optional[_models.LongTermRetentionBackupOperationResult]:
-        error_map = {
+    ) -> Iterator[bytes]:
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -1785,7 +1689,7 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
 
         api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2023-05-01-preview"))
         content_type: Optional[str] = kwargs.pop("content_type", _headers.pop("Content-Type", None))
-        cls: ClsType[Optional[_models.LongTermRetentionBackupOperationResult]] = kwargs.pop("cls", None)
+        cls: ClsType[Iterator[bytes]] = kwargs.pop("cls", None)
 
         content_type = content_type or "application/json"
         _json = None
@@ -1795,7 +1699,7 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         else:
             _json = self._serialize.body(parameters, "UpdateLongTermRetentionBackupParameters")
 
-        request = build_update_request(
+        _request = build_update_request(
             location_name=location_name,
             long_term_retention_server_name=long_term_retention_server_name,
             long_term_retention_database_name=long_term_retention_database_name,
@@ -1805,37 +1709,34 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
             content_type=content_type,
             json=_json,
             content=_content,
-            template_url=self._update_initial.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
-        _stream = False
+        _decompress = kwargs.pop("decompress", True)
+        _stream = True
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
 
         if response.status_code not in [200, 202]:
+            try:
+                response.read()  # Load the body in memory and close the socket
+            except (StreamConsumedError, StreamClosedError):
+                pass
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             error = self._deserialize.failsafe_deserialize(_models.ErrorResponse, pipeline_response)
             raise HttpResponseError(response=response, model=error, error_format=ARMErrorFormat)
 
-        deserialized = None
-        if response.status_code == 200:
-            deserialized = self._deserialize("LongTermRetentionBackupOperationResult", pipeline_response)
+        deserialized = response.stream_download(self._client._pipeline, decompress=_decompress)
 
         if cls:
-            return cls(pipeline_response, deserialized, {})
+            return cls(pipeline_response, deserialized, {})  # type: ignore
 
-        return deserialized
-
-    _update_initial.metadata = {
-        "url": "/subscriptions/{subscriptionId}/providers/Microsoft.Sql/locations/{locationName}/longTermRetentionServers/{longTermRetentionServerName}/longTermRetentionDatabases/{longTermRetentionDatabaseName}/longTermRetentionBackups/{backupName}/update"
-    }
+        return deserialized  # type: ignore
 
     @overload
     def begin_update(
@@ -1864,14 +1765,6 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         :keyword content_type: Body Parameter content-type. Content type parameter for JSON body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be ARMPolling. Pass in False for this
-         operation to not poll, or pass in your own initialized polling object for a personal polling
-         strategy.
-        :paramtype polling: bool or ~azure.core.polling.PollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of LROPoller that returns either LongTermRetentionBackupOperationResult or
          the result of cls(response)
         :rtype:
@@ -1886,7 +1779,7 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         long_term_retention_server_name: str,
         long_term_retention_database_name: str,
         backup_name: str,
-        parameters: IO,
+        parameters: IO[bytes],
         *,
         content_type: str = "application/json",
         **kwargs: Any
@@ -1902,18 +1795,10 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         :param backup_name: The backup name. Required.
         :type backup_name: str
         :param parameters: The requested backup resource state. Required.
-        :type parameters: IO
+        :type parameters: IO[bytes]
         :keyword content_type: Body Parameter content-type. Content type parameter for binary body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be ARMPolling. Pass in False for this
-         operation to not poll, or pass in your own initialized polling object for a personal polling
-         strategy.
-        :paramtype polling: bool or ~azure.core.polling.PollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of LROPoller that returns either LongTermRetentionBackupOperationResult or
          the result of cls(response)
         :rtype:
@@ -1928,7 +1813,7 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         long_term_retention_server_name: str,
         long_term_retention_database_name: str,
         backup_name: str,
-        parameters: Union[_models.UpdateLongTermRetentionBackupParameters, IO],
+        parameters: Union[_models.UpdateLongTermRetentionBackupParameters, IO[bytes]],
         **kwargs: Any
     ) -> LROPoller[_models.LongTermRetentionBackupOperationResult]:
         """Updates an existing long term retention backup.
@@ -1942,19 +1827,8 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         :param backup_name: The backup name. Required.
         :type backup_name: str
         :param parameters: The requested backup resource state. Is either a
-         UpdateLongTermRetentionBackupParameters type or a IO type. Required.
-        :type parameters: ~azure.mgmt.sql.models.UpdateLongTermRetentionBackupParameters or IO
-        :keyword content_type: Body Parameter content-type. Known values are: 'application/json'.
-         Default value is None.
-        :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be ARMPolling. Pass in False for this
-         operation to not poll, or pass in your own initialized polling object for a personal polling
-         strategy.
-        :paramtype polling: bool or ~azure.core.polling.PollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
+         UpdateLongTermRetentionBackupParameters type or a IO[bytes] type. Required.
+        :type parameters: ~azure.mgmt.sql.models.UpdateLongTermRetentionBackupParameters or IO[bytes]
         :return: An instance of LROPoller that returns either LongTermRetentionBackupOperationResult or
          the result of cls(response)
         :rtype:
@@ -1984,12 +1858,13 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
                 params=_params,
                 **kwargs
             )
+            raw_result.http_response.read()  # type: ignore
         kwargs.pop("error_map", None)
 
         def get_long_running_output(pipeline_response):
-            deserialized = self._deserialize("LongTermRetentionBackupOperationResult", pipeline_response)
+            deserialized = self._deserialize("LongTermRetentionBackupOperationResult", pipeline_response.http_response)
             if cls:
-                return cls(pipeline_response, deserialized, {})
+                return cls(pipeline_response, deserialized, {})  # type: ignore
             return deserialized
 
         if polling is True:
@@ -1999,17 +1874,15 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         else:
             polling_method = polling
         if cont_token:
-            return LROPoller.from_continuation_token(
+            return LROPoller[_models.LongTermRetentionBackupOperationResult].from_continuation_token(
                 polling_method=polling_method,
                 continuation_token=cont_token,
                 client=self._client,
                 deserialization_callback=get_long_running_output,
             )
-        return LROPoller(self._client, raw_result, get_long_running_output, polling_method)  # type: ignore
-
-    begin_update.metadata = {
-        "url": "/subscriptions/{subscriptionId}/providers/Microsoft.Sql/locations/{locationName}/longTermRetentionServers/{longTermRetentionServerName}/longTermRetentionDatabases/{longTermRetentionDatabaseName}/longTermRetentionBackups/{backupName}/update"
-    }
+        return LROPoller[_models.LongTermRetentionBackupOperationResult](
+            self._client, raw_result, get_long_running_output, polling_method  # type: ignore
+        )
 
     @distributed_trace
     def list_by_resource_group_location(
@@ -2033,7 +1906,6 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         :param database_state: Whether to query against just live databases, just deleted databases, or
          all databases. Known values are: "All", "Live", and "Deleted". Default value is None.
         :type database_state: str or ~azure.mgmt.sql.models.DatabaseState
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: An iterator like instance of either LongTermRetentionBackup or the result of
          cls(response)
         :rtype: ~azure.core.paging.ItemPaged[~azure.mgmt.sql.models.LongTermRetentionBackup]
@@ -2045,7 +1917,7 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2023-05-01-preview"))
         cls: ClsType[_models.LongTermRetentionBackupListResult] = kwargs.pop("cls", None)
 
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -2056,26 +1928,23 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         def prepare_request(next_link=None):
             if not next_link:
 
-                request = build_list_by_resource_group_location_request(
+                _request = build_list_by_resource_group_location_request(
                     resource_group_name=resource_group_name,
                     location_name=location_name,
                     subscription_id=self._config.subscription_id,
                     only_latest_per_database=only_latest_per_database,
                     database_state=database_state,
                     api_version=api_version,
-                    template_url=self.list_by_resource_group_location.metadata["url"],
                     headers=_headers,
                     params=_params,
                 )
-                request = _convert_request(request)
-                request.url = self._client.format_url(request.url)
+                _request.url = self._client.format_url(_request.url)
 
             else:
-                request = HttpRequest("GET", next_link)
-                request = _convert_request(request)
-                request.url = self._client.format_url(request.url)
-                request.method = "GET"
-            return request
+                _request = HttpRequest("GET", next_link)
+                _request.url = self._client.format_url(_request.url)
+                _request.method = "GET"
+            return _request
 
         def extract_data(pipeline_response):
             deserialized = self._deserialize("LongTermRetentionBackupListResult", pipeline_response)
@@ -2085,11 +1954,11 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
             return deserialized.next_link or None, iter(list_of_elem)
 
         def get_next(next_link=None):
-            request = prepare_request(next_link)
+            _request = prepare_request(next_link)
 
             _stream = False
             pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-                request, stream=_stream, **kwargs
+                _request, stream=_stream, **kwargs
             )
             response = pipeline_response.http_response
 
@@ -2101,10 +1970,6 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
             return pipeline_response
 
         return ItemPaged(get_next, extract_data)
-
-    list_by_resource_group_location.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Sql/locations/{locationName}/longTermRetentionBackups"
-    }
 
     @distributed_trace
     def list_by_resource_group_server(
@@ -2131,7 +1996,6 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         :param database_state: Whether to query against just live databases, just deleted databases, or
          all databases. Known values are: "All", "Live", and "Deleted". Default value is None.
         :type database_state: str or ~azure.mgmt.sql.models.DatabaseState
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: An iterator like instance of either LongTermRetentionBackup or the result of
          cls(response)
         :rtype: ~azure.core.paging.ItemPaged[~azure.mgmt.sql.models.LongTermRetentionBackup]
@@ -2143,7 +2007,7 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2023-05-01-preview"))
         cls: ClsType[_models.LongTermRetentionBackupListResult] = kwargs.pop("cls", None)
 
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -2154,7 +2018,7 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         def prepare_request(next_link=None):
             if not next_link:
 
-                request = build_list_by_resource_group_server_request(
+                _request = build_list_by_resource_group_server_request(
                     resource_group_name=resource_group_name,
                     location_name=location_name,
                     long_term_retention_server_name=long_term_retention_server_name,
@@ -2162,19 +2026,16 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
                     only_latest_per_database=only_latest_per_database,
                     database_state=database_state,
                     api_version=api_version,
-                    template_url=self.list_by_resource_group_server.metadata["url"],
                     headers=_headers,
                     params=_params,
                 )
-                request = _convert_request(request)
-                request.url = self._client.format_url(request.url)
+                _request.url = self._client.format_url(_request.url)
 
             else:
-                request = HttpRequest("GET", next_link)
-                request = _convert_request(request)
-                request.url = self._client.format_url(request.url)
-                request.method = "GET"
-            return request
+                _request = HttpRequest("GET", next_link)
+                _request.url = self._client.format_url(_request.url)
+                _request.method = "GET"
+            return _request
 
         def extract_data(pipeline_response):
             deserialized = self._deserialize("LongTermRetentionBackupListResult", pipeline_response)
@@ -2184,11 +2045,11 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
             return deserialized.next_link or None, iter(list_of_elem)
 
         def get_next(next_link=None):
-            request = prepare_request(next_link)
+            _request = prepare_request(next_link)
 
             _stream = False
             pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-                request, stream=_stream, **kwargs
+                _request, stream=_stream, **kwargs
             )
             response = pipeline_response.http_response
 
@@ -2200,10 +2061,6 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
             return pipeline_response
 
         return ItemPaged(get_next, extract_data)
-
-    list_by_resource_group_server.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Sql/locations/{locationName}/longTermRetentionServers/{longTermRetentionServerName}/longTermRetentionBackups"
-    }
 
     @distributed_trace
     def list_by_resource_group_database(
@@ -2233,7 +2090,6 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         :param database_state: Whether to query against just live databases, just deleted databases, or
          all databases. Known values are: "All", "Live", and "Deleted". Default value is None.
         :type database_state: str or ~azure.mgmt.sql.models.DatabaseState
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: An iterator like instance of either LongTermRetentionBackup or the result of
          cls(response)
         :rtype: ~azure.core.paging.ItemPaged[~azure.mgmt.sql.models.LongTermRetentionBackup]
@@ -2245,7 +2101,7 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2023-05-01-preview"))
         cls: ClsType[_models.LongTermRetentionBackupListResult] = kwargs.pop("cls", None)
 
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -2256,7 +2112,7 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         def prepare_request(next_link=None):
             if not next_link:
 
-                request = build_list_by_resource_group_database_request(
+                _request = build_list_by_resource_group_database_request(
                     resource_group_name=resource_group_name,
                     location_name=location_name,
                     long_term_retention_server_name=long_term_retention_server_name,
@@ -2265,19 +2121,16 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
                     only_latest_per_database=only_latest_per_database,
                     database_state=database_state,
                     api_version=api_version,
-                    template_url=self.list_by_resource_group_database.metadata["url"],
                     headers=_headers,
                     params=_params,
                 )
-                request = _convert_request(request)
-                request.url = self._client.format_url(request.url)
+                _request.url = self._client.format_url(_request.url)
 
             else:
-                request = HttpRequest("GET", next_link)
-                request = _convert_request(request)
-                request.url = self._client.format_url(request.url)
-                request.method = "GET"
-            return request
+                _request = HttpRequest("GET", next_link)
+                _request.url = self._client.format_url(_request.url)
+                _request.method = "GET"
+            return _request
 
         def extract_data(pipeline_response):
             deserialized = self._deserialize("LongTermRetentionBackupListResult", pipeline_response)
@@ -2287,11 +2140,11 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
             return deserialized.next_link or None, iter(list_of_elem)
 
         def get_next(next_link=None):
-            request = prepare_request(next_link)
+            _request = prepare_request(next_link)
 
             _stream = False
             pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-                request, stream=_stream, **kwargs
+                _request, stream=_stream, **kwargs
             )
             response = pipeline_response.http_response
 
@@ -2303,10 +2156,6 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
             return pipeline_response
 
         return ItemPaged(get_next, extract_data)
-
-    list_by_resource_group_database.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Sql/locations/{locationName}/longTermRetentionServers/{longTermRetentionServerName}/longTermRetentionDatabases/{longTermRetentionDatabaseName}/longTermRetentionBackups"
-    }
 
     @distributed_trace
     def get_by_resource_group(
@@ -2331,12 +2180,11 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         :type long_term_retention_database_name: str
         :param backup_name: The backup name. Required.
         :type backup_name: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: LongTermRetentionBackup or the result of cls(response)
         :rtype: ~azure.mgmt.sql.models.LongTermRetentionBackup
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -2350,7 +2198,7 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2023-05-01-preview"))
         cls: ClsType[_models.LongTermRetentionBackup] = kwargs.pop("cls", None)
 
-        request = build_get_by_resource_group_request(
+        _request = build_get_by_resource_group_request(
             resource_group_name=resource_group_name,
             location_name=location_name,
             long_term_retention_server_name=long_term_retention_server_name,
@@ -2358,16 +2206,14 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
             backup_name=backup_name,
             subscription_id=self._config.subscription_id,
             api_version=api_version,
-            template_url=self.get_by_resource_group.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -2377,18 +2223,14 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
             error = self._deserialize.failsafe_deserialize(_models.ErrorResponse, pipeline_response)
             raise HttpResponseError(response=response, model=error, error_format=ARMErrorFormat)
 
-        deserialized = self._deserialize("LongTermRetentionBackup", pipeline_response)
+        deserialized = self._deserialize("LongTermRetentionBackup", pipeline_response.http_response)
 
         if cls:
-            return cls(pipeline_response, deserialized, {})
+            return cls(pipeline_response, deserialized, {})  # type: ignore
 
-        return deserialized
+        return deserialized  # type: ignore
 
-    get_by_resource_group.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Sql/locations/{locationName}/longTermRetentionServers/{longTermRetentionServerName}/longTermRetentionDatabases/{longTermRetentionDatabaseName}/longTermRetentionBackups/{backupName}"
-    }
-
-    def _delete_by_resource_group_initial(  # pylint: disable=inconsistent-return-statements
+    def _delete_by_resource_group_initial(
         self,
         resource_group_name: str,
         location_name: str,
@@ -2396,8 +2238,8 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         long_term_retention_database_name: str,
         backup_name: str,
         **kwargs: Any
-    ) -> None:
-        error_map = {
+    ) -> Iterator[bytes]:
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -2409,9 +2251,9 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         _params = case_insensitive_dict(kwargs.pop("params", {}) or {})
 
         api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2023-05-01-preview"))
-        cls: ClsType[None] = kwargs.pop("cls", None)
+        cls: ClsType[Iterator[bytes]] = kwargs.pop("cls", None)
 
-        request = build_delete_by_resource_group_request(
+        _request = build_delete_by_resource_group_request(
             resource_group_name=resource_group_name,
             location_name=location_name,
             long_term_retention_server_name=long_term_retention_server_name,
@@ -2419,31 +2261,34 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
             backup_name=backup_name,
             subscription_id=self._config.subscription_id,
             api_version=api_version,
-            template_url=self._delete_by_resource_group_initial.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
-        _stream = False
+        _decompress = kwargs.pop("decompress", True)
+        _stream = True
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
 
         if response.status_code not in [200, 202]:
+            try:
+                response.read()  # Load the body in memory and close the socket
+            except (StreamConsumedError, StreamClosedError):
+                pass
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             error = self._deserialize.failsafe_deserialize(_models.ErrorResponse, pipeline_response)
             raise HttpResponseError(response=response, model=error, error_format=ARMErrorFormat)
 
-        if cls:
-            return cls(pipeline_response, None, {})
+        deserialized = response.stream_download(self._client._pipeline, decompress=_decompress)
 
-    _delete_by_resource_group_initial.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Sql/locations/{locationName}/longTermRetentionServers/{longTermRetentionServerName}/longTermRetentionDatabases/{longTermRetentionDatabaseName}/longTermRetentionBackups/{backupName}"
-    }
+        if cls:
+            return cls(pipeline_response, deserialized, {})  # type: ignore
+
+        return deserialized  # type: ignore
 
     @distributed_trace
     def begin_delete_by_resource_group(
@@ -2468,14 +2313,6 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         :type long_term_retention_database_name: str
         :param backup_name: The backup name. Required.
         :type backup_name: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be ARMPolling. Pass in False for this
-         operation to not poll, or pass in your own initialized polling object for a personal polling
-         strategy.
-        :paramtype polling: bool or ~azure.core.polling.PollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of LROPoller that returns either None or the result of cls(response)
         :rtype: ~azure.core.polling.LROPoller[None]
         :raises ~azure.core.exceptions.HttpResponseError:
@@ -2489,7 +2326,7 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         lro_delay = kwargs.pop("polling_interval", self._config.polling_interval)
         cont_token: Optional[str] = kwargs.pop("continuation_token", None)
         if cont_token is None:
-            raw_result = self._delete_by_resource_group_initial(  # type: ignore
+            raw_result = self._delete_by_resource_group_initial(
                 resource_group_name=resource_group_name,
                 location_name=location_name,
                 long_term_retention_server_name=long_term_retention_server_name,
@@ -2501,11 +2338,12 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
                 params=_params,
                 **kwargs
             )
+            raw_result.http_response.read()  # type: ignore
         kwargs.pop("error_map", None)
 
         def get_long_running_output(pipeline_response):  # pylint: disable=inconsistent-return-statements
             if cls:
-                return cls(pipeline_response, None, {})
+                return cls(pipeline_response, None, {})  # type: ignore
 
         if polling is True:
             polling_method: PollingMethod = cast(PollingMethod, ARMPolling(lro_delay, **kwargs))
@@ -2514,29 +2352,25 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         else:
             polling_method = polling
         if cont_token:
-            return LROPoller.from_continuation_token(
+            return LROPoller[None].from_continuation_token(
                 polling_method=polling_method,
                 continuation_token=cont_token,
                 client=self._client,
                 deserialization_callback=get_long_running_output,
             )
-        return LROPoller(self._client, raw_result, get_long_running_output, polling_method)  # type: ignore
+        return LROPoller[None](self._client, raw_result, get_long_running_output, polling_method)  # type: ignore
 
-    begin_delete_by_resource_group.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Sql/locations/{locationName}/longTermRetentionServers/{longTermRetentionServerName}/longTermRetentionDatabases/{longTermRetentionDatabaseName}/longTermRetentionBackups/{backupName}"
-    }
-
-    def _change_access_tier_by_resource_group_initial(
+    def _change_access_tier_by_resource_group_initial(  # pylint: disable=name-too-long
         self,
         resource_group_name: str,
         location_name: str,
         long_term_retention_server_name: str,
         long_term_retention_database_name: str,
         backup_name: str,
-        parameters: Union[_models.ChangeLongTermRetentionBackupAccessTierParameters, IO],
+        parameters: Union[_models.ChangeLongTermRetentionBackupAccessTierParameters, IO[bytes]],
         **kwargs: Any
-    ) -> Optional[_models.LongTermRetentionBackup]:
-        error_map = {
+    ) -> Iterator[bytes]:
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -2549,7 +2383,7 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
 
         api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2023-05-01-preview"))
         content_type: Optional[str] = kwargs.pop("content_type", _headers.pop("Content-Type", None))
-        cls: ClsType[Optional[_models.LongTermRetentionBackup]] = kwargs.pop("cls", None)
+        cls: ClsType[Iterator[bytes]] = kwargs.pop("cls", None)
 
         content_type = content_type or "application/json"
         _json = None
@@ -2559,7 +2393,7 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         else:
             _json = self._serialize.body(parameters, "ChangeLongTermRetentionBackupAccessTierParameters")
 
-        request = build_change_access_tier_by_resource_group_request(
+        _request = build_change_access_tier_by_resource_group_request(
             resource_group_name=resource_group_name,
             location_name=location_name,
             long_term_retention_server_name=long_term_retention_server_name,
@@ -2570,40 +2404,37 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
             content_type=content_type,
             json=_json,
             content=_content,
-            template_url=self._change_access_tier_by_resource_group_initial.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
-        _stream = False
+        _decompress = kwargs.pop("decompress", True)
+        _stream = True
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
 
         if response.status_code not in [200, 202]:
+            try:
+                response.read()  # Load the body in memory and close the socket
+            except (StreamConsumedError, StreamClosedError):
+                pass
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             error = self._deserialize.failsafe_deserialize(_models.ErrorResponse, pipeline_response)
             raise HttpResponseError(response=response, model=error, error_format=ARMErrorFormat)
 
-        deserialized = None
-        if response.status_code == 200:
-            deserialized = self._deserialize("LongTermRetentionBackup", pipeline_response)
+        deserialized = response.stream_download(self._client._pipeline, decompress=_decompress)
 
         if cls:
-            return cls(pipeline_response, deserialized, {})
+            return cls(pipeline_response, deserialized, {})  # type: ignore
 
-        return deserialized
-
-    _change_access_tier_by_resource_group_initial.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Sql/locations/{locationName}/longTermRetentionServers/{longTermRetentionServerName}/longTermRetentionDatabases/{longTermRetentionDatabaseName}/longTermRetentionBackups/{backupName}/changeAccessTier"
-    }
+        return deserialized  # type: ignore
 
     @overload
-    def begin_change_access_tier_by_resource_group(
+    def begin_change_access_tier_by_resource_group(  # pylint: disable=name-too-long
         self,
         resource_group_name: str,
         location_name: str,
@@ -2633,14 +2464,6 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         :keyword content_type: Body Parameter content-type. Content type parameter for JSON body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be ARMPolling. Pass in False for this
-         operation to not poll, or pass in your own initialized polling object for a personal polling
-         strategy.
-        :paramtype polling: bool or ~azure.core.polling.PollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of LROPoller that returns either LongTermRetentionBackup or the result of
          cls(response)
         :rtype: ~azure.core.polling.LROPoller[~azure.mgmt.sql.models.LongTermRetentionBackup]
@@ -2648,14 +2471,14 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         """
 
     @overload
-    def begin_change_access_tier_by_resource_group(
+    def begin_change_access_tier_by_resource_group(  # pylint: disable=name-too-long
         self,
         resource_group_name: str,
         location_name: str,
         long_term_retention_server_name: str,
         long_term_retention_database_name: str,
         backup_name: str,
-        parameters: IO,
+        parameters: IO[bytes],
         *,
         content_type: str = "application/json",
         **kwargs: Any
@@ -2674,18 +2497,10 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         :param backup_name: Required.
         :type backup_name: str
         :param parameters: Required.
-        :type parameters: IO
+        :type parameters: IO[bytes]
         :keyword content_type: Body Parameter content-type. Content type parameter for binary body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be ARMPolling. Pass in False for this
-         operation to not poll, or pass in your own initialized polling object for a personal polling
-         strategy.
-        :paramtype polling: bool or ~azure.core.polling.PollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of LROPoller that returns either LongTermRetentionBackup or the result of
          cls(response)
         :rtype: ~azure.core.polling.LROPoller[~azure.mgmt.sql.models.LongTermRetentionBackup]
@@ -2693,14 +2508,14 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         """
 
     @distributed_trace
-    def begin_change_access_tier_by_resource_group(
+    def begin_change_access_tier_by_resource_group(  # pylint: disable=name-too-long
         self,
         resource_group_name: str,
         location_name: str,
         long_term_retention_server_name: str,
         long_term_retention_database_name: str,
         backup_name: str,
-        parameters: Union[_models.ChangeLongTermRetentionBackupAccessTierParameters, IO],
+        parameters: Union[_models.ChangeLongTermRetentionBackupAccessTierParameters, IO[bytes]],
         **kwargs: Any
     ) -> LROPoller[_models.LongTermRetentionBackup]:
         """Change a long term retention backup access tier.
@@ -2716,21 +2531,10 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         :type long_term_retention_database_name: str
         :param backup_name: Required.
         :type backup_name: str
-        :param parameters: Is either a ChangeLongTermRetentionBackupAccessTierParameters type or a IO
-         type. Required.
+        :param parameters: Is either a ChangeLongTermRetentionBackupAccessTierParameters type or a
+         IO[bytes] type. Required.
         :type parameters: ~azure.mgmt.sql.models.ChangeLongTermRetentionBackupAccessTierParameters or
-         IO
-        :keyword content_type: Body Parameter content-type. Known values are: 'application/json'.
-         Default value is None.
-        :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be ARMPolling. Pass in False for this
-         operation to not poll, or pass in your own initialized polling object for a personal polling
-         strategy.
-        :paramtype polling: bool or ~azure.core.polling.PollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
+         IO[bytes]
         :return: An instance of LROPoller that returns either LongTermRetentionBackup or the result of
          cls(response)
         :rtype: ~azure.core.polling.LROPoller[~azure.mgmt.sql.models.LongTermRetentionBackup]
@@ -2760,12 +2564,13 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
                 params=_params,
                 **kwargs
             )
+            raw_result.http_response.read()  # type: ignore
         kwargs.pop("error_map", None)
 
         def get_long_running_output(pipeline_response):
-            deserialized = self._deserialize("LongTermRetentionBackup", pipeline_response)
+            deserialized = self._deserialize("LongTermRetentionBackup", pipeline_response.http_response)
             if cls:
-                return cls(pipeline_response, deserialized, {})
+                return cls(pipeline_response, deserialized, {})  # type: ignore
             return deserialized
 
         if polling is True:
@@ -2775,17 +2580,15 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         else:
             polling_method = polling
         if cont_token:
-            return LROPoller.from_continuation_token(
+            return LROPoller[_models.LongTermRetentionBackup].from_continuation_token(
                 polling_method=polling_method,
                 continuation_token=cont_token,
                 client=self._client,
                 deserialization_callback=get_long_running_output,
             )
-        return LROPoller(self._client, raw_result, get_long_running_output, polling_method)  # type: ignore
-
-    begin_change_access_tier_by_resource_group.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Sql/locations/{locationName}/longTermRetentionServers/{longTermRetentionServerName}/longTermRetentionDatabases/{longTermRetentionDatabaseName}/longTermRetentionBackups/{backupName}/changeAccessTier"
-    }
+        return LROPoller[_models.LongTermRetentionBackup](
+            self._client, raw_result, get_long_running_output, polling_method  # type: ignore
+        )
 
     def _copy_by_resource_group_initial(
         self,
@@ -2794,10 +2597,10 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         long_term_retention_server_name: str,
         long_term_retention_database_name: str,
         backup_name: str,
-        parameters: Union[_models.CopyLongTermRetentionBackupParameters, IO],
+        parameters: Union[_models.CopyLongTermRetentionBackupParameters, IO[bytes]],
         **kwargs: Any
-    ) -> Optional[_models.LongTermRetentionBackupOperationResult]:
-        error_map = {
+    ) -> Iterator[bytes]:
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -2810,7 +2613,7 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
 
         api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2023-05-01-preview"))
         content_type: Optional[str] = kwargs.pop("content_type", _headers.pop("Content-Type", None))
-        cls: ClsType[Optional[_models.LongTermRetentionBackupOperationResult]] = kwargs.pop("cls", None)
+        cls: ClsType[Iterator[bytes]] = kwargs.pop("cls", None)
 
         content_type = content_type or "application/json"
         _json = None
@@ -2820,7 +2623,7 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         else:
             _json = self._serialize.body(parameters, "CopyLongTermRetentionBackupParameters")
 
-        request = build_copy_by_resource_group_request(
+        _request = build_copy_by_resource_group_request(
             resource_group_name=resource_group_name,
             location_name=location_name,
             long_term_retention_server_name=long_term_retention_server_name,
@@ -2831,37 +2634,34 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
             content_type=content_type,
             json=_json,
             content=_content,
-            template_url=self._copy_by_resource_group_initial.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
-        _stream = False
+        _decompress = kwargs.pop("decompress", True)
+        _stream = True
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
 
         if response.status_code not in [200, 202]:
+            try:
+                response.read()  # Load the body in memory and close the socket
+            except (StreamConsumedError, StreamClosedError):
+                pass
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             error = self._deserialize.failsafe_deserialize(_models.ErrorResponse, pipeline_response)
             raise HttpResponseError(response=response, model=error, error_format=ARMErrorFormat)
 
-        deserialized = None
-        if response.status_code == 200:
-            deserialized = self._deserialize("LongTermRetentionBackupOperationResult", pipeline_response)
+        deserialized = response.stream_download(self._client._pipeline, decompress=_decompress)
 
         if cls:
-            return cls(pipeline_response, deserialized, {})
+            return cls(pipeline_response, deserialized, {})  # type: ignore
 
-        return deserialized
-
-    _copy_by_resource_group_initial.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Sql/locations/{locationName}/longTermRetentionServers/{longTermRetentionServerName}/longTermRetentionDatabases/{longTermRetentionDatabaseName}/longTermRetentionBackups/{backupName}/copy"
-    }
+        return deserialized  # type: ignore
 
     @overload
     def begin_copy_by_resource_group(
@@ -2894,14 +2694,6 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         :keyword content_type: Body Parameter content-type. Content type parameter for JSON body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be ARMPolling. Pass in False for this
-         operation to not poll, or pass in your own initialized polling object for a personal polling
-         strategy.
-        :paramtype polling: bool or ~azure.core.polling.PollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of LROPoller that returns either LongTermRetentionBackupOperationResult or
          the result of cls(response)
         :rtype:
@@ -2917,7 +2709,7 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         long_term_retention_server_name: str,
         long_term_retention_database_name: str,
         backup_name: str,
-        parameters: IO,
+        parameters: IO[bytes],
         *,
         content_type: str = "application/json",
         **kwargs: Any
@@ -2936,18 +2728,10 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         :param backup_name: The backup name. Required.
         :type backup_name: str
         :param parameters: The parameters needed for long term retention copy request. Required.
-        :type parameters: IO
+        :type parameters: IO[bytes]
         :keyword content_type: Body Parameter content-type. Content type parameter for binary body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be ARMPolling. Pass in False for this
-         operation to not poll, or pass in your own initialized polling object for a personal polling
-         strategy.
-        :paramtype polling: bool or ~azure.core.polling.PollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of LROPoller that returns either LongTermRetentionBackupOperationResult or
          the result of cls(response)
         :rtype:
@@ -2963,7 +2747,7 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         long_term_retention_server_name: str,
         long_term_retention_database_name: str,
         backup_name: str,
-        parameters: Union[_models.CopyLongTermRetentionBackupParameters, IO],
+        parameters: Union[_models.CopyLongTermRetentionBackupParameters, IO[bytes]],
         **kwargs: Any
     ) -> LROPoller[_models.LongTermRetentionBackupOperationResult]:
         """Copy an existing long term retention backup to a different server.
@@ -2980,19 +2764,8 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         :param backup_name: The backup name. Required.
         :type backup_name: str
         :param parameters: The parameters needed for long term retention copy request. Is either a
-         CopyLongTermRetentionBackupParameters type or a IO type. Required.
-        :type parameters: ~azure.mgmt.sql.models.CopyLongTermRetentionBackupParameters or IO
-        :keyword content_type: Body Parameter content-type. Known values are: 'application/json'.
-         Default value is None.
-        :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be ARMPolling. Pass in False for this
-         operation to not poll, or pass in your own initialized polling object for a personal polling
-         strategy.
-        :paramtype polling: bool or ~azure.core.polling.PollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
+         CopyLongTermRetentionBackupParameters type or a IO[bytes] type. Required.
+        :type parameters: ~azure.mgmt.sql.models.CopyLongTermRetentionBackupParameters or IO[bytes]
         :return: An instance of LROPoller that returns either LongTermRetentionBackupOperationResult or
          the result of cls(response)
         :rtype:
@@ -3023,12 +2796,13 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
                 params=_params,
                 **kwargs
             )
+            raw_result.http_response.read()  # type: ignore
         kwargs.pop("error_map", None)
 
         def get_long_running_output(pipeline_response):
-            deserialized = self._deserialize("LongTermRetentionBackupOperationResult", pipeline_response)
+            deserialized = self._deserialize("LongTermRetentionBackupOperationResult", pipeline_response.http_response)
             if cls:
-                return cls(pipeline_response, deserialized, {})
+                return cls(pipeline_response, deserialized, {})  # type: ignore
             return deserialized
 
         if polling is True:
@@ -3038,17 +2812,15 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         else:
             polling_method = polling
         if cont_token:
-            return LROPoller.from_continuation_token(
+            return LROPoller[_models.LongTermRetentionBackupOperationResult].from_continuation_token(
                 polling_method=polling_method,
                 continuation_token=cont_token,
                 client=self._client,
                 deserialization_callback=get_long_running_output,
             )
-        return LROPoller(self._client, raw_result, get_long_running_output, polling_method)  # type: ignore
-
-    begin_copy_by_resource_group.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Sql/locations/{locationName}/longTermRetentionServers/{longTermRetentionServerName}/longTermRetentionDatabases/{longTermRetentionDatabaseName}/longTermRetentionBackups/{backupName}/copy"
-    }
+        return LROPoller[_models.LongTermRetentionBackupOperationResult](
+            self._client, raw_result, get_long_running_output, polling_method  # type: ignore
+        )
 
     def _update_by_resource_group_initial(
         self,
@@ -3057,10 +2829,10 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         long_term_retention_server_name: str,
         long_term_retention_database_name: str,
         backup_name: str,
-        parameters: Union[_models.UpdateLongTermRetentionBackupParameters, IO],
+        parameters: Union[_models.UpdateLongTermRetentionBackupParameters, IO[bytes]],
         **kwargs: Any
-    ) -> Optional[_models.LongTermRetentionBackupOperationResult]:
-        error_map = {
+    ) -> Iterator[bytes]:
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -3073,7 +2845,7 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
 
         api_version: str = kwargs.pop("api_version", _params.pop("api-version", "2023-05-01-preview"))
         content_type: Optional[str] = kwargs.pop("content_type", _headers.pop("Content-Type", None))
-        cls: ClsType[Optional[_models.LongTermRetentionBackupOperationResult]] = kwargs.pop("cls", None)
+        cls: ClsType[Iterator[bytes]] = kwargs.pop("cls", None)
 
         content_type = content_type or "application/json"
         _json = None
@@ -3083,7 +2855,7 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         else:
             _json = self._serialize.body(parameters, "UpdateLongTermRetentionBackupParameters")
 
-        request = build_update_by_resource_group_request(
+        _request = build_update_by_resource_group_request(
             resource_group_name=resource_group_name,
             location_name=location_name,
             long_term_retention_server_name=long_term_retention_server_name,
@@ -3094,37 +2866,34 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
             content_type=content_type,
             json=_json,
             content=_content,
-            template_url=self._update_by_resource_group_initial.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
-        _stream = False
+        _decompress = kwargs.pop("decompress", True)
+        _stream = True
         pipeline_response: PipelineResponse = self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
 
         if response.status_code not in [200, 202]:
+            try:
+                response.read()  # Load the body in memory and close the socket
+            except (StreamConsumedError, StreamClosedError):
+                pass
             map_error(status_code=response.status_code, response=response, error_map=error_map)
             error = self._deserialize.failsafe_deserialize(_models.ErrorResponse, pipeline_response)
             raise HttpResponseError(response=response, model=error, error_format=ARMErrorFormat)
 
-        deserialized = None
-        if response.status_code == 200:
-            deserialized = self._deserialize("LongTermRetentionBackupOperationResult", pipeline_response)
+        deserialized = response.stream_download(self._client._pipeline, decompress=_decompress)
 
         if cls:
-            return cls(pipeline_response, deserialized, {})
+            return cls(pipeline_response, deserialized, {})  # type: ignore
 
-        return deserialized
-
-    _update_by_resource_group_initial.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Sql/locations/{locationName}/longTermRetentionServers/{longTermRetentionServerName}/longTermRetentionDatabases/{longTermRetentionDatabaseName}/longTermRetentionBackups/{backupName}/update"
-    }
+        return deserialized  # type: ignore
 
     @overload
     def begin_update_by_resource_group(
@@ -3157,14 +2926,6 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         :keyword content_type: Body Parameter content-type. Content type parameter for JSON body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be ARMPolling. Pass in False for this
-         operation to not poll, or pass in your own initialized polling object for a personal polling
-         strategy.
-        :paramtype polling: bool or ~azure.core.polling.PollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of LROPoller that returns either LongTermRetentionBackupOperationResult or
          the result of cls(response)
         :rtype:
@@ -3180,7 +2941,7 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         long_term_retention_server_name: str,
         long_term_retention_database_name: str,
         backup_name: str,
-        parameters: IO,
+        parameters: IO[bytes],
         *,
         content_type: str = "application/json",
         **kwargs: Any
@@ -3199,18 +2960,10 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         :param backup_name: The backup name. Required.
         :type backup_name: str
         :param parameters: The requested backup resource state. Required.
-        :type parameters: IO
+        :type parameters: IO[bytes]
         :keyword content_type: Body Parameter content-type. Content type parameter for binary body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be ARMPolling. Pass in False for this
-         operation to not poll, or pass in your own initialized polling object for a personal polling
-         strategy.
-        :paramtype polling: bool or ~azure.core.polling.PollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
         :return: An instance of LROPoller that returns either LongTermRetentionBackupOperationResult or
          the result of cls(response)
         :rtype:
@@ -3226,7 +2979,7 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         long_term_retention_server_name: str,
         long_term_retention_database_name: str,
         backup_name: str,
-        parameters: Union[_models.UpdateLongTermRetentionBackupParameters, IO],
+        parameters: Union[_models.UpdateLongTermRetentionBackupParameters, IO[bytes]],
         **kwargs: Any
     ) -> LROPoller[_models.LongTermRetentionBackupOperationResult]:
         """Updates an existing long term retention backup.
@@ -3243,19 +2996,8 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         :param backup_name: The backup name. Required.
         :type backup_name: str
         :param parameters: The requested backup resource state. Is either a
-         UpdateLongTermRetentionBackupParameters type or a IO type. Required.
-        :type parameters: ~azure.mgmt.sql.models.UpdateLongTermRetentionBackupParameters or IO
-        :keyword content_type: Body Parameter content-type. Known values are: 'application/json'.
-         Default value is None.
-        :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
-        :keyword str continuation_token: A continuation token to restart a poller from a saved state.
-        :keyword polling: By default, your polling method will be ARMPolling. Pass in False for this
-         operation to not poll, or pass in your own initialized polling object for a personal polling
-         strategy.
-        :paramtype polling: bool or ~azure.core.polling.PollingMethod
-        :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
-         Retry-After header is present.
+         UpdateLongTermRetentionBackupParameters type or a IO[bytes] type. Required.
+        :type parameters: ~azure.mgmt.sql.models.UpdateLongTermRetentionBackupParameters or IO[bytes]
         :return: An instance of LROPoller that returns either LongTermRetentionBackupOperationResult or
          the result of cls(response)
         :rtype:
@@ -3286,12 +3028,13 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
                 params=_params,
                 **kwargs
             )
+            raw_result.http_response.read()  # type: ignore
         kwargs.pop("error_map", None)
 
         def get_long_running_output(pipeline_response):
-            deserialized = self._deserialize("LongTermRetentionBackupOperationResult", pipeline_response)
+            deserialized = self._deserialize("LongTermRetentionBackupOperationResult", pipeline_response.http_response)
             if cls:
-                return cls(pipeline_response, deserialized, {})
+                return cls(pipeline_response, deserialized, {})  # type: ignore
             return deserialized
 
         if polling is True:
@@ -3301,14 +3044,12 @@ class LongTermRetentionBackupsOperations:  # pylint: disable=too-many-public-met
         else:
             polling_method = polling
         if cont_token:
-            return LROPoller.from_continuation_token(
+            return LROPoller[_models.LongTermRetentionBackupOperationResult].from_continuation_token(
                 polling_method=polling_method,
                 continuation_token=cont_token,
                 client=self._client,
                 deserialization_callback=get_long_running_output,
             )
-        return LROPoller(self._client, raw_result, get_long_running_output, polling_method)  # type: ignore
-
-    begin_update_by_resource_group.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Sql/locations/{locationName}/longTermRetentionServers/{longTermRetentionServerName}/longTermRetentionDatabases/{longTermRetentionDatabaseName}/longTermRetentionBackups/{backupName}/update"
-    }
+        return LROPoller[_models.LongTermRetentionBackupOperationResult](
+            self._client, raw_result, get_long_running_output, polling_method  # type: ignore
+        )

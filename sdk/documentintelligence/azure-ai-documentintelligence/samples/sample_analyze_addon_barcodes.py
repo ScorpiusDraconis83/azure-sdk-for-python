@@ -64,9 +64,8 @@ def analyze_barcodes():
     with open(path_to_sample_documents, "rb") as f:
         poller = document_intelligence_client.begin_analyze_document(
             "prebuilt-layout",
-            analyze_request=f,
+            body=f,
             features=[DocumentAnalysisFeature.BARCODES],
-            content_type="application/octet-stream",
         )
     result: AnalyzeResult = poller.result()
 
@@ -79,7 +78,18 @@ def analyze_barcodes():
                 print(f"- Barcode #{barcode_idx}: {barcode.value}")
                 print(f"  Kind: {barcode.kind}")
                 print(f"  Confidence: {barcode.confidence}")
-                print(f"  Bounding regions: {barcode.polygon}")
+                if not barcode.polygon:
+                    print("  Bounding regions: N/A")
+                else:
+                    print("  Bounding regions: ")
+                    print(
+                        ", ".join(
+                            [
+                                f"[{barcode.polygon[i]}, {barcode.polygon[i + 1]}]"
+                                for i in range(0, len(barcode.polygon), 2)
+                            ]
+                        )
+                    )
 
     print("----------------------------------------")
     # [END analyze_barcodes]

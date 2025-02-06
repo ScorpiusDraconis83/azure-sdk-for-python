@@ -1,14 +1,69 @@
 # Release History
 
-## 5.11.6 (Unreleased)
-
-### Features Added
-
-### Breaking Changes
+## 5.13.1 (2025-02-11)
 
 ### Bugs Fixed
 
+- Fix to handle websocket disconnect/close on aiohttp, as aiohttp raises a `TypeError` while asserting bytes. ([#32061](https://github.com/Azure/azure-sdk-for-python/pull/32061))
+- Fixed a bug where pyAMQP was doubly retrying, causing latency on reconnect. ([#39037](https://github.com/Azure/azure-sdk-for-python/pull/39037))
+- Fix to handle large messages being sent twice due to incoming flow frames triggering a resend. ([#38067](https://github.com/Azure/azure-sdk-for-python/pull/38067))
+- Missing await in sender async on pyAMQP. ([#39182](https://github.com/Azure/azure-sdk-for-python/pull/39182))
+
 ### Other Changes
+
+- Updates to the Event Hubs Troubleshooting guidelines
+- Updates to mypy/pylint
+- Removed python 2.7 code ([#38735](https://github.com/Azure/azure-sdk-for-python/pull/38735))
+
+## 5.13.0 (2024-11-12)
+
+### Features Added
+
+- Added `ssl_context` parameter to the clients to allow users to pass in the SSL context, in which case, `connection_verify` will be ignored if specified.
+
+### Other Changes
+
+- Added debug logging to track received messages.
+
+## 5.12.2 (2024-10-02)
+
+### Bugs Fixed
+
+- Implemented backpressure for  async consumer  to address a memory leak issue. ([#36398](https://github.com/Azure/azure-sdk-for-python/issues/36398))
+
+## 5.12.1 (2024-06-11)
+
+### Bugs Fixed
+
+- Fixed a bug where the correct URI was not being used for consumer authentication, causing issues when assigning roles at the consumer group level. ([#35337](https://github.com/Azure/azure-sdk-for-python/issues/35337))
+
+## 5.12.0 (2024-05-16)
+
+### Features Added
+
+- Added support for non-tls connections (#34272)
+
+## 5.11.7 (2024-04-10)
+
+### Bugs Fixed
+
+- Fixed a bug where using `EventHubProducerClient` in buffered mode could potentially drop a buffered message without actually sending it. ([#34712](https://github.com/Azure/azure-sdk-for-python/pull/34712))
+
+### Other Changes
+
+- Updated network trace logging to replace `None` values in AMQP connection info with empty strings as per the OpenTelemetry specification.
+
+## 5.11.6 (2024-02-12)
+
+This version and all future versions will require Python 3.8+. Python 3.7 is no longer supported.
+
+### Features Added
+
+- Added `keep_alive` functionality on EventHubProducerClient to allow for long-living producers. [#33726](https://github.com/Azure/azure-sdk-for-python/issues/33726)
+
+### Other Changes
+
+- Added support for Python 3.12.
 
 ## 5.11.5 (2023-11-13)
 
@@ -527,7 +582,7 @@ after which the underlying connection will close if there is no further activity
 **Breaking changes**
 
 - Removed support for IoT Hub direct connection.
-    - [EventHubs compatible connection string](https://docs.microsoft.com/azure/iot-hub/iot-hub-devguide-messages-read-builtin) of an IotHub can be used to create `EventHubClient` and read properties or events from an IoT Hub.
+    - [EventHubs compatible connection string](https://learn.microsoft.com/azure/iot-hub/iot-hub-devguide-messages-read-builtin) of an IotHub can be used to create `EventHubClient` and read properties or events from an IoT Hub.
 - Removed support for sending EventData to IoT Hub.
 - Removed parameter `exception` in method `close()` of `EventHubConsumer` and `EventHubProcuer`.
 - Updated uAMQP dependency to 1.2.3.
@@ -566,7 +621,7 @@ after which the underlying connection will close if there is no further activity
     - `backoff_max`: The maximum delay time in total.
 - Added support for context manager on `EventHubClient`.
 - Added new error type `OperationTimeoutError` for send operation.
-- Introduced a new class `EventProcessor` which replaces the older concept of [Event Processor Host](https://docs.microsoft.com/azure/event-hubs/event-hubs-event-processor-host). This early preview is intended to allow users to test the new design using a single instance of `EventProcessor`. The ability to checkpoints to a durable store will be added in future updates.
+- Introduced a new class `EventProcessor` which replaces the older concept of [Event Processor Host](https://learn.microsoft.com/azure/event-hubs/event-hubs-event-processor-host). This early preview is intended to allow users to test the new design using a single instance of `EventProcessor`. The ability to checkpoints to a durable store will be added in future updates.
     - `EventProcessor`: EventProcessor creates and runs consumers for all partitions of the eventhub.
     - `PartitionManager`: PartitionManager defines the interface for getting/claiming ownerships of partitions and updating checkpoints.
     - `PartitionProcessor`: PartitionProcessor defines the interface for processing events.

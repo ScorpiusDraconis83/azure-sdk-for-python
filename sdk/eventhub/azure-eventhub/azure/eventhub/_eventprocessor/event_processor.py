@@ -13,6 +13,7 @@ from typing import (
     Callable,
     List,
     Any,
+    Mapping,
     Union,
     TYPE_CHECKING,
     Optional,
@@ -44,9 +45,7 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 
-class EventProcessor(
-    EventProcessorMixin
-):  # pylint:disable=too-many-instance-attributes
+class EventProcessor(EventProcessorMixin):  # pylint:disable=too-many-instance-attributes
     """
     An EventProcessor constantly receives events from one or multiple partitions of the Event Hub
     in the context of a given consumer group.
@@ -57,61 +56,62 @@ class EventProcessor(
         self,
         eventhub_client: EventHubConsumerClient,
         consumer_group: str,
-        on_event: Callable[[PartitionContext, Union[Optional[EventData], List[EventData]]], None],
-        **kwargs: Any
+        on_event: Union[
+            Callable[["PartitionContext", Optional["EventData"]], None],
+            Callable[["PartitionContext", List["EventData"]], None],
+        ],
+        *,
+        batch: bool = False,
+        max_batch_size: int = 300,
+        max_wait_time: Optional[float] = None,
+        partition_id: Optional[str] = None,
+        on_error: Optional[Callable[[PartitionContext, Exception], None]] = None,
+        on_partition_initialize: Optional[Callable[[PartitionContext], None]] = None,
+        on_partition_close: Optional[Callable[[PartitionContext, CloseReason], None]] = None,
+        checkpoint_store: Optional[CheckpointStore] = None,
+        initial_event_position: Union[int, str, datetime, Mapping[str, Union[int, str, datetime]]] = "@latest",
+        initial_event_position_inclusive: Union[bool, Mapping[str, bool]] = False,
+        load_balancing_interval: float = 30.0,
+        load_balancing_strategy: LoadBalancingStrategy = LoadBalancingStrategy.GREEDY,
+        partition_ownership_expiration_interval: Optional[float] = None,
+        owner_level: Optional[int] = None,
+        prefetch: Optional[int] = None,
+        track_last_enqueued_event_properties: bool = False,
     ) -> None:
-        # pylint: disable=line-too-long
         self._consumer_group = consumer_group
         self._eventhub_client = eventhub_client
-        self._namespace = (
-            eventhub_client._address.hostname  # pylint: disable=protected-access
-        )
+        self._namespace = eventhub_client._address.hostname
         self._eventhub_name = eventhub_client.eventhub_name
         self._event_handler = on_event
-        self._batch = kwargs.get("batch") or False
-        self._max_batch_size = kwargs.get("max_batch_size") or 300
-        self._max_wait_time = kwargs.get("max_wait_time")
-        self._partition_id: Optional[str] = kwargs.get("partition_id", None)
-        self._error_handler: Optional[Callable[[PartitionContext, Exception], None]] = kwargs.get(
-            "on_error", None
-        )
-        self._partition_initialize_handler: Optional[Callable[[PartitionContext], None]] = kwargs.get(
-            "on_partition_initialize", None
-        )
-        self._partition_close_handler: Optional[Callable[[PartitionContext, CloseReason], None]] = kwargs.get(
-            "on_partition_close", None
-        )
-        checkpoint_store: Optional[CheckpointStore] = kwargs.get(
-            "checkpoint_store"
-        )
+        self._batch = batch
+        self._max_batch_size = max_batch_size
+        self._max_wait_time = max_wait_time
+        self._partition_id = partition_id
+        self._error_handler: Optional[Callable[[PartitionContext, Exception], None]] = on_error
+        self._partition_initialize_handler: Optional[Callable[[PartitionContext], None]] = on_partition_initialize
+        self._partition_close_handler: Optional[Callable[[PartitionContext, CloseReason], None]] = on_partition_close
         self._checkpoint_store = checkpoint_store or InMemoryCheckpointStore()
-        self._initial_event_position: Union[str, int, datetime, Dict[str, Any]] = kwargs.get(
-            "initial_event_position", "@latest"
+        self._initial_event_position: Union[int, str, datetime, Mapping[str, Union[int, str, datetime]]] = (
+            initial_event_position
         )
-        self._initial_event_position_inclusive: Union[bool, Dict[str, bool]] = kwargs.get(
-            "initial_event_position_inclusive", False
-        )
+        self._initial_event_position_inclusive: Union[bool, Mapping[str, bool]] = initial_event_position_inclusive
 
-        self._load_balancing_interval: float = kwargs.get(
-            "load_balancing_interval", 30.0
-        )
-        self._load_balancing_strategy = (
-            kwargs.get("load_balancing_strategy") or LoadBalancingStrategy.GREEDY
-        )
-        self._ownership_timeout = kwargs.get(
-            "partition_ownership_expiration_interval", self._load_balancing_interval * 6
+        self._load_balancing_interval: float = load_balancing_interval
+        self._load_balancing_strategy = load_balancing_strategy
+        self._ownership_timeout = (
+            partition_ownership_expiration_interval
+            if partition_ownership_expiration_interval is not None
+            else self._load_balancing_interval * 6
         )
 
         self._partition_contexts: Dict[str, PartitionContext] = {}
 
         # Receive parameters
-        self._owner_level: Optional[int] = kwargs.get("owner_level", None)
+        self._owner_level: Optional[int] = owner_level
         if checkpoint_store and self._owner_level is None:
             self._owner_level = 0
-        self._prefetch: Optional[int] = kwargs.get("prefetch", None)
-        self._track_last_enqueued_event_properties = kwargs.get(
-            "track_last_enqueued_event_properties", False
-        )
+        self._prefetch: Optional[int] = prefetch
+        self._track_last_enqueued_event_properties = track_last_enqueued_event_properties
         self._id = str(uuid.uuid4())
         self._running = False
         self._lock = threading.RLock()
@@ -166,9 +166,7 @@ class EventProcessor(
     def _initialize_partition_consumer(self, partition_id):
         if self._partition_initialize_handler:
             try:
-                self._partition_initialize_handler(
-                    self._partition_contexts[partition_id]
-                )
+                self._partition_initialize_handler(self._partition_contexts[partition_id])
             except Exception as err:  # pylint:disable=broad-except
                 _LOGGER.warning(
                     "EventProcessor instance %r of eventhub %r partition %r consumer group %r. "
@@ -180,14 +178,10 @@ class EventProcessor(
                     err,
                 )
                 self._process_error(self._partition_contexts[partition_id], err)
-        _LOGGER.info(
-            "EventProcessor %r has claimed partition %r", self._id, partition_id
-        )
+        _LOGGER.info("EventProcessor %r has claimed partition %r", self._id, partition_id)
 
     def _create_tasks_for_claimed_ownership(
-        self,
-        claimed_partitions: Iterable[str],
-        checkpoints: Optional[Dict[str, Dict[str, Any]]]=None
+        self, claimed_partitions: Iterable[str], checkpoints: Optional[Dict[str, Dict[str, Any]]] = None
     ) -> None:
         with self._lock:
             _LOGGER.debug(
@@ -199,9 +193,7 @@ class EventProcessor(
                 if partition_id not in self._consumers:
                     if partition_id in self._partition_contexts:
                         partition_context = self._partition_contexts[partition_id]
-                        partition_context._last_received_event = (  # pylint:disable=protected-access
-                            None
-                        )
+                        partition_context._last_received_event = None  # pylint:disable=protected-access
                     else:
                         partition_context = PartitionContext(
                             self._namespace,
@@ -217,9 +209,7 @@ class EventProcessor(
                         initial_event_position,
                         event_postition_inclusive,
                     ) = self.get_init_event_position(partition_id, checkpoint)
-                    event_received_callback = partial(
-                        self._on_event_received, partition_context
-                    )
+                    event_received_callback = partial(self._on_event_received, partition_context)
                     self._consumers[partition_id] = cast(
                         "EventHubConsumer",
                         self.create_consumer(
@@ -232,9 +222,7 @@ class EventProcessor(
                     self._initialize_partition_consumer(partition_id)
 
     def _on_event_received(
-        self,
-        partition_context: PartitionContext,
-        event: Union[Optional[EventData], List[EventData]]
+        self, partition_context: PartitionContext, event: Union[Optional[EventData], List[EventData]]
     ) -> None:
         if event:
             try:
@@ -249,13 +237,15 @@ class EventProcessor(
                 if isinstance(event, list):
                     is_batch = True
 
-            with receive_context_manager(self._eventhub_client, links=links, start_time=self._last_received_time):  # pylint:disable=protected-access
+            with receive_context_manager(
+                self._eventhub_client, links=links, start_time=self._last_received_time
+            ):
                 self._last_received_time = time.time_ns()
 
             with process_context_manager(self._eventhub_client, links=links, is_batch=is_batch):
-                self._event_handler(partition_context, event)
+                self._event_handler(partition_context, event)  # type: ignore
         else:
-            self._event_handler(partition_context, event)
+            self._event_handler(partition_context, event)  # type: ignore
 
     def _load_balancing(self) -> None:
         """Start the EventProcessor.
@@ -275,14 +265,8 @@ class EventProcessor(
                     to_cancel_pids = existing_pids - claimed_pids
                     newly_claimed_pids = claimed_pids - existing_pids
                     if newly_claimed_pids:
-                        checkpoints = (
-                            self._ownership_manager.get_checkpoints()
-                            if self._checkpoint_store
-                            else None
-                        )
-                        self._create_tasks_for_claimed_ownership(
-                            newly_claimed_pids, checkpoints
-                        )
+                        checkpoints = self._ownership_manager.get_checkpoints() if self._checkpoint_store else None
+                        self._create_tasks_for_claimed_ownership(newly_claimed_pids, checkpoints)
                 else:
                     _LOGGER.info(
                         "EventProcessor %r hasn't claimed an ownership. It keeps claiming.",
@@ -315,12 +299,7 @@ class EventProcessor(
 
             time.sleep(load_balancing_interval)
 
-    def _close_consumer(
-        self,
-        partition_id: str,
-        consumer: EventHubConsumer,
-        reason: CloseReason
-    ) -> None:
+    def _close_consumer(self, partition_id: str, consumer: EventHubConsumer, reason: CloseReason) -> None:
         consumer.close()
         with self._lock:
             del self._consumers[partition_id]
@@ -337,9 +316,7 @@ class EventProcessor(
 
         if self._partition_close_handler:
             try:
-                self._partition_close_handler(
-                    self._partition_contexts[partition_id], reason
-                )
+                self._partition_close_handler(self._partition_contexts[partition_id], reason)
             except Exception as err:  # pylint:disable=broad-except
                 _LOGGER.warning(
                     "EventProcessor instance %r of eventhub %r partition %r consumer group %r. "
@@ -391,9 +368,7 @@ class EventProcessor(
         while self._running:
             for partition_id, consumer in list(self._consumers.items()):
                 if consumer.stop:
-                    self._close_consumer(
-                        partition_id, consumer, CloseReason.OWNERSHIP_LOST
-                    )
+                    self._close_consumer(partition_id, consumer, CloseReason.OWNERSHIP_LOST)
                     continue
 
                 self._do_receive(partition_id, consumer)

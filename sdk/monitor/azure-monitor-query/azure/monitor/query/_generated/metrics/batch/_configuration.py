@@ -13,7 +13,7 @@ from azure.core.pipeline import policies
 VERSION = "unknown"
 
 
-class MonitorBatchMetricsClientConfiguration:  # pylint: disable=too-many-instance-attributes,name-too-long
+class MonitorBatchMetricsClientConfiguration:  # pylint: disable=too-many-instance-attributes
     """Configuration for MonitorBatchMetricsClient.
 
     Note that all parameters used to create this instance are saved as instance
@@ -23,13 +23,13 @@ class MonitorBatchMetricsClientConfiguration:  # pylint: disable=too-many-instan
      https://eastus.metrics.monitor.azure.com. The region should match the region of the requested
      resources. For global resources, the region should be 'global'. Required.
     :type endpoint: str
-    :keyword api_version: Api Version. Default value is "2023-05-01-preview". Note that overriding
-     this default value may result in unsupported behavior.
+    :keyword api_version: Api Version. Default value is "2024-02-01". Note that overriding this
+     default value may result in unsupported behavior.
     :paramtype api_version: str
     """
 
     def __init__(self, endpoint: str, **kwargs: Any) -> None:
-        api_version: str = kwargs.pop("api_version", "2023-05-01-preview")
+        api_version: str = kwargs.pop("api_version", "2024-02-01")
 
         if endpoint is None:
             raise ValueError("Parameter 'endpoint' must not be None.")

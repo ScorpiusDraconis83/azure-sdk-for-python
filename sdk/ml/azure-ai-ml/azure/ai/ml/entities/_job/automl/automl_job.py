@@ -8,7 +8,7 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional, Union
 
-from azure.ai.ml._restclient.v2023_04_01_preview.models import (
+from azure.ai.ml._restclient.v2024_01_01_preview.models import (
     JobBase,
     MLTableJobInput,
     QueueSettings,
@@ -109,6 +109,10 @@ class AutoMLJob(Job, JobIOMixin, AutoMLNodeIOMixin, ABC):
         """
         raise NotImplementedError()
 
+    @training_data.setter
+    def training_data(self, value: Any) -> None:
+        self.training_data = value
+
     @property
     @abstractmethod
     def validation_data(self) -> Input:
@@ -120,6 +124,10 @@ class AutoMLJob(Job, JobIOMixin, AutoMLNodeIOMixin, ABC):
         """
         raise NotImplementedError()
 
+    @validation_data.setter
+    def validation_data(self, value: Any) -> None:
+        self.validation_data = value
+
     @property
     @abstractmethod
     def test_data(self) -> Input:
@@ -130,6 +138,10 @@ class AutoMLJob(Job, JobIOMixin, AutoMLNodeIOMixin, ABC):
         :rtype: Input
         """
         raise NotImplementedError()
+
+    @test_data.setter
+    def test_data(self, value: Any) -> None:
+        self.test_data = value
 
     @classmethod
     def _load_from_rest(cls, obj: JobBase) -> "AutoMLJob":
@@ -146,8 +158,8 @@ class AutoMLJob(Job, JobIOMixin, AutoMLNodeIOMixin, ABC):
         )
         class_type = cls._get_task_mapping().get(task_type, None)
         if class_type:
-            return class_type._from_rest_object(obj)
-
+            res: AutoMLJob = class_type._from_rest_object(obj)
+            return res
         msg = f"Unsupported task type: {obj.properties.task_details.task_type}"
         raise ValidationException(
             message=msg,
@@ -162,7 +174,7 @@ class AutoMLJob(Job, JobIOMixin, AutoMLNodeIOMixin, ABC):
         data: Dict,
         context: Dict,
         additional_message: str,
-        **kwargs,
+        **kwargs: Any,
     ) -> "AutoMLJob":
         """Loads the dictionary objects to an AutoMLJob object.
 
@@ -180,12 +192,13 @@ class AutoMLJob(Job, JobIOMixin, AutoMLNodeIOMixin, ABC):
         task_type = data.get(AutoMLConstants.TASK_TYPE_YAML)
         class_type = cls._get_task_mapping().get(task_type, None)
         if class_type:
-            return class_type._load_from_dict(
+            res: AutoMLJob = class_type._load_from_dict(
                 data,
                 context,
                 additional_message,
                 **kwargs,
             )
+            return res
         msg = f"Unsupported task type: {task_type}"
         raise ValidationException(
             message=msg,
@@ -207,7 +220,8 @@ class AutoMLJob(Job, JobIOMixin, AutoMLNodeIOMixin, ABC):
         task_type = loaded_data.pop(AutoMLConstants.TASK_TYPE_YAML)
         class_type = cls._get_task_mapping().get(task_type, None)
         if class_type:
-            return class_type._create_instance_from_schema_dict(loaded_data=loaded_data)
+            res: AutoMLJob = class_type._create_instance_from_schema_dict(loaded_data=loaded_data)
+            return res
         msg = f"Unsupported task type: {task_type}"
         raise ValidationException(
             message=msg,
@@ -217,7 +231,7 @@ class AutoMLJob(Job, JobIOMixin, AutoMLNodeIOMixin, ABC):
         )
 
     @classmethod
-    def _get_task_mapping(cls):
+    def _get_task_mapping(cls) -> Dict:
         """Create a mapping of task type to job class.
 
         :return: An AutoMLVertical object containing the task type to job class mapping.
@@ -246,7 +260,7 @@ class AutoMLJob(Job, JobIOMixin, AutoMLNodeIOMixin, ABC):
             camel_to_snake(TaskType.TEXT_CLASSIFICATION_MULTILABEL): TextClassificationMultilabelJob,
         }
 
-    def _resolve_data_inputs(self, rest_job):
+    def _resolve_data_inputs(self, rest_job: "AutoMLJob") -> None:
         """Resolve JobInputs to MLTableJobInputs within data_settings.
 
         :param rest_job: The rest job object.
@@ -259,15 +273,11 @@ class AutoMLJob(Job, JobIOMixin, AutoMLNodeIOMixin, ABC):
         if hasattr(rest_job, "test_data") and isinstance(rest_job.test_data, Input):
             rest_job.test_data = MLTableJobInput(uri=rest_job.test_data.path)
 
-    def _restore_data_inputs(self):
+    def _restore_data_inputs(self) -> None:
         """Restore MLTableJobInputs to JobInputs within data_settings."""
         if isinstance(self.training_data, MLTableJobInput):
-            self.training_data = Input(
-                type=AssetTypes.MLTABLE, path=self.training_data.uri  # pylint: disable=no-member
-            )
+            self.training_data = Input(type=AssetTypes.MLTABLE, path=self.training_data.uri)
         if isinstance(self.validation_data, MLTableJobInput):
-            self.validation_data = Input(
-                type=AssetTypes.MLTABLE, path=self.validation_data.uri  # pylint: disable=no-member
-            )
+            self.validation_data = Input(type=AssetTypes.MLTABLE, path=self.validation_data.uri)
         if hasattr(self, "test_data") and isinstance(self.test_data, MLTableJobInput):
-            self.test_data = Input(type=AssetTypes.MLTABLE, path=self.test_data.uri)  # pylint: disable=no-member
+            self.test_data = Input(type=AssetTypes.MLTABLE, path=self.test_data.uri)

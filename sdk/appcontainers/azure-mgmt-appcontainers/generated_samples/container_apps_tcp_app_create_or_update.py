@@ -7,6 +7,7 @@
 # --------------------------------------------------------------------------
 
 from azure.identity import DefaultAzureCredential
+
 from azure.mgmt.appcontainers import ContainerAppsAPIClient
 
 """
@@ -61,8 +62,10 @@ def main():
                         }
                     ],
                     "scale": {
+                        "cooldownPeriod": 350,
                         "maxReplicas": 5,
                         "minReplicas": 1,
+                        "pollingInterval": 35,
                         "rules": [{"name": "tcpscalingrule", "tcp": {"metadata": {"concurrentConnections": "50"}}}],
                     },
                 },
@@ -72,6 +75,6 @@ def main():
     print(response)
 
 
-# x-ms-original-file: specification/app/resource-manager/Microsoft.App/stable/2023-05-01/examples/ContainerApps_TcpApp_CreateOrUpdate.json
+# x-ms-original-file: specification/app/resource-manager/Microsoft.App/preview/2024-08-02-preview/examples/ContainerApps_TcpApp_CreateOrUpdate.json
 if __name__ == "__main__":
     main()

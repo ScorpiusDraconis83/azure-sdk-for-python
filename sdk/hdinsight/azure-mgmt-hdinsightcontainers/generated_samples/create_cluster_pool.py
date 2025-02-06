@@ -6,7 +6,10 @@
 # Changes may cause incorrect behavior and will be lost if the code is regenerated.
 # --------------------------------------------------------------------------
 
+from typing import Any, IO, Union
+
 from azure.identity import DefaultAzureCredential
+
 from azure.mgmt.hdinsightcontainers import HDInsightContainersMgmtClient
 
 """
@@ -36,13 +39,13 @@ def main():
             "location": "West US 2",
             "properties": {
                 "clusterPoolProfile": {"clusterPoolVersion": "1.2"},
-                "computeProfile": {"vmSize": "Standard_D3_v2"},
+                "computeProfile": {"availabilityZones": ["1", "2", "3"], "vmSize": "Standard_D3_v2"},
             },
         },
     ).result()
     print(response)
 
 
-# x-ms-original-file: specification/hdinsight/resource-manager/Microsoft.HDInsight/HDInsightOnAks/preview/2023-06-01-preview/examples/CreateClusterPool.json
+# x-ms-original-file: specification/hdinsight/resource-manager/Microsoft.HDInsight/HDInsightOnAks/preview/2024-05-01-preview/examples/CreateClusterPool.json
 if __name__ == "__main__":
     main()

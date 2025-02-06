@@ -15,8 +15,8 @@ class SparkResourceConfigurationSchema(metaclass=PatchedSchemaMeta):
 
     instance_type = fields.Str(metadata={"description": "Optional type of VM used as supported by the compute target."})
     runtime_version = NumberVersionField(
-        upper_bound="3.4",
-        lower_bound="3.2",
+        upper_bound="3.5",
+        lower_bound="3.3",
     )
 
     @post_load
@@ -26,7 +26,7 @@ class SparkResourceConfigurationSchema(metaclass=PatchedSchemaMeta):
         :param data: The marshalled data.
         :type data: dict[str, str]
         :return: A SparkResourceConfiguration object.
-        :rtype: :class:`~azure.ai.ml.entities.SparkResourceConfiguration`
+        :rtype: ~azure.ai.ml.entities.SparkResourceConfiguration
         """
         from azure.ai.ml.entities import SparkResourceConfiguration
 
@@ -51,7 +51,7 @@ class SparkResourceConfigurationForNodeSchema(SparkResourceConfigurationSchema):
         metadata={"description": "Optional type of VM used as supported by the compute target."},
     )
     runtime_version = NumberVersionField(
-        upper_bound="3.4",
-        lower_bound="3.2",
+        upper_bound="3.5",
+        lower_bound="3.3",
         required=True,
     )

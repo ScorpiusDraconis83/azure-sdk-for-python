@@ -1,20 +1,242 @@
 # Release History
 
-## 11.5.0b1 (Unreleased)
+## 11.6.0b10 (Unreleased)
 
 ### Features Added
 
-- Added `semantic_query` for `Search` method.
-- Added back alias operations to `SearchIndexClient`
-- Added back `query_language`, `query_speller`, `semantic_fields` and `debug` for `Search` method.
+### Breaking Changes
+
+### Bugs Fixed
+
+### Other Changes
+
+## 11.6.0b9 (2025-01-14)
+
+### Bugs Fixed
+
+- Exposed `@search.document_debug_info` in the search results.
+
+## 11.6.0b8 (2024-11-21)
+
+### Features Added
+
+- Added `get_debug_info` in Search results.
+
+## 11.6.0b7 (2024-11-18)
+
+### Features Added
+
+- Added `SearchResourceEncryptionKey`.`identity` support.
+- Added `query_rewrites` & `query_rewrites_count` in `SearchClient.Search`.
+- Added `query_rewrites` in `VectorizableTextQuery`.
+- Added new models:
+  - `azure.search.documents.QueryRewritesType`
+  - `azure.search.documents.indexes.AIServicesAccountIdentity`
+  - `azure.search.documents.indexes.AIServicesAccountKey`
+  - `azure.search.documents.indexes.AzureOpenAITokenizerParameters`
+  - `azure.search.documents.indexes.DocumentIntelligenceLayoutSkillMarkdownHeaderDepth`
+  - `azure.search.documents.indexes.DocumentIntelligenceLayoutSkillOutputMode`
+  - `azure.search.documents.indexes.DataSourceCredentials`
+  - `azure.search.documents.indexes.DocumentIntelligenceLayoutSkill`
+  - `azure.search.documents.indexes.IndexerCurrentState`
+  - `azure.search.documents.indexes.MarkdownHeaderDepth`
+  - `azure.search.documents.indexes.MarkdownParsingSubmode`
+  - `azure.search.documents.indexes.RescoringOptions`
+  - `azure.search.documents.indexes.ResourceCounter`
+  - `azure.search.documents.indexes.SkillNames`
+  - `azure.search.documents.indexes.SplitSkillEncoderModelName`
+  - `azure.search.documents.indexes.SplitSkillUnit`
+  - `azure.search.documents.indexes.VectorSearchCompressionKind`
+  - `azure.search.documents.indexes.VectorSearchCompressionRescoreStorageMethod`
+
+### Other Changes
+
+- Updated the API version to "2024-1-01-preview"
+
+11.5.2 (2024-10-31)
+
+### Bugs Fixed
+
+- Fixed the issue that encryptionKey was lost during serialization. #37521
+
+## 11.6.0b6 (2024-10-08)
+
+### Bugs Fixed
+
+- Fixed the issue that `encryptionKey` in `SearchIndexer` was lost during serialization.  #37521
+
+## 11.6.0b5 (2024-09-19)
+
+### Features Added
+
+- `SearchIndexClient`.`get_search_client` inherits the API version.
+
+### Bugs Fixed
+
+- Fixed the issue that we missed ODATA header when using Entra ID auth.
+- Fixed the issue that `encryptionKey` was lost during serialization.  #37251
+
+### Other Changes
+
+- Updated the API version to "2024-09-01-preview"
+- Below models were renamed
+  - `azure.search.documents.indexes.models.SearchIndexerIndexProjections` -> `azure.search.documents.indexes.models.SearchIndexerIndexProjection`
+  - `azure.search.documents.indexes.models.LineEnding` -> `azure.search.documents.indexes.models.OrcLineEnding`
+  - `azure.search.documents.indexes.models.ScalarQuantizationCompressionConfiguration` -> `azure.search.documents.indexes.models.ScalarQuantizationCompression`
+  - `azure.search.documents.indexes.models.VectorSearchCompressionConfiguration` -> `azure.search.documents.indexes.models.VectorSearchCompression`
+  - `azure.search.documents.indexes.models.VectorSearchCompressionTargetDataType` -> `azure.search.documents.indexes.models.VectorSearchCompressionTarget`
+- Below properties were renamed
+  - `azure.search.documents.indexes.models.AzureMachineLearningVectorizer.name` -> `azure.search.documents.indexes.models.AzureMachineLearningVectorizer.vectorizer_name`
+  - `azure.search.documents.indexes.models.AzureOpenAIEmbeddingSkill.deployment_id` -> `azure.search.documents.indexes.models.AzureOpenAIEmbeddingSkill.deployment_name`
+  - `azure.search.documents.indexes.models.AzureOpenAIEmbeddingSkill.resource_uri` -> `azure.search.documents.indexes.models.AzureOpenAIEmbeddingSkill.resource_url`
+  - `azure.search.documents.indexes.models.AzureOpenAIVectorizer.azure_open_ai_parameters` -> `azure.search.documents.indexes.models.AzureOpenAIVectorizer.parameters`
+  - `azure.search.documents.indexes.models.AzureOpenAIVectorizer.name` -> `azure.search.documents.indexes.models.AzureOpenAIVectorizer.vectorizer_name`
+  - `azure.search.documents.indexes.models.SearchIndexerDataUserAssignedIdentity.user_assigned_identity` -> `azure.search.documents.indexes.models.SearchIndexerDataUserAssignedIdentity.resource_id`
+  - `azure.search.documents.indexes.models.VectorSearchProfile.compression_configuration_name` -> `azure.search.documents.indexes.models.VectorSearchProfile.compression_name`
+  - `azure.search.documents.indexes.models.VectorSearchProfile.vectorizer` -> `azure.search.documents.indexes.models.VectorSearchProfile.vectorizer_name`
+  - `azure.search.documents.indexes.models.VectorSearchVectorizer.name` -> `azure.search.documents.indexes.models.VectorSearchVectorizer.vectorizer_name`
+
+## 11.5.1 (2024-07-30)
+
+### Other Changes
+
+- Improved type checks.
+
+## 11.5.0 (2024-07-16)
 
 ### Breaking Changes
+
+> These changes do not impact the API of stable versions such as 11.4.0.
+> Only code written against a beta version such as 11.6.0b4 may be affected.
+- Below models are renamed
+  - `azure.search.documents.indexes.models.SearchIndexerIndexProjections` -> `azure.search.documents.indexes.models.SearchIndexerIndexProjection`
+  - `azure.search.documents.indexes.models.LineEnding` -> `azure.search.documents.indexes.models.OrcLineEnding`
+  - `azure.search.documents.indexes.models.ScalarQuantizationCompressionConfiguration` -> `azure.search.documents.indexes.models.ScalarQuantizationCompression`
+  - `azure.search.documents.indexes.models.VectorSearchCompressionConfiguration` -> `azure.search.documents.indexes.models.VectorSearchCompression`
+  - `azure.search.documents.indexes.models.VectorSearchCompressionTargetDataType` -> `azure.search.documents.indexes.models.VectorSearchCompressionTarget`
+
+- Below models do not exist in this release
+  - `azure.search.documents.models.QueryLanguage`
+  - `azure.search.documents.models.QuerySpellerType`
+  - `azure.search.documents.models.QueryDebugMode`
+  - `azure.search.documents.models.HybridCountAndFacetMode`
+  - `azure.search.documents.models.HybridSearch`
+  - `azure.search.documents.models.SearchScoreThreshold`
+  - `azure.search.documents.models.VectorSimilarityThreshold`
+  - `azure.search.documents.models.VectorThreshold`
+  - `azure.search.documents.models.VectorThresholdKind`
+  - `azure.search.documents.models.VectorizableImageBinaryQuery`
+  - `azure.search.documents.models.VectorizableImageUrlQuery`
+  - `azure.search.documents.indexes.models.SearchAlias`
+  - `azure.search.documents.indexes.models.AIServicesVisionParameters`
+  - `azure.search.documents.indexes.models.AIServicesVisionVectorizer`
+  - `azure.search.documents.indexes.models.AIStudioModelCatalogName`
+  - `azure.search.documents.indexes.models.AzureMachineLearningParameters`
+  - `azure.search.documents.indexes.models.AzureMachineLearningSkill`
+  - `azure.search.documents.indexes.models.AzureMachineLearningVectorizer`
+  - `azure.search.documents.indexes.models.CustomVectorizer`
+  - `azure.search.documents.indexes.models.CustomNormalizer`
+  - `azure.search.documents.indexes.models.DocumentKeysOrIds`
+  - `azure.search.documents.indexes.models.IndexingMode`
+  - `azure.search.documents.indexes.models.LexicalNormalizer`
+  - `azure.search.documents.indexes.models.LexicalNormalizerName`
+  - `azure.search.documents.indexes.models.NativeBlobSoftDeleteDeletionDetectionPolicy`
+  - `azure.search.documents.indexes.models.SearchIndexerCache`
+  - `azure.search.documents.indexes.models.SkillNames`
+  - `azure.search.documents.indexes.models.VisionVectorizeSkill`
+
+- SearchAlias operations do not exist in this release
+- `SearchIndexerClient.reset_documents` does not exist in this release
+- `SearchIndexerClient.reset_skills` does not exist in this release
+
+- Below properties do not exist
+  - `azure.search.documents.indexes.models.SearchIndexerDataSourceConnection.identity`
+  - `azure.search.documents.indexes.models.SearchIndex.normalizers`
+  - `azure.search.documents.indexes.models.SearchField.normalizer_name`
+
+- Below parameters do not exist
+  - `SearchClient.search.debug`
+  - `SearchClient.search.hybrid_search`
+  - `SearchClient.search.query_language`
+  - `SearchClient.search.query_speller`
+  - `SearchClient.search.semantic_fields`
+  - `SearchIndexerClient.create_or_update_indexer.skip_indexer_reset_requirement_for_cache`
+  - `SearchIndexerClient.create_or_update_data_source_connection.skip_indexer_reset_requirement_for_cache`
+  - `SearchIndexerClient.create_or_update_skillset.skip_indexer_reset_requirement_for_cache`
+  - `SearchIndexerClient.create_or_update_indexer.disable_cache_reprocessing_change_detection`
+  - `SearchIndexerClient.create_or_update_skillset.disable_cache_reprocessing_change_detection`
+
+### Other Changes
+
+- Updated default API version to `2024-07-01`.
+
+## 11.6.0b4 (2024-05-07)
+
+### Features Added
+
+- Added new models:
+  - `azure.search.documents.models.HybridCountAndFacetMode`
+  - `azure.search.documents.models.HybridSearch`
+  - `azure.search.documents.models.SearchScoreThreshold`
+  - `azure.search.documents.models.VectorSimilarityThreshold`
+  - `azure.search.documents.models.VectorThreshold`
+  - `azure.search.documents.models.VectorThresholdKind`
+  - `azure.search.documents.models.VectorizableImageBinaryQuery`
+  - `azure.search.documents.models.VectorizableImageUrlQuery`
+  - `azure.search.documents.indexes.models.AIServicesVisionParameters`
+  - `azure.search.documents.indexes.models.AIServicesVisionVectorizer`
+  - `azure.search.documents.indexes.models.AIStudioModelCatalogName`
+  - `azure.search.documents.indexes.models.AzureMachineLearningParameters`
+  - `azure.search.documents.indexes.models.AzureMachineLearningVectorizer`
+  - `azure.search.documents.indexes.models.AzureOpenAIModelName`
+  - `azure.search.documents.indexes.models.VectorEncodingFormat`
+  - `azure.search.documents.indexes.models.VisionVectorizeSkill`
+- Added `hybrid_search` support for `SearchClient.search` method.
+- Updated default API version to `2024-05-01-preview`.
+
+### Bugs Fixed
+
+- Fixed the bug that SearchClient failed when both answer count and answer threshold applied.
+
+## 11.6.0b3 (2024-04-09)
+
+### Features Added
+
+- Added `IndexerExecutionEnvironment`, `IndexingMode`, `LineEnding`, `NativeBlobSoftDeleteDeletionDetectionPolicy`, `ScalarQuantizationCompressionConfiguration`, `ScalarQuantizationParameters`, `SearchServiceCounters`, `SearchServiceLimits`, `SearchServiceStatistics`, `VectorSearchCompressionConfiguration` & `VectorSearchCompressionTargetDataType`.
+- Added `stored` in `SearchField`.
+
+## 11.6.0b2 (2024-03-05)
+
+### Breaking Changes
+
+- `SearchIndexerSkillset`, `SearchField`, `SearchIndex`, `AnalyzeTextOptions`, `SearchResourceEncryptionKey`, `SynonymMap`, `SearchIndexerDataSourceConnection` are no longer subclasses of `_serialization.Model`.
+
+### Bugs Fixed
+
+- Fixed the issue that `SearchIndexerSkillset`, `SearchField`, `SearchIndex`, `AnalyzeTextOptions`, `SearchResourceEncryptionKey`, `SynonymMap`, `SearchIndexerDataSourceConnection` could not be serialized and `as_dict` did not work.
+- Fixed the issue that `context` was missing for `EntityRecognitionSkill` and `SentimentSkill`. #34623
+
+### Other Changes
+
+- Default to API version `V2024_03_01_PREVIEW`
+
+## 11.6.0b1 (2024-01-31)
+
+### Features Added
+
+- Added back `semantic_query` for `Search` method.
+- Added back alias operations to `SearchIndexClient`.
+- Added back `AzureOpenAIEmbeddingSkill`, `AzureOpenAIParameters` and `AzureOpenAIVectorizer`.
+- Added back `query_language`, `query_speller`, `semantic_fields` and `debug` for `Search` method.
+- Added `send_request` method for `SearchClient` & `SearchIndexClient` to run a network request using the client's existing pipeline.
 
 ### Bugs Fixed
 
 - Fixed the issue that we added unexpected `retrievable` property for `SearchField`.
 
 ### Other Changes
+
+- Python 3.7 is no longer supported. Please use Python version 3.8 or later.
 
 ## 11.4.0 (2023-10-13)
 
@@ -62,6 +284,9 @@
 - Renamed `query_caption_highlight` to `query_caption_highlight_enabled`.
 - `query_language` and `query_speller` are not available for `Search` method in this stable release.
 - `alias` operations are not available in this stable release.
+- `AzureOpenAIEmbeddingSkill`, `AzureOpenAIParameters` and `AzureOpenAIVectorizer` are not available in 11.4.0.
+- Renamed `vector_search_profile` to `vector_search_profile_name` in `SearchField`.
+- Renamed `SemanticSettings` to `SemanticSearch`.
 
 ### Other Changes
 
@@ -198,7 +423,7 @@
 
 ### Features Added
 
-- Support for [`AzureMachineLearningSkill`](https://docs.microsoft.com/azure/search/cognitive-search-aml-skill). The AML skill allows you to extend AI enrichment with a custom [Azure Machine Learning](https://docs.microsoft.com/azure/machine-learning/overview-what-is-azure-machine-learning) (AML) model. Once an AML model is [trained and deployed](https://docs.microsoft.com/azure/machine-learning/concept-azure-machine-learning-architecture#workspace), an AML skill integrates it into AI enrichment.
+- Support for [`AzureMachineLearningSkill`](https://learn.microsoft.com/azure/search/cognitive-search-aml-skill). The AML skill allows you to extend AI enrichment with a custom [Azure Machine Learning](https://learn.microsoft.com/azure/machine-learning/overview-what-is-azure-machine-learning) (AML) model. Once an AML model is [trained and deployed](https://learn.microsoft.com/azure/machine-learning/concept-azure-machine-learning-architecture#workspace), an AML skill integrates it into AI enrichment.
 
 ### Other Changes
 

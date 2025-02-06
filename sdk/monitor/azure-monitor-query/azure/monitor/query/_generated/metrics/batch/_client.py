@@ -8,6 +8,7 @@
 
 from copy import deepcopy
 from typing import Any
+from typing_extensions import Self
 
 from azure.core import PipelineClient
 from azure.core.pipeline import policies
@@ -18,7 +19,7 @@ from ._serialization import Deserializer, Serializer
 from .operations import MetricsBatchOperations
 
 
-class MonitorBatchMetricsClient:  # pylint: disable=client-accepts-api-version-keyword
+class MonitorBatchMetricsClient:
     """Azure Monitor Batch Metrics Python Client.
 
     :ivar metrics_batch: MetricsBatchOperations operations
@@ -27,8 +28,8 @@ class MonitorBatchMetricsClient:  # pylint: disable=client-accepts-api-version-k
      https://eastus.metrics.monitor.azure.com. The region should match the region of the requested
      resources. For global resources, the region should be 'global'. Required.
     :type endpoint: str
-    :keyword api_version: Api Version. Default value is "2023-05-01-preview". Note that overriding
-     this default value may result in unsupported behavior.
+    :keyword api_version: Api Version. Default value is "2024-02-01". Note that overriding this
+     default value may result in unsupported behavior.
     :paramtype api_version: str
     """
 
@@ -90,7 +91,7 @@ class MonitorBatchMetricsClient:  # pylint: disable=client-accepts-api-version-k
     def close(self) -> None:
         self._client.close()
 
-    def __enter__(self) -> "MonitorBatchMetricsClient":
+    def __enter__(self) -> Self:
         self._client.__enter__()
         return self
 

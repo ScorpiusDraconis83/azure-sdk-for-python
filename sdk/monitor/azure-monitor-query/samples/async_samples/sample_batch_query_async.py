@@ -23,7 +23,7 @@ import os
 
 from azure.core.exceptions import HttpResponseError
 from azure.identity.aio import DefaultAzureCredential
-from azure.monitor.query.aio  import LogsQueryClient
+from azure.monitor.query.aio import LogsQueryClient
 from azure.monitor.query import LogsBatchQuery, LogsQueryStatus
 import pandas as pd
 
@@ -44,7 +44,10 @@ async def logs_batch_query():
             range x from 1 to 3 step 1
             | summarize percentilesw(x, Weight * 100, 50)""",
             workspace_id=os.environ["LOGS_WORKSPACE_ID"],
-            timespan=(datetime(2021, 6, 2, tzinfo=timezone.utc), datetime(2021, 6, 5, tzinfo=timezone.utc)),  # (start, end)
+            timespan=(
+                datetime(2021, 6, 2, tzinfo=timezone.utc),
+                datetime(2021, 6, 5, tzinfo=timezone.utc),
+            ),  # (start, end)
             include_statistics=True,
         ),
     ]
@@ -54,24 +57,25 @@ async def logs_batch_query():
             results = await client.query_batch(requests)
 
             for res in results:
-                if res.status == LogsQueryStatus.FAILURE:
-                    # This will be a LogsQueryError
-                    print(res)
+                if res.status == LogsQueryStatus.SUCCESS:
+                    # This will be a LogsQueryResult
+                    table = res.tables[0]
+                    df = pd.DataFrame(table.rows, columns=table.columns)
+                    print(df)
                 elif res.status == LogsQueryStatus.PARTIAL:
                     # This will be a LogsQueryPartialResult
                     print(res.partial_error)
                     for table in res.partial_data:
                         df = pd.DataFrame(table.rows, columns=table.columns)
                         print(df)
-                elif res.status == LogsQueryStatus.SUCCESS:
-                    # This will be a LogsQueryResult
-                    table = res.tables[0]
-                    df = pd.DataFrame(table.rows, columns=table.columns)
-                    print(df)
+                else:
+                    # This will be a LogsQueryError
+                    print(res)
         except HttpResponseError as err:
             print("something fatal happened")
             print(err)
     await credential.close()
+
 
 # [END send_query_batch_async]
 

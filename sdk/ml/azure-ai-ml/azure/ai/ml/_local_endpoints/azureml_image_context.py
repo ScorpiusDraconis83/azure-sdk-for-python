@@ -4,8 +4,8 @@
 
 
 import logging
-from pathlib import Path
 import os
+from pathlib import Path
 from typing import Dict
 
 from azure.ai.ml.constants._endpoint import LocalEndpointConstants
@@ -66,7 +66,8 @@ class AzureMlImageContext(object):
             },
         }
         self._environment = {
-            LocalEndpointConstants.ENVVAR_KEY_AZUREML_MODEL_DIR: docker_azureml_model_dir,  # ie. /var/azureml-app/azureml-models/  # pylint: disable=line-too-long
+            LocalEndpointConstants.ENVVAR_KEY_AZUREML_MODEL_DIR: docker_azureml_model_dir,
+            # ie. /var/azureml-app/azureml-models/
             LocalEndpointConstants.ENVVAR_KEY_AZUREML_INFERENCE_PYTHON_PATH: LocalEndpointConstants.CONDA_ENV_BIN_PATH,
         }
 
@@ -108,7 +109,8 @@ class AzureMlImageContext(object):
         :return: The conda file name
         :rtype: str
         """
-        return self._docker_conda_file_name  # pylint: disable=no-member
+        # pylint: disable=no-member
+        return self._docker_conda_file_name  # type: ignore[attr-defined]
 
     @property
     def volumes(self) -> Dict[str, Dict[str, Dict[str, str]]]:

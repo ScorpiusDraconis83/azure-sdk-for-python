@@ -7,6 +7,7 @@
 # --------------------------------------------------------------------------
 
 from azure.identity import DefaultAzureCredential
+
 from azure.mgmt.servicefabricmanagedclusters import ServiceFabricManagedClustersManagementClient
 
 """
@@ -29,15 +30,14 @@ def main():
         subscription_id="00000000-0000-0000-0000-000000000000",
     )
 
-    response = client.application_type_versions.begin_delete(
+    client.application_type_versions.begin_delete(
         resource_group_name="resRg",
         cluster_name="myCluster",
         application_type_name="myAppType",
         version="1.0",
     ).result()
-    print(response)
 
 
-# x-ms-original-file: specification/servicefabricmanagedclusters/resource-manager/Microsoft.ServiceFabric/preview/2023-02-01-preview/examples/ApplicationTypeVersionDeleteOperation_example.json
+# x-ms-original-file: specification/servicefabricmanagedclusters/resource-manager/Microsoft.ServiceFabric/preview/2024-09-01-preview/examples/ApplicationTypeVersionDeleteOperation_example.json
 if __name__ == "__main__":
     main()

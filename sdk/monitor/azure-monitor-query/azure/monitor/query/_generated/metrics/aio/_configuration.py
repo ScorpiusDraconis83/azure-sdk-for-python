@@ -13,15 +13,21 @@ from azure.core.pipeline import policies
 VERSION = "unknown"
 
 
-class MonitorMetricsClientConfiguration:  # pylint: disable=too-many-instance-attributes,name-too-long
+class MonitorMetricsClientConfiguration:  # pylint: disable=too-many-instance-attributes
     """Configuration for MonitorMetricsClient.
 
     Note that all parameters used to create this instance are saved as instance
     attributes.
+
+    :keyword api_version: Api Version. Default value is "2024-02-01". Note that overriding this
+     default value may result in unsupported behavior.
+    :paramtype api_version: str
     """
 
     def __init__(self, **kwargs: Any) -> None:
+        api_version: str = kwargs.pop("api_version", "2024-02-01")
 
+        self.api_version = api_version
         kwargs.setdefault("sdk_moniker", "monitor-query/{}".format(VERSION))
         self.polling_interval = kwargs.get("polling_interval", 30)
         self._configure(**kwargs)

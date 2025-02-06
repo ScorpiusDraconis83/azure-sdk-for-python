@@ -1,11 +1,11 @@
 # Search Performance Tests
 
 In order to run the performance tests, the `devtools_testutils` package must be installed. This is done as part of the `dev_requirements`.
-Start be creating a new virtual environment for your perf tests. This will need to be a Python 3 environment, preferably >=3.7.
+Start be creating a new virtual environment for your perf tests. This will need to be a Python 3 environment, preferably >=3.8.
 
 ### Setup for test resources
 
-These tests will run against a pre-configured search service. See [here](https://docs.microsoft.com/azure/search/search-indexer-tutorial) about how to configure the service and import data. The following environment variable will need to be set for the tests to access the live resources:
+These tests will run against a pre-configured search service. See [here](https://learn.microsoft.com/azure/search/search-indexer-tutorial) about how to configure the service and import data. The following environment variable will need to be set for the tests to access the live resources:
 ```
 AZURE_SEARCH_API_KEY=<search api key>
 AZURE_SEARCH_SERVICE_ENDPOINT=<end point url>

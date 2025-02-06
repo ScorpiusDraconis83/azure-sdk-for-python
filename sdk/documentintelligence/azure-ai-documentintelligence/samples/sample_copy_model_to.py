@@ -10,8 +10,8 @@
 FILE: sample_copy_model_to.py
 
 DESCRIPTION:
-    This sample demonstrates how to copy a custom model from a source Form Recognizer resource
-    to a target Form Recognizer resource.
+    This sample demonstrates how to copy a custom model from a source Document Intelligence resource
+    to a target Document Intelligence resource.
 
 USAGE:
     python sample_copy_model_to.py
@@ -19,8 +19,8 @@ USAGE:
     Set the environment variables with your own values before running the sample:
     1) DOCUMENTINTELLIGENCE_ENDPOINT - the endpoint to your Document Intelligence resource.
     2) DOCUMENTINTELLIGENCE_API_KEY - your Document Intelligence API key.
-    3) DOCUMENTINTELLIGENCE_TARGET_ENDPOINT - the endpoint to your target Form Recognizer resource.
-    4) DOCUMENTINTELLIGENCE_TARGET_API_KEY - your target Form Recognizer API key
+    3) DOCUMENTINTELLIGENCE_TARGET_ENDPOINT - the endpoint to your target Document Intelligence resource.
+    4) DOCUMENTINTELLIGENCE_TARGET_API_KEY - your target Document Intelligence API key
     5) AZURE_SOURCE_MODEL_ID - the model ID from the source resource to be copied over to the target resource.
         - OR -
        DOCUMENTINTELLIGENCE_STORAGE_CONTAINER_SAS_URL - The shared access signature (SAS) Url of your Azure Blob Storage container with your training files.
@@ -58,7 +58,7 @@ def sample_copy_model_to(custom_model_id):
 
     poller = source_client.begin_copy_model_to(
         model_id=source_model_id,
-        copy_to_request=target_auth,
+        body=target_auth,
     )
     copied_over_model: DocumentModelDetails = poller.result()
 
@@ -70,12 +70,17 @@ def sample_copy_model_to(custom_model_id):
         print("Doc types the model can recognize:")
         for name, doc_type in copied_over_model.doc_types.items():
             print(f"Doc Type: '{name}' which has the following fields:")
-            for field_name, field in doc_type.field_schema.items():
-                if doc_type.field_confidence:
-                    print(
-                        f"Field: '{field_name}' has type '{field['type']}' and confidence score "
-                        f"{doc_type.field_confidence[field_name]}"
-                    )
+            if doc_type.field_schema:
+                for field_name, field in doc_type.field_schema.items():
+                    if doc_type.field_confidence:
+                        print(
+                            f"Field: '{field_name}' has type '{field['type']}' and confidence score "
+                            f"{doc_type.field_confidence[field_name]}"
+                        )
+    if copied_over_model.warnings:
+        print("Warnings encountered while building the model:")
+        for warning in copied_over_model.warnings:
+            print(f"warning code: {warning.code}, message: {warning.message}, target of the error: {warning.target}")
     # [END begin_copy_document_model_to]
 
 

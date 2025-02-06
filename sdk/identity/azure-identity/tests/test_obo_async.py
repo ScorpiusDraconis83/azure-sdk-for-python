@@ -3,6 +3,7 @@
 # Licensed under the MIT License.
 # ------------------------------------
 import os
+from itertools import product
 from urllib.parse import urlparse
 from unittest.mock import Mock, patch
 from test_certificate_credential import PEM_CERT_PATH
@@ -12,11 +13,12 @@ from devtools_testutils.aio import recorded_by_proxy_async
 from azure.core.pipeline.policies import ContentDecodePolicy, SansIOHTTPPolicy
 from azure.identity import UsernamePasswordCredential
 from azure.identity._constants import EnvironmentVariables
+from azure.identity._internal.aad_client_base import JWT_BEARER_ASSERTION
 from azure.identity._internal.user_agent import USER_AGENT
 from azure.identity.aio import OnBehalfOfCredential
 import pytest
 
-from helpers import build_aad_response, get_discovery_response, mock_response, FAKE_CLIENT_ID
+from helpers import build_aad_response, get_discovery_response, mock_response, FAKE_CLIENT_ID, GET_TOKEN_METHODS
 from helpers_async import AsyncMockTransport
 from recorded_test_case import RecordedTestCase
 
@@ -122,7 +124,8 @@ async def test_context_manager():
 
 
 @pytest.mark.asyncio
-async def test_multitenant_authentication():
+@pytest.mark.parametrize("get_token_method", GET_TOKEN_METHODS)
+async def test_multitenant_authentication(get_token_method):
     first_tenant = "first-tenant"
     first_token = "***"
     second_tenant = "second-tenant"
@@ -148,27 +151,33 @@ async def test_multitenant_authentication():
         transport=transport,
         additionally_allowed_tenants=["*"],
     )
-    token = await credential.get_token("scope")
+    token = await getattr(credential, get_token_method)("scope")
     assert token.token == first_token
     assert transport.send.call_count == 1
 
-    token = await credential.get_token("scope", tenant_id=first_tenant)
+    kwargs = {"tenant_id": first_tenant}
+    if get_token_method == "get_token_info":
+        kwargs = {"options": kwargs}
+    token = await getattr(credential, get_token_method)("scope", **kwargs)
     assert token.token == first_token
     assert transport.send.call_count == 1  # should be a cached token
 
-    token = await credential.get_token("scope", tenant_id=second_tenant)
+    kwargs = {"tenant_id": second_tenant}
+    if get_token_method == "get_token_info":
+        kwargs = {"options": kwargs}
+    token = await getattr(credential, get_token_method)("scope", **kwargs)
     assert token.token == second_token
     assert transport.send.call_count == 2
 
     # should still default to the first tenant
-    token = await credential.get_token("scope")
+    token = await getattr(credential, get_token_method)("scope")
     assert token.token == first_token
     assert transport.send.call_count == 2  # should be a cached token
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("authority", ("localhost", "https://localhost"))
-async def test_authority(authority):
+@pytest.mark.parametrize("authority,get_token_method", product(("localhost", "https://localhost"), GET_TOKEN_METHODS))
+async def test_authority(authority, get_token_method):
     """the credential should accept an authority, with or without scheme, as an argument or environment variable"""
 
     tenant_id = "expected-tenant"
@@ -193,7 +202,7 @@ async def test_authority(authority):
         authority=authority,
         transport=transport,
     )
-    token = await credential.get_token("scope")
+    token = await getattr(credential, get_token_method)("scope")
     assert token.token == expected_token
 
     # authority can be configured via environment variable
@@ -201,12 +210,13 @@ async def test_authority(authority):
         credential = OnBehalfOfCredential(
             tenant_id, "client-id", client_secret="secret", user_assertion="assertion", transport=transport
         )
-    token = await credential.get_token("scope")
+    token = await getattr(credential, get_token_method)("scope")
     assert token.token == expected_token
 
 
 @pytest.mark.asyncio
-async def test_policies_configurable():
+@pytest.mark.parametrize("get_token_method", GET_TOKEN_METHODS)
+async def test_policies_configurable(get_token_method):
     policy = Mock(spec_set=SansIOHTTPPolicy, on_request=Mock(), on_exception=lambda _: False)
 
     async def send(request, **kwargs):
@@ -227,7 +237,7 @@ async def test_policies_configurable():
         policies=[ContentDecodePolicy(), policy],
         transport=Mock(send=send),
     )
-    await credential.get_token("scope")
+    await getattr(credential, get_token_method)("scope")
     assert policy.on_request.called
 
 
@@ -238,7 +248,8 @@ def test_invalid_cert():
 
 
 @pytest.mark.asyncio
-async def test_refresh_token():
+@pytest.mark.parametrize("get_token_method", GET_TOKEN_METHODS)
+async def test_refresh_token(get_token_method):
     first_token = "***"
     second_token = first_token * 2
     refresh_token = "refresh-token"
@@ -263,10 +274,10 @@ async def test_refresh_token():
     credential = OnBehalfOfCredential(
         "tenant-id", "client-id", client_secret="secret", user_assertion="assertion", transport=Mock(send=send)
     )
-    token = await credential.get_token("scope")
+    token = await getattr(credential, get_token_method)("scope")
     assert token.token == first_token
 
-    token = await credential.get_token("scope")
+    token = await getattr(credential, get_token_method)("scope")
     assert token.token == second_token
 
     assert requests == 2
@@ -284,13 +295,14 @@ def test_tenant_id_validation():
 
 
 @pytest.mark.asyncio
-async def test_no_scopes():
+@pytest.mark.parametrize("get_token_method", GET_TOKEN_METHODS)
+async def test_no_scopes(get_token_method):
     """The credential should raise ValueError when get_token is called with no scopes"""
     credential = OnBehalfOfCredential(
         "tenant-id", "client-id", client_secret="client-secret", user_assertion="assertion"
     )
     with pytest.raises(ValueError):
-        await credential.get_token()
+        await getattr(credential, get_token_method)()
 
 
 @pytest.mark.asyncio
@@ -305,3 +317,55 @@ async def test_no_client_credential():
     """The credential should raise ValueError when ctoring with no client_secret or client_certificate"""
     with pytest.raises(TypeError):
         credential = OnBehalfOfCredential("tenant-id", "client-id", user_assertion="assertion")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("get_token_method", GET_TOKEN_METHODS)
+async def test_client_assertion_func(get_token_method):
+    """The credential should accept a client_assertion_func"""
+    expected_client_assertion = "client-assertion"
+    expected_user_assertion = "user-assertion"
+    expected_token = "***"
+    func_call_count = 0
+
+    def client_assertion_func():
+        nonlocal func_call_count
+        func_call_count += 1
+        return expected_client_assertion
+
+    async def send(request, **kwargs):
+        parsed = urlparse(request.url)
+        tenant = parsed.path.split("/")[1]
+        if "/oauth2/v2.0/token" not in parsed.path:
+            return get_discovery_response("https://{}/{}".format(parsed.netloc, tenant))
+
+        assert request.data.get("client_assertion") == expected_client_assertion
+        assert request.data.get("client_assertion_type") == JWT_BEARER_ASSERTION
+        assert request.data.get("assertion") == expected_user_assertion
+        return mock_response(json_payload=build_aad_response(access_token=expected_token))
+
+    transport = Mock(send=send)
+    credential = OnBehalfOfCredential(
+        "tenant-id",
+        "client-id",
+        client_assertion_func=client_assertion_func,
+        user_assertion=expected_user_assertion,
+        transport=transport,
+    )
+    token = await getattr(credential, get_token_method)("scope")
+    assert token.token == expected_token
+    assert func_call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_client_assertion_func_with_client_certificate():
+    """The credential should raise when given both client_assertion_func and client_certificate"""
+    with pytest.raises(ValueError) as ex:
+        OnBehalfOfCredential(
+            "tenant-id",
+            "client-id",
+            client_assertion_func=lambda: "client-assertion",
+            client_certificate=b"cert",
+            user_assertion="assertion",
+        )
+    assert "It is invalid to specify more than one of the following" in str(ex.value)

@@ -1,5 +1,186 @@
 # Release History
 
+## 28.1.0 (2024-12-20)
+
+### Features Added
+
+  - Client `NetworkManagementClient` added operation group `ipam_pools`
+  - Client `NetworkManagementClient` added operation group `static_cidrs`
+  - Client `NetworkManagementClient` added operation group `reachability_analysis_intents`
+  - Client `NetworkManagementClient` added operation group `reachability_analysis_runs`
+  - Client `NetworkManagementClient` added operation group `verifier_workspaces`
+  - Enum `AddressPrefixType` added member `NETWORK_GROUP`
+  - Model `AddressSpace` added property `ipam_pool_prefix_allocations`
+  - Model `BastionHost` added property `enable_private_only_bastion`
+  - Enum `FirewallPolicyIDPSSignatureDirection` added member `FIVE`
+  - Model `NetworkInterface` added property `default_outbound_connectivity_enabled`
+  - Enum `ProvisioningState` added member `CANCELED`
+  - Enum `ProvisioningState` added member `CREATING`
+  - Model `SecurityAdminConfiguration` added property `network_group_address_space_aggregation_option`
+  - Model `Subnet` added property `ipam_pool_prefix_allocations`
+  - Added enum `AddressSpaceAggregationOption`
+  - Added model `CommonErrorAdditionalInfo`
+  - Added model `CommonErrorDetail`
+  - Added model `CommonErrorResponse`
+  - Added model `CommonProxyResource`
+  - Added model `CommonResource`
+  - Added model `CommonTrackedResource`
+  - Added model `ExpressRouteFailoverCircuitResourceDetails`
+  - Added model `ExpressRouteFailoverConnectionResourceDetails`
+  - Added model `ExpressRouteFailoverRedundantRoute`
+  - Added model `ExpressRouteFailoverSingleTestDetails`
+  - Added model `ExpressRouteFailoverStopApiParameters`
+  - Added model `ExpressRouteFailoverTestDetails`
+  - Added model `FailoverConnectionDetails`
+  - Added enum `FailoverConnectionStatus`
+  - Added enum `FailoverTestStatus`
+  - Added enum `FailoverTestStatusForSingleTest`
+  - Added enum `FailoverTestType`
+  - Added model `IPTraffic`
+  - Added model `IntentContent`
+  - Added enum `IpType`
+  - Added model `IpamPool`
+  - Added model `IpamPoolList`
+  - Added model `IpamPoolPrefixAllocation`
+  - Added model `IpamPoolProperties`
+  - Added model `IpamPoolUpdate`
+  - Added model `IpamPoolUpdateProperties`
+  - Added model `LoadBalancerHealthPerRule`
+  - Added model `LoadBalancerHealthPerRulePerBackendAddress`
+  - Added enum `NetworkProtocol`
+  - Added model `PoolAssociation`
+  - Added model `PoolAssociationList`
+  - Added model `PoolUsage`
+  - Added model `ReachabilityAnalysisIntent`
+  - Added model `ReachabilityAnalysisIntentListResult`
+  - Added model `ReachabilityAnalysisIntentProperties`
+  - Added model `ReachabilityAnalysisRun`
+  - Added model `ReachabilityAnalysisRunListResult`
+  - Added model `ReachabilityAnalysisRunProperties`
+  - Added model `ResourceBasics`
+  - Added model `StaticCidr`
+  - Added model `StaticCidrList`
+  - Added model `StaticCidrProperties`
+  - Added model `VerifierWorkspace`
+  - Added model `VerifierWorkspaceListResult`
+  - Added model `VerifierWorkspaceProperties`
+  - Added model `VerifierWorkspaceUpdate`
+  - Added model `VerifierWorkspaceUpdateProperties`
+  - Operation group `LoadBalancerLoadBalancingRulesOperations` added method `begin_health`
+  - Operation group `VirtualNetworkGatewaysOperations` added method `begin_get_failover_all_test_details`
+  - Operation group `VirtualNetworkGatewaysOperations` added method `begin_get_failover_single_test_details`
+  - Operation group `VirtualNetworkGatewaysOperations` added method `begin_start_express_route_site_failover_simulation`
+  - Operation group `VirtualNetworkGatewaysOperations` added method `begin_stop_express_route_site_failover_simulation`
+  - Added operation group `IpamPoolsOperations`
+  - Added operation group `ReachabilityAnalysisIntentsOperations`
+  - Added operation group `ReachabilityAnalysisRunsOperations`
+  - Added operation group `StaticCidrsOperations`
+  - Added operation group `VerifierWorkspacesOperations`
+
+## 28.0.0 (2024-11-01)
+
+### Breaking Changes
+
+- This package now only targets the latest Api-Version available on Azure and removes APIs of other Api-Version. After this change, the package can have much smaller size. If your application requires a specific and non-latest Api-Version, it's recommended to pin this package to the previous released version; If your application always only use latest Api-Version, please ignore this change.
+
+## 27.0.0 (2024-09-22)
+
+### Features Added
+
+  - Added operation SecurityUserConfigurationsOperations.begin_delete
+  - Added operation VpnLinkConnectionsOperations.begin_set_or_init_default_shared_key
+  - Added operation VpnLinkConnectionsOperations.get_all_shared_keys
+  - Added operation VpnLinkConnectionsOperations.get_default_shared_key
+  - Added operation VpnLinkConnectionsOperations.list_default_shared_key
+  - Added operation group NetworkManagerRoutingConfigurationsOperations
+  - Added operation group RoutingRuleCollectionsOperations
+  - Added operation group RoutingRulesOperations
+  - Added operation group SecurityUserRuleCollectionsOperations
+  - Added operation group SecurityUserRulesOperations
+  - Model ApplicationGatewayFirewallRule has a new parameter sensitivity
+  - Model AzureFirewall has a new parameter autoscale_configuration
+  - Model ConfigurationGroup has a new parameter member_type
+  - Model ConnectionSharedKeyResult has a new parameter id
+  - Model ConnectionSharedKeyResult has a new parameter name
+  - Model ConnectionSharedKeyResult has a new parameter properties
+  - Model ConnectionSharedKeyResult has a new parameter type
+  - Model FlowLog has a new parameter enabled_filtering_criteria
+  - Model FlowLogInformation has a new parameter enabled_filtering_criteria
+  - Model ManagedRuleOverride has a new parameter sensitivity
+  - Model ManagedRulesDefinition has a new parameter exceptions
+  - Model NetworkGroup has a new parameter member_type
+  - Model PrivateLinkService has a new parameter destination_ip_address
+  - Model VirtualNetwork has a new parameter private_endpoint_v_net_policies
+  - Model VirtualNetworkGateway has a new parameter resiliency_model
+  - Model WebApplicationFirewallPolicy has a new parameter application_gateway_for_containers
+
+### Breaking Changes
+
+  - Model ConnectionSharedKeyResult no longer has parameter value
+
+## 26.0.0 (2024-07-21)
+
+### Features Added
+
+  - Added operation InboundSecurityRuleOperations.get
+  - Model BastionHost has a new parameter enable_session_recording
+  - Model ExpressRouteCircuitAuthorization has a new parameter connection_resource_uri
+  - Model FlowLog has a new parameter identity
+  - Model FlowLogInformation has a new parameter identity
+  - Model Probe has a new parameter no_healthy_backends_behavior
+  - Model ServiceEndpointPropertiesFormat has a new parameter network_identifier
+  - Model VirtualNetworkGateway has a new parameter identity
+  - Operation ExpressRouteCrossConnectionsOperations.list has a new optional parameter filter
+
+### Breaking Changes
+
+  - Model FirewallPacketCaptureParameters no longer has parameter id
+
+## 25.4.0 (2024-05-27)
+
+### Features Added
+
+  - Added operation NetworkVirtualAppliancesOperations.begin_restart
+  - Added operation group FirewallPolicyDeploymentsOperations
+  - Added operation group FirewallPolicyDraftsOperations
+  - Added operation group FirewallPolicyRuleCollectionGroupDraftsOperations
+  - Model ApplicationGatewayHeaderConfiguration has a new parameter header_value_matcher
+  - Model ApplicationGatewaySku has a new parameter family
+  - Model ConnectionMonitorEndpoint has a new parameter location_details
+  - Model ConnectionMonitorEndpoint has a new parameter subscription_id
+  - Model ExpressRouteCircuit has a new parameter enable_direct_port_rate_limit
+  - Model InboundSecurityRule has a new parameter rule_type
+  - Model InboundSecurityRules has a new parameter applies_on
+  - Model InboundSecurityRules has a new parameter destination_port_ranges
+  - Model InboundSecurityRules has a new parameter name
+  - Model NetworkInterfaceIPConfiguration has a new parameter private_ip_address_prefix_length
+  - Model NetworkVirtualAppliance has a new parameter network_profile
+  - Model PacketCapture has a new parameter capture_settings
+  - Model PacketCapture has a new parameter continuous_capture
+  - Model PacketCaptureParameters has a new parameter capture_settings
+  - Model PacketCaptureParameters has a new parameter continuous_capture
+  - Model PacketCaptureResult has a new parameter capture_settings
+  - Model PacketCaptureResult has a new parameter continuous_capture
+  - Model PacketCaptureResultProperties has a new parameter capture_settings
+  - Model PacketCaptureResultProperties has a new parameter continuous_capture
+  - Model PacketCaptureStorageLocation has a new parameter local_path
+  - Model PolicySettings has a new parameter js_challenge_cookie_expiration_in_mins
+  - Model Subnet has a new parameter sharing_scope
+  - Model VirtualApplianceNicProperties has a new parameter nic_type
+  - Model VirtualNetworkPeering has a new parameter enable_only_i_pv6_peering
+  - Model VirtualNetworkPeering has a new parameter local_address_space
+  - Model VirtualNetworkPeering has a new parameter local_subnet_names
+  - Model VirtualNetworkPeering has a new parameter local_virtual_network_address_space
+  - Model VirtualNetworkPeering has a new parameter peer_complete_vnets
+  - Model VirtualNetworkPeering has a new parameter remote_subnet_names
+  - Model VpnSiteLinkConnection has a new parameter dpd_timeout_seconds
+
+## 25.3.0 (2024-02-22)
+
+### Features Added
+
+  - Model BastionHost has a new parameter zones
+
 ## 25.2.0 (2023-12-18)
 
 ### Features Added

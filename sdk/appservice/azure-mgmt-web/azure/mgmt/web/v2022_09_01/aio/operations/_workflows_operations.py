@@ -1,4 +1,3 @@
-# pylint: disable=too-many-lines
 # coding=utf-8
 # --------------------------------------------------------------------------
 # Copyright (c) Microsoft Corporation. All rights reserved.
@@ -7,6 +6,7 @@
 # Changes may cause incorrect behavior and will be lost if the code is regenerated.
 # --------------------------------------------------------------------------
 from io import IOBase
+import sys
 from typing import Any, Callable, Dict, IO, Optional, TypeVar, Union, overload
 
 from azure.core.exceptions import (
@@ -18,17 +18,18 @@ from azure.core.exceptions import (
     map_error,
 )
 from azure.core.pipeline import PipelineResponse
-from azure.core.pipeline.transport import AsyncHttpResponse
-from azure.core.rest import HttpRequest
+from azure.core.rest import AsyncHttpResponse, HttpRequest
 from azure.core.tracing.decorator_async import distributed_trace_async
 from azure.core.utils import case_insensitive_dict
 from azure.mgmt.core.exceptions import ARMErrorFormat
 
 from ... import models as _models
-from ..._vendor import _convert_request
 from ...operations._workflows_operations import build_regenerate_access_key_request, build_validate_request
-from .._vendor import WebSiteManagementClientMixinABC
 
+if sys.version_info >= (3, 9):
+    from collections.abc import MutableMapping
+else:
+    from typing import MutableMapping  # type: ignore
 T = TypeVar("T")
 ClsType = Optional[Callable[[PipelineResponse[HttpRequest, AsyncHttpResponse], T, Dict[str, Any]], Any]]
 
@@ -54,7 +55,7 @@ class WorkflowsOperations:
         self._api_version = input_args.pop(0) if input_args else kwargs.pop("api_version")
 
     @overload
-    async def regenerate_access_key(  # pylint: disable=inconsistent-return-statements
+    async def regenerate_access_key(
         self,
         resource_group_name: str,
         name: str,
@@ -77,19 +78,18 @@ class WorkflowsOperations:
         :keyword content_type: Body Parameter content-type. Content type parameter for JSON body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: None or the result of cls(response)
         :rtype: None
         :raises ~azure.core.exceptions.HttpResponseError:
         """
 
     @overload
-    async def regenerate_access_key(  # pylint: disable=inconsistent-return-statements
+    async def regenerate_access_key(
         self,
         resource_group_name: str,
         name: str,
         workflow_name: str,
-        key_type: IO,
+        key_type: IO[bytes],
         *,
         content_type: str = "application/json",
         **kwargs: Any
@@ -103,23 +103,22 @@ class WorkflowsOperations:
         :param workflow_name: The workflow name. Required.
         :type workflow_name: str
         :param key_type: The access key type. Required.
-        :type key_type: IO
+        :type key_type: IO[bytes]
         :keyword content_type: Body Parameter content-type. Content type parameter for binary body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: None or the result of cls(response)
         :rtype: None
         :raises ~azure.core.exceptions.HttpResponseError:
         """
 
     @distributed_trace_async
-    async def regenerate_access_key(  # pylint: disable=inconsistent-return-statements
+    async def regenerate_access_key(
         self,
         resource_group_name: str,
         name: str,
         workflow_name: str,
-        key_type: Union[_models.RegenerateActionParameter, IO],
+        key_type: Union[_models.RegenerateActionParameter, IO[bytes]],
         **kwargs: Any
     ) -> None:
         """Regenerates the callback URL access key for request triggers.
@@ -130,18 +129,14 @@ class WorkflowsOperations:
         :type name: str
         :param workflow_name: The workflow name. Required.
         :type workflow_name: str
-        :param key_type: The access key type. Is either a RegenerateActionParameter type or a IO type.
-         Required.
-        :type key_type: ~azure.mgmt.web.v2022_09_01.models.RegenerateActionParameter or IO
-        :keyword content_type: Body Parameter content-type. Known values are: 'application/json'.
-         Default value is None.
-        :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
+        :param key_type: The access key type. Is either a RegenerateActionParameter type or a IO[bytes]
+         type. Required.
+        :type key_type: ~azure.mgmt.web.v2022_09_01.models.RegenerateActionParameter or IO[bytes]
         :return: None or the result of cls(response)
         :rtype: None
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -164,7 +159,7 @@ class WorkflowsOperations:
         else:
             _json = self._serialize.body(key_type, "RegenerateActionParameter")
 
-        request = build_regenerate_access_key_request(
+        _request = build_regenerate_access_key_request(
             resource_group_name=resource_group_name,
             name=name,
             workflow_name=workflow_name,
@@ -173,16 +168,14 @@ class WorkflowsOperations:
             content_type=content_type,
             json=_json,
             content=_content,
-            template_url=self.regenerate_access_key.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -193,14 +186,10 @@ class WorkflowsOperations:
             raise HttpResponseError(response=response, model=error, error_format=ARMErrorFormat)
 
         if cls:
-            return cls(pipeline_response, None, {})
-
-    regenerate_access_key.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Web/sites/{name}/hostruntime/runtime/webhooks/workflow/api/management/workflows/{workflowName}/regenerateAccessKey"
-    }
+            return cls(pipeline_response, None, {})  # type: ignore
 
     @overload
-    async def validate(  # pylint: disable=inconsistent-return-statements
+    async def validate(
         self,
         resource_group_name: str,
         name: str,
@@ -223,19 +212,18 @@ class WorkflowsOperations:
         :keyword content_type: Body Parameter content-type. Content type parameter for JSON body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: None or the result of cls(response)
         :rtype: None
         :raises ~azure.core.exceptions.HttpResponseError:
         """
 
     @overload
-    async def validate(  # pylint: disable=inconsistent-return-statements
+    async def validate(
         self,
         resource_group_name: str,
         name: str,
         workflow_name: str,
-        validate: IO,
+        validate: IO[bytes],
         *,
         content_type: str = "application/json",
         **kwargs: Any
@@ -249,23 +237,22 @@ class WorkflowsOperations:
         :param workflow_name: The workflow name. Required.
         :type workflow_name: str
         :param validate: The workflow. Required.
-        :type validate: IO
+        :type validate: IO[bytes]
         :keyword content_type: Body Parameter content-type. Content type parameter for binary body.
          Default value is "application/json".
         :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
         :return: None or the result of cls(response)
         :rtype: None
         :raises ~azure.core.exceptions.HttpResponseError:
         """
 
     @distributed_trace_async
-    async def validate(  # pylint: disable=inconsistent-return-statements
+    async def validate(
         self,
         resource_group_name: str,
         name: str,
         workflow_name: str,
-        validate: Union[_models.Workflow, IO],
+        validate: Union[_models.Workflow, IO[bytes]],
         **kwargs: Any
     ) -> None:
         """Validates the workflow definition.
@@ -276,17 +263,13 @@ class WorkflowsOperations:
         :type name: str
         :param workflow_name: The workflow name. Required.
         :type workflow_name: str
-        :param validate: The workflow. Is either a Workflow type or a IO type. Required.
-        :type validate: ~azure.mgmt.web.v2022_09_01.models.Workflow or IO
-        :keyword content_type: Body Parameter content-type. Known values are: 'application/json'.
-         Default value is None.
-        :paramtype content_type: str
-        :keyword callable cls: A custom type or function that will be passed the direct response
+        :param validate: The workflow. Is either a Workflow type or a IO[bytes] type. Required.
+        :type validate: ~azure.mgmt.web.v2022_09_01.models.Workflow or IO[bytes]
         :return: None or the result of cls(response)
         :rtype: None
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map = {
+        error_map: MutableMapping = {
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -309,7 +292,7 @@ class WorkflowsOperations:
         else:
             _json = self._serialize.body(validate, "Workflow")
 
-        request = build_validate_request(
+        _request = build_validate_request(
             resource_group_name=resource_group_name,
             name=name,
             workflow_name=workflow_name,
@@ -318,16 +301,14 @@ class WorkflowsOperations:
             content_type=content_type,
             json=_json,
             content=_content,
-            template_url=self.validate.metadata["url"],
             headers=_headers,
             params=_params,
         )
-        request = _convert_request(request)
-        request.url = self._client.format_url(request.url)
+        _request.url = self._client.format_url(_request.url)
 
         _stream = False
         pipeline_response: PipelineResponse = await self._client._pipeline.run(  # pylint: disable=protected-access
-            request, stream=_stream, **kwargs
+            _request, stream=_stream, **kwargs
         )
 
         response = pipeline_response.http_response
@@ -338,8 +319,4 @@ class WorkflowsOperations:
             raise HttpResponseError(response=response, model=error, error_format=ARMErrorFormat)
 
         if cls:
-            return cls(pipeline_response, None, {})
-
-    validate.metadata = {
-        "url": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Web/sites/{name}/hostruntime/runtime/webhooks/workflow/api/management/workflows/{workflowName}/validate"
-    }
+            return cls(pipeline_response, None, {})  # type: ignore

@@ -5,7 +5,7 @@
 # pylint:disable=too-many-lines,too-many-public-methods,bad-option-value,delete-operation-wrong-return-type
 import base64
 from functools import partial
-from typing import Any, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 from azure.core.polling import LROPoller
 from azure.core.paging import ItemPaged
@@ -14,6 +14,7 @@ from azure.core.tracing.decorator import distributed_trace
 from ._shared import KeyVaultClientBase
 from ._shared._polling import DeleteRecoverPollingMethod, KeyVaultOperationPoller
 from ._models import (
+    AdministratorContact,
     KeyVaultCertificate,
     CertificateProperties,
     CertificatePolicy,
@@ -57,7 +58,13 @@ class CertificateClient(KeyVaultClientBase):
 
     @distributed_trace
     def begin_create_certificate(
-        self, certificate_name: str, policy: CertificatePolicy, **kwargs: Any
+        self,
+        certificate_name: str,
+        policy: CertificatePolicy,
+        *,
+        enabled: Optional[bool] = None,
+        tags: Optional[Dict[str, str]] = None,
+        **kwargs: Any,
     ) -> LROPoller[Union[KeyVaultCertificate, CertificateOperation]]:
         """Creates a new certificate.
 
@@ -97,7 +104,6 @@ class CertificateClient(KeyVaultClientBase):
         polling_interval = kwargs.pop("_polling_interval", None)
         if polling_interval is None:
             polling_interval = 5
-        enabled = kwargs.pop("enabled", None)
 
         if enabled is not None:
             attributes = self._models.CertificateAttributes(enabled=enabled)
@@ -107,11 +113,15 @@ class CertificateClient(KeyVaultClientBase):
         parameters = self._models.CertificateCreateParameters(
             certificate_policy=policy._to_certificate_policy_bundle(),
             certificate_attributes=attributes,
-            tags=kwargs.pop("tags", None),
+            tags=tags
         )
 
-        cert_bundle = self._client.create_certificate(
-            vault_base_url=self.vault_url, certificate_name=certificate_name, parameters=parameters, **kwargs
+        pipeline_response, cert_bundle = self._client.create_certificate(
+            vault_base_url=self.vault_url,
+            certificate_name=certificate_name,
+            parameters=parameters,
+            cls=lambda pipeline_response, deserialized, _: (pipeline_response, deserialized),
+            **kwargs,
         )
 
         create_certificate_operation = CertificateOperation._from_certificate_operation_bundle(cert_bundle)
@@ -121,7 +131,9 @@ class CertificateClient(KeyVaultClientBase):
         get_certificate_command = partial(self.get_certificate, certificate_name=certificate_name, **kwargs)
 
         create_certificate_polling = CreateCertificatePoller(
-            get_certificate_command=get_certificate_command, interval=polling_interval
+            pipeline_response=pipeline_response,
+            get_certificate_command=get_certificate_command,
+            interval=polling_interval
         )
 
         def no_op(*_, **__) -> Any:  # The deserialization callback is ignored based on polling implementation
@@ -217,14 +229,18 @@ class CertificateClient(KeyVaultClientBase):
         polling_interval = kwargs.pop("_polling_interval", None)
         if polling_interval is None:
             polling_interval = 2
-        deleted_cert_bundle = self._client.delete_certificate(
-            vault_base_url=self.vault_url, certificate_name=certificate_name, **kwargs
+        pipeline_response, deleted_cert_bundle = self._client.delete_certificate(
+            vault_base_url=self.vault_url,
+            certificate_name=certificate_name,
+            cls=lambda pipeline_response, deserialized, _: (pipeline_response, deserialized),
+            **kwargs,
         )
         deleted_cert = DeletedCertificate._from_deleted_certificate_bundle(deleted_cert_bundle)
 
         polling_method = DeleteRecoverPollingMethod(
             # no recovery ID means soft-delete is disabled, in which case we initialize the poller as finished
             finished=deleted_cert.recovery_id is None,
+            pipeline_response=pipeline_response,
             command=partial(self.get_deleted_certificate, certificate_name=certificate_name, **kwargs),
             final_resource=deleted_cert,
             interval=polling_interval,
@@ -312,19 +328,36 @@ class CertificateClient(KeyVaultClientBase):
         if polling_interval is None:
             polling_interval = 2
 
-        recovered_cert_bundle = self._client.recover_deleted_certificate(
-            vault_base_url=self.vault_url, certificate_name=certificate_name, **kwargs
+        pipeline_response, recovered_cert_bundle = self._client.recover_deleted_certificate(
+            vault_base_url=self.vault_url,
+            certificate_name=certificate_name,
+            cls=lambda pipeline_response, deserialized, _: (pipeline_response, deserialized),
+            **kwargs,
         )
         recovered_certificate = KeyVaultCertificate._from_certificate_bundle(recovered_cert_bundle)
         command = partial(self.get_certificate, certificate_name=certificate_name, **kwargs)
         polling_method = DeleteRecoverPollingMethod(
-            finished=False, command=command, final_resource=recovered_certificate, interval=polling_interval
+            finished=False,
+            pipeline_response=pipeline_response,
+            command=command,
+            final_resource=recovered_certificate,
+            interval=polling_interval
         )
 
         return KeyVaultOperationPoller(polling_method)
 
     @distributed_trace
-    def import_certificate(self, certificate_name: str, certificate_bytes: bytes, **kwargs: Any) -> KeyVaultCertificate:
+    def import_certificate(
+        self,
+        certificate_name: str,
+        certificate_bytes: bytes,
+        *,
+        enabled: Optional[bool] = None,
+        tags: Optional[Dict[str, str]] = None,
+        password: Optional[str] = None,
+        policy: Optional[CertificatePolicy] = None,
+        **kwargs: Any,
+    ) -> KeyVaultCertificate:
         """Import a certificate created externally. Requires certificates/import permission.
 
         Imports an existing valid certificate, containing a private key, into Azure Key Vault. The certificate to be
@@ -353,9 +386,6 @@ class CertificateClient(KeyVaultClientBase):
         :raises ~azure.core.exceptions.HttpResponseError:
         """
 
-        enabled = kwargs.pop("enabled", None)
-        policy = kwargs.pop("policy", None)
-
         if enabled is not None:
             attributes = self._models.CertificateAttributes(enabled=enabled)
         else:
@@ -364,10 +394,10 @@ class CertificateClient(KeyVaultClientBase):
 
         parameters = self._models.CertificateImportParameters(
             base64_encoded_certificate=base64_encoded_certificate,
-            password=kwargs.pop("password", None),
+            password=password,
             certificate_policy=policy._to_certificate_policy_bundle() if policy else None,
             certificate_attributes=attributes,
-            tags=kwargs.pop("tags", None),
+            tags=tags,
         )
 
         bundle = self._client.import_certificate(
@@ -420,7 +450,13 @@ class CertificateClient(KeyVaultClientBase):
 
     @distributed_trace
     def update_certificate_properties(
-        self, certificate_name: str, version: "Optional[str]" = None, **kwargs: Any
+        self,
+        certificate_name: str,
+        version: Optional[str] = None,
+        *,
+        enabled: Optional[bool] = None,
+        tags: Optional[Dict[str, str]] = None,
+        **kwargs: Any,
     ) -> KeyVaultCertificate:
         """Change a certificate's properties. Requires certificates/update permission.
 
@@ -445,15 +481,13 @@ class CertificateClient(KeyVaultClientBase):
                 :dedent: 8
         """
 
-        enabled = kwargs.pop("enabled", None)
-
         if enabled is not None:
             attributes = self._models.CertificateAttributes(enabled=enabled)
         else:
             attributes = None
 
         parameters = self._models.CertificateUpdateParameters(
-            certificate_attributes=attributes, tags=kwargs.pop("tags", None)
+            certificate_attributes=attributes, tags=tags
         )
 
         bundle = self._client.update_certificate(
@@ -772,7 +806,13 @@ class CertificateClient(KeyVaultClientBase):
 
     @distributed_trace
     def merge_certificate(
-        self, certificate_name: str, x509_certificates: "List[bytes]", **kwargs: Any
+        self,
+        certificate_name: str,
+        x509_certificates: List[bytes],
+        *,
+        enabled: Optional[bool] = None,
+        tags: Optional[Dict[str, str]] = None,
+        **kwargs: Any,
     ) -> KeyVaultCertificate:
         """Merges a certificate or a certificate chain with a key pair existing on the server.
 
@@ -796,15 +836,13 @@ class CertificateClient(KeyVaultClientBase):
         :raises ~azure.core.exceptions.HttpResponseError:
         """
 
-        enabled = kwargs.pop("enabled", None)
-
         if enabled is not None:
             attributes = self._models.CertificateAttributes(enabled=enabled)
         else:
             attributes = None
 
         parameters = self._models.CertificateMergeParameters(
-            x509_certificates=x509_certificates, certificate_attributes=attributes, tags=kwargs.pop("tags", None)
+            x509_certificates=x509_certificates, certificate_attributes=attributes, tags=tags
         )
 
         bundle = self._client.merge_certificate(
@@ -838,7 +876,18 @@ class CertificateClient(KeyVaultClientBase):
         return CertificateIssuer._from_issuer_bundle(issuer_bundle=issuer_bundle)
 
     @distributed_trace
-    def create_issuer(self, issuer_name: str, provider: str, **kwargs: Any) -> CertificateIssuer:
+    def create_issuer(
+        self,
+        issuer_name: str,
+        provider: str,
+        *,
+        enabled: Optional[bool] = None,
+        account_id: Optional[str] = None,
+        password: Optional[str] = None,
+        organization_id: Optional[str] = None,
+        admin_contacts: Optional[List[AdministratorContact]] = None,
+        **kwargs: Any,
+    ) -> CertificateIssuer:
         """Sets the specified certificate issuer. Requires certificates/setissuers permission.
 
         :param str issuer_name: The name of the issuer.
@@ -865,12 +914,6 @@ class CertificateClient(KeyVaultClientBase):
                 :caption: Create an issuer
                 :dedent: 8
         """
-
-        enabled = kwargs.pop("enabled", None)
-        account_id = kwargs.pop("account_id", None)
-        password = kwargs.pop("password", None)
-        organization_id = kwargs.pop("organization_id", None)
-        admin_contacts = kwargs.pop("admin_contacts", None)
 
         if account_id or password:
             issuer_credentials = self._models.IssuerCredentials(account_id=account_id, password=password)
@@ -910,7 +953,18 @@ class CertificateClient(KeyVaultClientBase):
         return CertificateIssuer._from_issuer_bundle(issuer_bundle=issuer_bundle)
 
     @distributed_trace
-    def update_issuer(self, issuer_name: str, **kwargs: Any) -> CertificateIssuer:
+    def update_issuer(
+        self,
+        issuer_name: str,
+        *,
+        enabled: Optional[bool] = None,
+        provider: Optional[str] = None,
+        account_id: Optional[str] = None,
+        password: Optional[str] = None,
+        organization_id: Optional[str] = None,
+        admin_contacts: Optional[List[AdministratorContact]] = None,
+        **kwargs: Any,
+    ) -> CertificateIssuer:
         """Updates the specified certificate issuer. Requires certificates/setissuers permission.
 
         :param str issuer_name: The name of the issuer.
@@ -928,12 +982,6 @@ class CertificateClient(KeyVaultClientBase):
 
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-
-        enabled = kwargs.pop("enabled", None)
-        account_id = kwargs.pop("account_id", None)
-        password = kwargs.pop("password", None)
-        organization_id = kwargs.pop("organization_id", None)
-        admin_contacts = kwargs.pop("admin_contacts", None)
 
         if account_id or password:
             issuer_credentials = self._models.IssuerCredentials(account_id=account_id, password=password)
@@ -961,7 +1009,7 @@ class CertificateClient(KeyVaultClientBase):
             issuer_attributes = None
 
         parameters = self._models.CertificateIssuerUpdateParameters(
-            provider=kwargs.pop("provider", None),
+            provider=provider,
             credentials=issuer_credentials,
             organization_details=organization_details,
             attributes=issuer_attributes,
@@ -1024,3 +1072,7 @@ class CertificateClient(KeyVaultClientBase):
             cls=lambda objs: [IssuerProperties._from_issuer_item(issuer_item=x) for x in objs],
             **kwargs
         )
+
+    def __enter__(self) -> "CertificateClient":
+        self._client.__enter__()
+        return self

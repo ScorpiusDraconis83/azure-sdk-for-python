@@ -35,7 +35,7 @@ import platform
 import xml.etree.ElementTree as ET
 import types
 import re
-from typing import IO, cast, Union, Optional, AnyStr, Dict, Any, Mapping, TYPE_CHECKING
+from typing import IO, cast, Union, Optional, AnyStr, Dict, Any, MutableMapping, TYPE_CHECKING
 
 from ... import __version__ as core_version
 from ...exceptions import DecodeError
@@ -64,9 +64,7 @@ class HeadersPolicy(SansIOHTTPPolicy[HTTPRequestType, HTTPResponseType]):
     :param dict base_headers: Headers to send with the request.
     """
 
-    def __init__(
-        self, base_headers: Optional[Dict[str, str]] = None, **kwargs: Any
-    ) -> None:  # pylint: disable=super-init-not-called
+    def __init__(self, base_headers: Optional[Dict[str, str]] = None, **kwargs: Any) -> None:
         self._headers: Dict[str, str] = base_headers or {}
         self._headers.update(kwargs.pop("headers", {}))
 
@@ -114,9 +112,7 @@ class UserAgentPolicy(SansIOHTTPPolicy[HTTPRequestType, HTTPResponseType]):
     _USERAGENT = "User-Agent"
     _ENV_ADDITIONAL_USER_AGENT = "CORE_HTTP_USER_AGENT"
 
-    def __init__(
-        self, base_user_agent: Optional[str] = None, **kwargs: Any
-    ) -> None:  # pylint: disable=super-init-not-called
+    def __init__(self, base_user_agent: Optional[str] = None, **kwargs: Any) -> None:
         self.overwrite: bool = kwargs.pop("user_agent_overwrite", False)
         self.use_env: bool = kwargs.pop("user_agent_use_env", True)
         application_id: Optional[str] = kwargs.pop("user_agent", None)
@@ -172,7 +168,6 @@ class UserAgentPolicy(SansIOHTTPPolicy[HTTPRequestType, HTTPResponseType]):
 
 
 class NetworkTraceLoggingPolicy(SansIOHTTPPolicy[HTTPRequestType, HTTPResponseType]):
-
     """The logging policy in the pipeline is used to output HTTP network trace to the configured logger.
 
     This accepts both global configuration, and per-request level with "enable_http_logger"
@@ -183,9 +178,7 @@ class NetworkTraceLoggingPolicy(SansIOHTTPPolicy[HTTPRequestType, HTTPResponseTy
     def __init__(self, logging_enable: bool = False, **kwargs: Any):  # pylint: disable=unused-argument
         self.enable_http_logger = logging_enable
 
-    def on_request(
-        self, request: PipelineRequest[HTTPRequestType]
-    ) -> None:  # pylint: disable=too-many-return-statements
+    def on_request(self, request: PipelineRequest[HTTPRequestType]) -> None:
         """Logs HTTP request to the DEBUG logger.
 
         :param request: The PipelineRequest object.
@@ -449,13 +442,13 @@ class ProxyPolicy(SansIOHTTPPolicy[HTTPRequestType, HTTPResponseType]):
     Dictionary mapping protocol or protocol and host to the URL of the proxy
     to be used on each Request.
 
-    :param dict proxies: Maps protocol or protocol and hostname to the URL
+    :param MutableMapping proxies: Maps protocol or protocol and hostname to the URL
      of the proxy.
     """
 
     def __init__(
-        self, proxies: Optional[Mapping[str, str]] = None, **kwargs: Any
-    ):  # pylint: disable=unused-argument,super-init-not-called
+        self, proxies: Optional[MutableMapping[str, str]] = None, **kwargs: Any
+    ):  # pylint: disable=unused-argument
         self.proxies = proxies
 
     def on_request(self, request: PipelineRequest[HTTPRequestType]) -> None:

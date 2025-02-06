@@ -7,16 +7,15 @@
 Follow our quickstart for examples: https://aka.ms/azsdk/python/dpcodegen/python/customize
 """
 from typing import Any, List, Union
-
 from azure.core.credentials import AzureKeyCredential, TokenCredential
-
 from ._client import (
     DocumentIntelligenceClient as DIClientGenerated,
     DocumentIntelligenceAdministrationClient as DIAClientGenerated,
 )
+from ._operations._patch import AnalyzeDocumentLROPoller
 
 
-class DocumentIntelligenceClient(DIClientGenerated):  # pylint: disable=client-accepts-api-version-keyword
+class DocumentIntelligenceClient(DIClientGenerated):
     """DocumentIntelligenceClient.
 
     :param endpoint: The Document Intelligence service endpoint. Required.
@@ -26,9 +25,11 @@ class DocumentIntelligenceClient(DIClientGenerated):  # pylint: disable=client-a
     :type credential: ~azure.core.credentials.AzureKeyCredential or
      ~azure.core.credentials.TokenCredential
     :keyword api_version: The API version to use for this operation. Default value is
-     "2023-10-31-preview". Note that overriding this default value may result in unsupported
+     "2024-11-30". Note that overriding this default value may result in unsupported
      behavior.
     :paramtype api_version: str
+    :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
+     Retry-After header is present.
     """
 
     def __init__(
@@ -37,8 +38,8 @@ class DocumentIntelligenceClient(DIClientGenerated):  # pylint: disable=client-a
         credential: Union[AzureKeyCredential, TokenCredential],
         **kwargs: Any,
     ) -> None:
-        # The default polling interval should be 5 seconds.
-        polling_interval = kwargs.pop("polling_interval", 5)
+        # Patch the default polling interval to be 1s.
+        polling_interval = kwargs.pop("polling_interval", 1)
         super().__init__(
             endpoint=endpoint,
             credential=credential,
@@ -47,9 +48,7 @@ class DocumentIntelligenceClient(DIClientGenerated):  # pylint: disable=client-a
         )
 
 
-class DocumentIntelligenceAdministrationClient(
-    DIAClientGenerated
-):  # pylint: disable=client-accepts-api-version-keyword
+class DocumentIntelligenceAdministrationClient(DIAClientGenerated):
     """DocumentIntelligenceAdministrationClient.
 
     :param endpoint: The Document Intelligence service endpoint. Required.
@@ -59,9 +58,11 @@ class DocumentIntelligenceAdministrationClient(
     :type credential: ~azure.core.credentials.AzureKeyCredential or
      ~azure.core.credentials.TokenCredential
     :keyword api_version: The API version to use for this operation. Default value is
-     "2023-10-31-preview". Note that overriding this default value may result in unsupported
+     "2024-11-30". Note that overriding this default value may result in unsupported
      behavior.
     :paramtype api_version: str
+    :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
+     Retry-After header is present.
     """
 
     def __init__(
@@ -70,8 +71,8 @@ class DocumentIntelligenceAdministrationClient(
         credential: Union[AzureKeyCredential, TokenCredential],
         **kwargs: Any,
     ) -> None:
-        # The default polling interval should be 5 seconds.
-        polling_interval = kwargs.pop("polling_interval", 5)
+        # Patch the default polling interval to be 1s.
+        polling_interval = kwargs.pop("polling_interval", 1)
         super().__init__(
             endpoint=endpoint,
             credential=credential,
@@ -83,6 +84,7 @@ class DocumentIntelligenceAdministrationClient(
 __all__: List[str] = [
     "DocumentIntelligenceClient",
     "DocumentIntelligenceAdministrationClient",
+    "AnalyzeDocumentLROPoller",
 ]  # Add all objects you want publicly available to users at this package level
 
 
